@@ -1337,6 +1337,13 @@ export const en: Textos = {
     "Only the services that deliver to every country of the market. The maximum weight comes from the service: confirm it.",
   metodosSemServicosNoMercado:
     "This account has no services for every country of the market. Test the account again or choose another.",
+  metodosOndeEntrega: "Where it delivers",
+  metodosEntregaMorada: "At the customer's address",
+  metodosEntregaPonto: "At a pickup point",
+  metodosEntregaMoradaAjuda:
+    "The carrier delivers to the address the customer writes at checkout.",
+  metodosEntregaPontoAjuda:
+    "The customer chooses a pickup point or locker at checkout and does not write a home address. Only services that deliver to points.",
   metodosPrazoMax: "Maximum delivery time, in days (1 to 30)",
   metodosPrazoMaxAjuda:
     "Counted from the day after the order. The customer sees the delivery deadline before buying and in the confirmation.",
@@ -1498,6 +1505,9 @@ export const en: Textos = {
   expedirSoVer:
     "Your role can only view shipments: it cannot create or change them.",
   expedirQuemRecebe: "Recipient",
+  expedirPontoRecolha: "Pickup point:",
+  expedirPontoAjuda:
+    "The carrier leaves the order at the point and the customer collects it there. It only counts as delivered when they collect it.",
   expedirTelefone: "Phone:",
   expedirLinhas: "Items",
   expedirColunaArtigo: "Item",

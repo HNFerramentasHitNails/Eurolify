@@ -1335,6 +1335,13 @@ export const pt = {
     "Só os serviços que entregam em todos os países do mercado. O peso máximo vem do serviço: confirme-o.",
   metodosSemServicosNoMercado:
     "Esta conta não tem serviços para todos os países do mercado. Teste a conta outra vez ou escolha outra.",
+  metodosOndeEntrega: "Onde entrega",
+  metodosEntregaMorada: "Na morada do cliente",
+  metodosEntregaPonto: "Num ponto de recolha",
+  metodosEntregaMoradaAjuda:
+    "A transportadora entrega na morada que o cliente escreve no checkout.",
+  metodosEntregaPontoAjuda:
+    "O cliente escolhe um ponto de recolha ou cacifo no checkout e não escreve a morada de casa. Só os serviços que entregam em pontos.",
   metodosPrazoMax: "Prazo máximo de entrega, em dias (1 a 30)",
   metodosPrazoMaxAjuda:
     "Conta a partir do dia seguinte à encomenda. O cliente vê a data-limite de entrega antes de comprar e na confirmação.",
@@ -1490,6 +1497,9 @@ export const pt = {
   expedirVoltar: "Voltar a «Expedir»",
   expedirSoVer: "O seu papel só vê as expedições: não cria nem muda.",
   expedirQuemRecebe: "Quem recebe",
+  expedirPontoRecolha: "Ponto de recolha:",
+  expedirPontoAjuda:
+    "A transportadora deixa a encomenda no ponto e o cliente levanta-a lá. Só fica entregue quando ele a levanta.",
   expedirTelefone: "Telefone:",
   expedirLinhas: "Artigos",
   expedirColunaArtigo: "Artigo",

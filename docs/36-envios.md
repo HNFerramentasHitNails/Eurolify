@@ -1299,4 +1299,16 @@ se `carrier_code` é a parte do código do serviço antes de «:» em todas as
 transportadoras da Sendcloud (**W**).
 
 **Por fazer:** o pedido 2 (Hub: o campo no método e o ponto em «Expedir»,
-com capturas).
+com capturas), em §21.11.
+
+### 21.11 O Hub (pedido 2; 13/10/2026)
+
+| O quê | Onde |
+|---|---|
+| no formulário do método, com uma transportadora: «Onde entrega» (na morada do cliente / num ponto de recolha); mudar apaga o serviço e a lista mostra só os serviços do mesmo tipo; um método manual entrega sempre na morada | `src/ecras/EnviosMetodos.tsx`, `src/envios-metodos.ts` |
+| a lista dos métodos marca os que entregam num ponto | `src/ecras/EnviosMetodos.tsx` |
+| em «Expedir», «Quem recebe» mostra o ponto de recolha antes da morada dele e diz que só fica entregue quando o cliente levanta | `src/ecras/Expedir.tsx` |
+| os textos em PT, ES e EN | `src/textos/` |
+| os testes do apoio (o tipo do serviço, o método manual, o PATCH) e as capturas a 375, 768 e 1280 px, claro e escuro, com respostas simuladas (em modo teste a Sendcloud não tem serviços de ponto) | `test/envios-metodos.test.ts`, `scripts/capturas.mjs` |
+
+O aspecto vai ao Diogo com as capturas antes de se juntar.

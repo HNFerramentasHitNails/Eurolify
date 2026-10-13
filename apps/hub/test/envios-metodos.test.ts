@@ -31,6 +31,7 @@ const metodo = (m: Partial<MetodoEntrega> = {}): MetodoEntrega => ({
   codigos_postais: [],
   aceita_onu: [],
   peso_max_g: null,
+  entrega: "morada",
   estado: "activo",
   versao: 1,
   ...m,
@@ -47,6 +48,7 @@ const formulario = (f: Partial<FormularioMetodo> = {}): FormularioMetodo => ({
   prazoMaxDias: "5",
   prefixos: "",
   pesoMaxG: "",
+  entrega: "morada",
   ...f,
 });
 
@@ -89,6 +91,7 @@ describe("métodos de entrega no Hub", () => {
         prazo_max_dias: 5,
         codigos_postais: ["1", "2"],
         peso_max_g: 2000,
+        entrega: "morada",
       },
       falta: null,
     });
@@ -108,6 +111,23 @@ describe("métodos de entrega no Hub", () => {
     expect(
       conferirMetodo(formulario({ servico: "x" }), "pt", 2).campos?.servico,
     ).toBeNull();
+  });
+
+  it("onde entrega: um método manual é sempre na morada; num ponto, vai no PATCH (docs/36 §21)", () => {
+    expect(
+      conferirMetodo(formulario({ entrega: "ponto" }), "pt", 2).campos?.entrega,
+    ).toBe("morada");
+    const ponto = conferirMetodo(
+      formulario({ entrega: "ponto", conta: "cac_a", servico: "p1" }),
+      "pt",
+      2,
+    ).campos;
+    expect(ponto?.entrega).toBe("ponto");
+    expect(
+      ponto === null
+        ? null
+        : camposMudados(metodo({ conta: "cac_a", servico: "p1" }), ponto),
+    ).toMatchObject({ entrega: "ponto" });
   });
 
   it("no PATCH só vai o que mudou; a conta e o serviço vão juntos", () => {
@@ -169,20 +189,31 @@ describe("métodos de entrega no Hub", () => {
     expect(nomeNaLingua({ pt: "Correio", en: "Mail" }, "en")).toBe("Mail");
     expect(nomeNaLingua({ pt: "Correio" }, "es", "pt")).toBe("Correio");
     expect(nomeNaLingua({}, "es")).toBe("");
-    const servico = (codigo: string, paises: string[]): ServicoConta => ({
+    const servico = (
+      codigo: string,
+      paises: string[],
+      ponto = false,
+    ): ServicoConta => ({
       codigo,
       nome: { en: codigo },
       paises,
       peso_max_g: null,
       pede_telefone: false,
       pede_email: false,
+      ponto,
     });
+    const todos = [
+      servico("so-pt", ["PT"]),
+      servico("pt-es", ["PT", "ES"]),
+      servico("ponto-pt-es", ["PT", "ES"], true),
+    ];
     expect(
-      servicosParaOMercado(
-        [servico("so-pt", ["PT"]), servico("pt-es", ["PT", "ES"])],
-        ["PT", "ES"],
-      ).map((s) => s.codigo),
+      servicosParaOMercado(todos, ["PT", "ES"]).map((s) => s.codigo),
     ).toEqual(["pt-es"]);
+    // Um método num ponto só mostra os serviços de ponto (docs/36 §21).
+    expect(
+      servicosParaOMercado(todos, ["PT", "ES"], "ponto").map((s) => s.codigo),
+    ).toEqual(["ponto-pt-es"]);
   });
 
   it("os erros do servidor dizem-se com o texto deste ecrã", () => {

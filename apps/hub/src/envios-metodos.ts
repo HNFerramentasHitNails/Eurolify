@@ -71,8 +71,14 @@ export function metodosAMostrar(
 export function servicosParaOMercado(
   servicos: readonly ServicoConta[],
   paises: readonly string[],
+  entrega: "morada" | "ponto" = "morada",
 ): ServicoConta[] {
-  return servicos.filter((s) => paises.every((p) => s.paises.includes(p)));
+  // Um método num ponto só aceita serviços de ponto, e o contrário (§21).
+  return servicos.filter(
+    (s) =>
+      paises.every((p) => s.paises.includes(p)) &&
+      s.ponto === (entrega === "ponto"),
+  );
 }
 
 /** O que se escreve no formulário de um método, como texto. */
@@ -87,6 +93,8 @@ export interface FormularioMetodo {
   prazoMaxDias: string;
   prefixos: string;
   pesoMaxG: string;
+  /** Onde entrega (docs/36 §21); um método manual entrega sempre na morada. */
+  entrega: "morada" | "ponto";
 }
 
 export type CampoMetodo =
@@ -162,6 +170,7 @@ export function conferirMetodo(
       prazo_max_dias: prazoMaxDias,
       codigos_postais: prefixos,
       peso_max_g: pesoMaxG,
+      entrega: f.conta === "" ? "morada" : f.entrega,
     },
     falta: null,
   };
@@ -188,6 +197,7 @@ export function camposMudados(
     prazo_max_dias: antes.prazo_max_dias,
     codigos_postais: antes.codigos_postais,
     peso_max_g: antes.peso_max_g,
+    entrega: antes.entrega,
   };
   const mudados: Partial<CamposMetodoEntrega> = {};
   for (const k of Object.keys(depois) as (keyof CamposMetodoEntrega)[]) {
