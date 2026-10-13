@@ -56,7 +56,7 @@ describe.skipIf(URL_BASE === undefined)(
     let deB: string;
 
     const pedir = (
-      metodo: "POST" | "GET",
+      metodo: "POST" | "GET" | "PUT" | "DELETE",
       url: string,
       corpo?: unknown,
       segredo = dono,
@@ -320,7 +320,7 @@ describe.skipIf(URL_BASE === undefined)(
           prq,
           {
             prorrogado_ate: maisDias(String(r["prazo_legal"]), 1),
-            motivo: "muitos pedidos",
+            motivo: "numero_de_pedidos",
             titular_informado_em: hojeEmLisboa(),
           },
           semPrivacidade,
@@ -352,7 +352,7 @@ describe.skipIf(URL_BASE === undefined)(
           prq,
           {
             prorrogado_ate: maisDias(String(r["prazo_legal"]), 1),
-            motivo: "muitos pedidos",
+            motivo: "numero_de_pedidos",
             titular_informado_em: hojeEmLisboa(),
           },
           deB,
@@ -377,7 +377,7 @@ describe.skipIf(URL_BASE === undefined)(
       const hoje = hojeEmLisboa();
       const corpo = {
         prorrogado_ate: limite,
-        motivo: "complexidade: três encomendas e duas lojas",
+        motivo: "complexidade",
         titular_informado_em: hoje,
       };
       // Para lá dos dois meses (leitura conservadora, C).
@@ -403,7 +403,11 @@ describe.skipIf(URL_BASE === undefined)(
         400,
         "customers.invalid_field",
       );
-      await recusa(prorrogar(prq, { ...corpo, motivo: "   " }), 400);
+      // O motivo é da lista do art. 12.º, n.º 3, sem texto livre.
+      await recusa(
+        prorrogar(prq, { ...corpo, motivo: "três encomendas da Ana" }),
+        400,
+      );
       const p = await ok(prorrogar(prq, corpo));
       expect(p).toMatchObject({
         estado: "aberto",
@@ -420,19 +424,233 @@ describe.skipIf(URL_BASE === undefined)(
       );
     });
 
-    it("depois de passar o mês já não se prorroga", async () => {
+    it("depois do mês regista-se a prorrogação se o titular foi informado dentro dele; depois do prazo legal, não (P2-3)", async () => {
       const id = await ficha();
       const r = await recebido(id, { recebido_em: haDias(40) });
       const { dia, limite } = await dias(String(r["id"]));
+      // O titular informado depois do prazo legal: a lei não se cumpriu.
       await recusa(
         prorrogar(String(r["id"]), {
           prorrogado_ate: limite,
-          motivo: "muitos pedidos",
-          titular_informado_em: maisDias(dia, 1),
+          motivo: "numero_de_pedidos",
+          titular_informado_em: maisDias(String(r["prazo_legal"]), 1),
         }),
-        409,
-        "customers.invalid_transition",
+        400,
+        "customers.invalid_field",
       );
+      // Informado dentro do mês e registado hoje: é só registo.
+      expect(
+        await ok(
+          prorrogar(String(r["id"]), {
+            prorrogado_ate: limite,
+            motivo: "numero_de_pedidos",
+            titular_informado_em: maisDias(dia, 1),
+          }),
+        ),
+      ).toMatchObject({
+        prorrogado_ate: limite,
+        titular_informado_em: maisDias(dia, 1),
+      });
+    });
+
+    it("prorrogar e fechar são decisões de uma pessoa ou de uma chave (P3-3)", async () => {
+      const id = await ficha();
+      const r = await recebido(id);
+      const prq = String(r["id"]).slice(4);
+      const { limite } = await dias(String(r["id"]));
+      // `comoDono` escreve com quem = «teste:sql», que não é pessoa nem chave.
+      expect(
+        await erroDe(
+          comoDono((t) =>
+            sql`select pedido_recebido_prorrogar(${prq}::uuid, ${limite}::date,
+              'complexidade', current_date)`.execute(t),
+          ),
+        ),
+      ).toMatch(/^customers\.change_without_who:/);
+      expect(
+        await erroDe(
+          comoDono((t) =>
+            sql`select pedido_recebido_fechar(${prq}::uuid, 'respondido', current_date,
+              null)`.execute(t),
+          ),
+        ),
+      ).toMatch(/^customers\.change_without_who:/);
+    });
+
+    it("prorrogar depois do aviso de vencido limpa o aviso, com a linha no rasto: o caso pode ser avisado outra vez (P2-1)", async () => {
+      const id = await ficha();
+      // Chegou há 25 dias: o prazo da tarefa (7 dias antes do legal) já passou.
+      const r = await recebido(id, { recebido_em: haDias(25) });
+      const prq = String(r["id"]).slice(4);
+      expect(
+        await comoDono(async (t) => {
+          const { rows } = await sql<{ ok: boolean }>`
+            select tarefas_marcar_vencida('pedido_titular', ${prq}::uuid) as ok`.execute(
+            t,
+          );
+          return rows[0]?.ok;
+        }),
+      ).toBe(true);
+      const { limite } = await dias(String(r["id"]));
+      await ok(
+        prorrogar(String(r["id"]), {
+          prorrogado_ate: limite,
+          motivo: "complexidade",
+          titular_informado_em: hojeEmLisboa(),
+        }),
+      );
+      const depois = await comoDono(async (t) => {
+        const { rows } = await sql<{
+          aviso: Date | null;
+          versao: number;
+          actos: string[];
+        }>`
+          select a.aviso_vencido_em as aviso, a.versao,
+            array(select z.acto from atribuicao_rasto z where z.atribuicao_id = a.id
+                  order by z.em, z.id) as actos
+          from atribuicao a
+          where a.fila = 'pedido_titular' and a.caso = ${prq}::uuid`.execute(t);
+        return rows[0];
+      });
+      expect(depois).toEqual({
+        aviso: null,
+        versao: 1,
+        actos: ["vencida", "prazo_mudado"],
+      });
+      // O e-mail do aviso antigo já não espera (0071): o prazo mudou depois.
+      const t = (
+        (await ok(pedir("GET", "/tasks?fila=pedido_titular&limite=100")))[
+          "dados"
+        ] as Json[]
+      ).find((x) => x["caso"] === `prq_${prq}`);
+      expect(t).toMatchObject({
+        aviso_vencido_em: null,
+        vencida: false,
+        motivo: "prorrogado",
+      });
+    });
+
+    it("o pedido executado é do tipo que responde e do dia da chegada ou depois (P3-1)", async () => {
+      const id = await ficha();
+      const hoje = hojeEmLisboa();
+      const verificacao = "resposta do e-mail da ficha a 13/10/2026";
+      const exportado = await ok(
+        pedir("POST", `/customers/${id}/export`, { verificacao }),
+      );
+      // A limitação e o fim dela registam pedidos `limitacao` e `fim_da_limitacao`.
+      await ok(pedir("PUT", `/customers/${id}/restriction`, { verificacao }));
+      await ok(
+        pedir("DELETE", `/customers/${id}/restriction`, { verificacao }),
+      );
+      const pedidos = (
+        await ok(pedir("GET", `/customers/${id}/privacy-requests`))
+      )["dados"] as Json[];
+      const doTipo = (tipo: string) =>
+        pedidos.find((p) => p["tipo"] === tipo)?.["id"];
+      // A rectificação, a oposição e «outro» não se executam no Eurolify.
+      for (const tipo of ["rectificacao", "oposicao", "outro"]) {
+        const x = await recebido(id, { tipo });
+        await recusa(
+          fechar(String(x["id"]), {
+            fim: "executado",
+            em: hoje,
+            pedido: exportado["pedido"],
+          }),
+          409,
+          "customers.invalid_transition",
+        );
+      }
+      // O tipo do pedido executado tem de responder ao recebido.
+      for (const [tipo, errado] of [
+        ["apagamento", exportado["pedido"]],
+        ["acesso", doTipo("limitacao")],
+        ["portabilidade", doTipo("fim_da_limitacao")],
+        ["limitacao", exportado["pedido"]],
+      ] as const) {
+        const x = await recebido(id, { tipo });
+        await recusa(
+          fechar(String(x["id"]), {
+            fim: "executado",
+            em: hoje,
+            pedido: errado,
+          }),
+          400,
+          "customers.invalid_field",
+        );
+      }
+      // Os que respondem: a exportação à portabilidade, o fim da limitação à limitação.
+      const port = await recebido(id, { tipo: "portabilidade" });
+      await ok(
+        fechar(String(port["id"]), {
+          fim: "executado",
+          em: hoje,
+          pedido: exportado["pedido"],
+        }),
+      );
+      const lim = await recebido(id, { tipo: "limitacao" });
+      await ok(
+        fechar(String(lim["id"]), {
+          fim: "executado",
+          em: hoje,
+          pedido: doTipo("fim_da_limitacao"),
+        }),
+      );
+      // Um pedido executado antes do dia da chegada não lhe responde.
+      const antigo = await comoDono(async (t) => {
+        const { rows } = await sql<{ id: string }>`
+          insert into pedido_titular (comerciante_id, cliente_id, tipo, verificacao, quem, em)
+          values (${a}::uuid, ${id.slice(4)}::uuid, 'exportacao', ${verificacao},
+            'teste:sql', now() - interval '3 days')
+          returning id`.execute(t);
+        return `dsr_${String(rows[0]?.id)}`;
+      });
+      const tarde = await recebido(id, {
+        tipo: "acesso",
+        recebido_em: haDias(1),
+      });
+      await recusa(
+        fechar(String(tarde["id"]), {
+          fim: "executado",
+          em: hoje,
+          pedido: antigo,
+        }),
+        400,
+        "customers.invalid_field",
+      );
+    });
+
+    it("o pedido executado de outro comerciante é recusado, também pelo dono das tabelas (P3-2)", async () => {
+      const id = await ficha();
+      const r = await recebido(id, { tipo: "acesso" });
+      const deOutraLoja = await ficha(deB);
+      const deB_ = await ok(
+        pedir(
+          "POST",
+          `/customers/${deOutraLoja}/export`,
+          { verificacao: "resposta do e-mail da ficha a 13/10/2026" },
+          deB,
+        ),
+      );
+      await recusa(
+        fechar(String(r["id"]), {
+          fim: "executado",
+          em: hojeEmLisboa(),
+          pedido: deB_["pedido"],
+        }),
+        404,
+        "customers.not_found",
+      );
+      // Sem a função: a chave estrangeira composta recusa.
+      expect(
+        await erroDe(
+          comoDono((t) =>
+            sql`update pedido_titular_recebido
+              set estado = 'executado', fechado_em = recebido_dia,
+                pedido_titular_id = ${String(deB_["pedido"]).slice(4)}::uuid
+              where id = ${String(r["id"]).slice(4)}::uuid`.execute(t),
+          ),
+        ),
+      ).toMatch(/pedido_recebido_pedido_do_comerciante/);
     });
 
     it("fecha uma vez: executado com o pedido do mesmo titular, respondido ou recusado, com o dia (T3)", async () => {
@@ -510,7 +728,7 @@ describe.skipIf(URL_BASE === undefined)(
       await recusa(
         prorrogar(prq, {
           prorrogado_ate: maisDias(String(r["prazo_legal"]), 1),
-          motivo: "muitos pedidos",
+          motivo: "numero_de_pedidos",
           titular_informado_em: hoje,
         }),
         409,
@@ -636,7 +854,9 @@ describe.skipIf(URL_BASE === undefined)(
       const r = await recebido(id, { recebido_em: haDias(2) });
       const prq = String(r["id"]);
       const caso = async () => {
-        const l = await ok(pedir("GET", "/tasks?fila=pedido_titular"));
+        const l = await ok(
+          pedir("GET", "/tasks?fila=pedido_titular&limite=100"),
+        );
         return (l["dados"] as Json[]).find((t) => t["caso"] === prq);
       };
       const t = await caso();
@@ -647,8 +867,11 @@ describe.skipIf(URL_BASE === undefined)(
         encomenda: null,
         vencida: false,
       });
-      const fim = meiaNoiteEmLisboa(maisDias(String(r["prazo_legal"]), 1));
-      expect(Date.parse(String(t?.["prazo"]))).toBe(fim - 7 * 86_400_000);
+      // 7 dias antes do fim (a meia-noite do dia a seguir ao prazo legal): a
+      // meia-noite de Lisboa de `prazo_legal - 6`.
+      expect(Date.parse(String(t?.["prazo"]))).toBe(
+        meiaNoiteEmLisboa(maisDias(String(r["prazo_legal"]), -6)),
+      );
       // Sem customers:privacy, a fila nem aparece.
       const sem = await ok(pedir("GET", "/tasks", undefined, semPrivacidade));
       expect(sem["filas"]).toEqual(["duplicado_cliente"]);
@@ -657,14 +880,14 @@ describe.skipIf(URL_BASE === undefined)(
       await ok(
         prorrogar(prq, {
           prorrogado_ate: limite,
-          motivo: "número de pedidos",
+          motivo: "numero_de_pedidos",
           titular_informado_em: hojeEmLisboa(),
         }),
       );
       const p = await caso();
       expect(p).toMatchObject({ motivo: "prorrogado", prazo_legal: limite });
       expect(Date.parse(String(p?.["prazo"]))).toBe(
-        meiaNoiteEmLisboa(maisDias(limite, 1)) - 7 * 86_400_000,
+        meiaNoiteEmLisboa(maisDias(limite, -6)),
       );
       // Na mesma passagem: entrou quando foi registado.
       expect(p?.["entrou_em"]).toBe(t?.["entrou_em"]);
@@ -675,7 +898,7 @@ describe.skipIf(URL_BASE === undefined)(
     it("um pedido registado tarde vence logo, com o prazo na hora em que entrou", async () => {
       const id = await ficha();
       const r = await recebido(id, { recebido_em: haDias(40) });
-      const l = await ok(pedir("GET", "/tasks?fila=pedido_titular"));
+      const l = await ok(pedir("GET", "/tasks?fila=pedido_titular&limite=100"));
       const t = (l["dados"] as Json[]).find((x) => x["caso"] === r["id"]);
       expect(t).toMatchObject({ vencida: true });
       expect(t?.["prazo"]).toBe(t?.["entrou_em"]);

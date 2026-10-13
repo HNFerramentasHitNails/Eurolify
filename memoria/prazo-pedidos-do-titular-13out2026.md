@@ -7,7 +7,8 @@ até se saber quem é), Q-P3 «a» (o aviso do prazo passado); `docs/06` EO;
 `docs/23` §15.14 e §15.15.
 
 - Parte 1 (migração 0092): `pedido_titular_recebido` (`prq_`), o prazo legal
-  de um mês gerado na base, a prorrogação uma vez dentro do primeiro mês, os
+  de um mês gerado na base, a prorrogação uma vez (o titular informado dentro
+  do primeiro mês; o motivo da lista do art. 12.º, n.º 3), os
   três fins, a nona fila `pedido_titular` no «A decidir» (prazo 7 dias antes
   do legal). Escrita por um agente construtor (Opus 5.5) a partir da
   especificação; revista na sessão.

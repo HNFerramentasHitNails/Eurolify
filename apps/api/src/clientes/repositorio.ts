@@ -6,6 +6,7 @@ import {
   type BaseDados,
   type CanalPedidoRecebido,
   type EstadoPedidoRecebido,
+  type MotivoProrrogacao,
   type TipoPedidoRecebido,
   type CanalConsentimento,
   type EstadoDuplicado,
@@ -1670,7 +1671,7 @@ export interface PedidoRecebido {
   recebido_em: Date;
   prazo_legal: string;
   prorrogado_ate: string | null;
-  prorrogado_motivo: string | null;
+  prorrogado_motivo: MotivoProrrogacao | null;
   titular_informado_em: string | null;
   estado: EstadoPedidoRecebido;
   fechado_em: string | null;
@@ -1712,7 +1713,7 @@ export async function prorrogarPedidoRecebido(
   comercianteId: string,
   id: string,
   ate: string,
-  motivo: string,
+  motivo: MotivoProrrogacao,
   informadoEm: string,
 ): Promise<void> {
   await noClientes(db, comercianteId, (trx) =>

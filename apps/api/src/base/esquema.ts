@@ -943,6 +943,15 @@ export const ESTADOS_PEDIDO_RECEBIDO = [
   "recusado",
 ] as const;
 export type EstadoPedidoRecebido = (typeof ESTADOS_PEDIDO_RECEBIDO)[number];
+/**
+ * Os motivos da prorrogação: os dois que o RGPD, art. 12.º, n.º 3 refere
+ * («a complexidade do pedido e o número de pedidos»). Lista fechada.
+ */
+export const MOTIVOS_PRORROGACAO = [
+  "complexidade",
+  "numero_de_pedidos",
+] as const;
+export type MotivoProrrogacao = (typeof MOTIVOS_PRORROGACAO)[number];
 /** Os fins de um pedido recebido (todos os estados menos `aberto`). */
 export const FINS_PEDIDO_RECEBIDO = [
   "executado",
@@ -962,7 +971,7 @@ export interface TabelaPedidoTitularRecebido {
   /** Um mês depois do dia em que chegou; calculado na base (coluna gerada). */
   prazo_legal: ColumnType<Date | string, never, never>;
   prorrogado_ate: ColumnType<Date | string | null, never, never>;
-  prorrogado_motivo: ColumnType<string | null, never, never>;
+  prorrogado_motivo: ColumnType<MotivoProrrogacao | null, never, never>;
   titular_informado_em: ColumnType<Date | string | null, never, never>;
   estado: ColumnType<EstadoPedidoRecebido, never, never>;
   fechado_em: ColumnType<Date | string | null, never, never>;

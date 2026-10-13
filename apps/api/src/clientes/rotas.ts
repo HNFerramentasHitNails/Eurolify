@@ -11,6 +11,7 @@ import {
   ENTIDADES_DO_RASTO_CLIENTE,
   ESTADOS_PEDIDO_RECEBIDO,
   FINS_PEDIDO_RECEBIDO,
+  MOTIVOS_PRORROGACAO,
   ESTADOS_DUPLICADO,
   ESTADOS_VIES,
   SINAIS_DUPLICADO,
@@ -18,6 +19,7 @@ import {
   TIPOS_PEDIDO_RECEBIDO,
   TIPOS_PEDIDO_TITULAR,
   type BaseDados,
+  type MotivoProrrogacao,
   type TipoDeAnexo,
 } from "../base/esquema.js";
 import {
@@ -866,11 +868,11 @@ const PedidoRegistarRecebido = Type.Object(
 const PedidoProrrogar = Type.Object(
   {
     prorrogado_ate: Dia,
-    motivo: Type.String({
-      minLength: 1,
-      maxLength: 200,
+    motivo: Type.Unsafe<MotivoProrrogacao>({
+      type: "string",
+      enum: [...MOTIVOS_PRORROGACAO],
       description:
-        "Porquê (complexidade, número de pedidos), sem dados da pessoa: nem o nome, nem o contacto, nem o que pediu",
+        "Porquê: os dois motivos do RGPD, art. 12.º, n.º 3 («a complexidade do pedido e o número de pedidos»). Lista fechada, sem texto livre",
     }),
     titular_informado_em: Type.String({
       format: "date",
@@ -909,7 +911,7 @@ const PedidoRecebidoEsquema = Type.Object({
       "Um mês depois do dia em que chegou, no fuso do comerciante (art. 12.º, n.º 3); calculado pelo Eurolify",
   }),
   prorrogado_ate: Type.Union([Type.String({ format: "date" }), Type.Null()]),
-  prorrogado_motivo: Type.Union([Type.String(), Type.Null()]),
+  prorrogado_motivo: Type.Union([umDe(MOTIVOS_PRORROGACAO), Type.Null()]),
   titular_informado_em: Type.Union([
     Type.String({ format: "date" }),
     Type.Null(),
@@ -2102,7 +2104,7 @@ export function rotasDosClientes(
       config: privacidade,
       schema: {
         description:
-          "Prorroga o prazo, uma vez, enquanto o mês ainda não passou (RGPD art. 12.º, n.º 3): até dois meses depois da chegada (leitura conservadora, por confirmar com o jurista), com o motivo e o dia em que o titular foi informado, dentro do primeiro mês.",
+          "Prorroga o prazo, uma vez (RGPD art. 12.º, n.º 3): até dois meses depois da chegada (leitura conservadora, por confirmar com o jurista), com o motivo (complexidade ou número de pedidos) e o dia em que o titular foi informado, que tem de ser dentro do primeiro mês (pode registar-se depois). Se o caso já tinha sido avisado de vencido, o prazo novo permite um aviso novo. Decisão de uma pessoa ou da chave dela.",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdPedidoRecebido),
         body: PedidoProrrogar,
@@ -2134,7 +2136,7 @@ export function rotasDosClientes(
       config: privacidade,
       schema: {
         description:
-          "Fecha o pedido recebido, uma vez, com o dia (docs/23 §15.14, T3): executado (com o pedido executado, dsr_…, do mesmo titular), respondido fora do Eurolify, ou recusado (o dia em que se informou o titular das razões, art. 12.º, n.º 4). Fechado, não muda nem se apaga; sai da fila das tarefas.",
+          "Fecha o pedido recebido, uma vez, com o dia (docs/23 §15.14, T3): executado (com o pedido executado, dsr_…, do mesmo titular, do dia da chegada ou depois e do tipo que responde: acesso e portabilidade pela exportação, apagamento pelo apagamento, limitação pela limitação ou pelo fim dela; a rectificação, a oposição e «outro» não se executam), respondido fora do Eurolify, ou recusado (o dia em que se informou o titular das razões, art. 12.º, n.º 4). Fechado, não muda nem se apaga; sai da fila das tarefas. Decisão de uma pessoa ou da chave dela.",
         headers: CabecalhoIdempotencia,
         params: ParametroId(IdPedidoRecebido),
         body: PedidoFechar,

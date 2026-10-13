@@ -1406,7 +1406,7 @@ a 3/11 o mês passou e o Eurolify não o sabe.
 | # | O quê | Proposta | Porquê |
 |---|---|---|---|
 | T1 | **Registar a chegada** | `POST /customers/{id}/privacy-requests/received`: o tipo (`acesso`, `apagamento`, `limitacao`, `rectificacao`, `portabilidade`, `oposicao`, `outro`), `recebido_em` (a data em que chegou, por omissão agora; nunca no futuro) e o canal (`email`, `telefone`, `carta`, `presencial`, `loja`, `outro`; sem texto livre). Âmbito `customers:privacy` (só o dono) | a lei conta do dia em que chegou, não do dia em que se trata; sem texto livre não entram dados novos da pessoa |
-| T2 | **O prazo** | `prazo_legal = recebido_em + 1 mês` (no calendário), guardado; a prorrogação é uma acção com motivo (texto curto, sem dados da pessoa) que muda o prazo até ao limite que o jurista confirmar (**C**) e regista que o titular foi informado | a regra num sítio (a base), lida pela lista e pelo aviso |
+| T2 | **O prazo** | `prazo_legal = recebido_em + 1 mês` (no calendário), guardado; a prorrogação é uma acção com motivo — lista fechada, os dois do art. 12.º, n.º 3 («a complexidade do pedido e o número de pedidos»): `complexidade` ou `numero_de_pedidos`, sem texto livre — que muda o prazo até ao limite que o jurista confirmar (**C**) e regista o dia, dentro do primeiro mês, em que o titular foi informado | a regra num sítio (a base), lida pela lista e pelo aviso |
 | T3 | **Fechar** | o pedido recebido fecha quando: (a) se executa o pedido correspondente (`pedido_titular`, ligado ao recebido); (b) se marca **respondido** fora do Eurolify (rectificação, oposição, acesso respondido por e-mail), com a data; (c) se marca **recusado**, com a data em que se informou o titular das razões (n.º 4) | três fins, todos com data: a prova de que se respondeu dentro do mês |
 | T4 | **A lista «A decidir»** | fila nova `pedido_titular` (`docs/33`): está na lista enquanto aberto; quem decide `customers:privacy` (o dono); prazo da tarefa por omissão **7 dias antes do prazo legal** (proposta, **não é lei**), nunca depois dele | a peça 21 já dá dono, prazo e aviso ao vencer |
 | T5 | **O aviso** | o da peça 21 (`task.overdue`) ao vencer o prazo da tarefa, e um segundo, uma vez, se o **prazo legal** passar com o pedido aberto | o primeiro dá tempo para responder; o segundo diz que se falhou a lei |
@@ -1417,15 +1417,13 @@ a 3/11 o mês passou e o Eurolify não o sabe.
 
 | O quê | Onde |
 |---|---|
-| a tabela `pedido_titular_recebido` (`prq_`): o dia em que chegou no fuso do comerciante (`recebido_dia`, fixado ao registar), o `prazo_legal` gerado na base (`+ interval '1 month'`: 31/01 → 28/02, ou 29/02 num ano bissexto), a prorrogação uma vez e só dentro do primeiro mês (até `recebido_dia + 2 meses`, **C**), os três fins com o dia; não se apaga; só numa ficha activa | migração 0092 |
-| as rotas `POST`/`GET /customers/{id}/privacy-requests/received`, `POST /privacy-requests/received/{id}/extend` e `/close` (`customers:privacy`, só o dono); o pedido executado tem de ser do mesmo titular (também nas fichas fundidas) | `src/clientes/rotas.ts`, `repositorio.ts` |
-| a nona fila `pedido_titular` no «A decidir» (prazo 7 dias antes do legal, nunca antes de entrar), na API, no Hub e no nome do e-mail | 0092; `src/tarefas/filas.ts`; `apps/hub/src/tarefas.ts`, textos |
-| testes, que falham sem a regra (uma prorrogação, o mesmo titular, o prazo da tarefa, o não se apagar) | `test/clientes-pedidos-recebidos.test.ts` |
+| a tabela `pedido_titular_recebido` (`prq_`): o dia em que chegou no fuso do comerciante (`recebido_dia`, fixado ao registar), o `prazo_legal` gerado na base (`+ interval '1 month'`: 31/01 → 28/02, ou 29/02 num ano bissexto), a prorrogação uma vez, com o motivo da lista fechada (`complexidade`, `numero_de_pedidos`) e o dia em que o titular foi informado, que tem de ser dentro do primeiro mês (registá-lo depois do mês é só registo), até `recebido_dia + 2 meses` (**C**); os três fins com o dia; não se apaga; só numa ficha activa | migração 0092 |
+| as rotas `POST`/`GET /customers/{id}/privacy-requests/received`, `POST /privacy-requests/received/{id}/extend` e `/close` (`customers:privacy`, só o dono); prorrogar e fechar só por uma pessoa ou a chave dela; o pedido executado tem de ser do mesmo comerciante (chave estrangeira composta) e do mesmo titular (também nas fichas fundidas), do dia da chegada ou depois e do tipo que responde: `acesso` e `portabilidade` pela exportação, `apagamento` pelo apagamento, `limitacao` pela limitação ou pelo fim dela; a rectificação, a oposição e «outro» fecham só como respondidos ou recusados | `src/clientes/rotas.ts`, `repositorio.ts` |
+| a nona fila `pedido_titular` no «A decidir» (prazo 7 dias antes do fim do legal: a meia-noite local de `prazo_legal - 6`, nunca antes de entrar), na API, no Hub e no nome do e-mail; prorrogar com o caso já avisado de vencido limpa o aviso, com a linha `prazo_mudado` no rasto (como mudar o prazo, 0066) | 0092; `src/tarefas/filas.ts`; `apps/hub/src/tarefas.ts`, textos |
+| testes, que falham sem a regra (uma prorrogação, o mesmo titular, o tipo e o dia do pedido executado, o mesmo comerciante, o aviso depois de prorrogar, o prazo da tarefa, o não se apagar) | `test/clientes-pedidos-recebidos.test.ts` |
 
 Não feito nesta parte: o segundo aviso (T5, §15.15); a exportação do titular
-ainda não junta os pedidos recebidos; o fecho como executado não confere que
-o tipo do pedido executado é o do recebido (um apagamento feito antes de a
-chegada ser registada não se recusa).
+ainda não junta os pedidos recebidos.
 
 **Fica de fora:** o pedido pela Loja (o login dos clientes, Q5 da CX); o
 envio da resposta ao titular (o comerciante responde pelo seu canal); a
