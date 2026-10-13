@@ -1188,7 +1188,7 @@ para o dono decidir se as funde antes — nunca o sistema sozinho (regra 6 do
 |---|---|
 | ao criar a encomenda, a sessão perde o e-mail, o nome, o telefone e as moradas (a encomenda tem a cópia); `GET /checkout/{token}` passa a dar `contacto: null`, e a confirmação continua a ler a encomenda | `concluir()` em `src/checkout/repositorio.ts` |
 | 7 dias depois de expirar ou de ser abandonada, contados da mais cedo entre a última mudança e `expira_em` (uma aberta esquecida, 7 dias depois de `expira_em`), a sessão perde os mesmos dados; o estado e o resto ficam; as concluídas antes da 0077 também | `checkout_sessoes_limpar()` (com um índice só das sessões com dados); a tarefa de hora a hora `src/checkout/limpeza-sessoes.ts` (`tarefa:sessoes`), que repete enquanto as voltas vêm cheias |
-| desvio ao §15.6: a tarefa escreve só no registo da aplicação (as limpas e as falhas, sem dados) e não avisa se parar — como a fila do titular | por fazer, com o aviso das tarefas que param (`observability-security`) |
+| desvio ao §15.6: a tarefa escreve só no registo da aplicação (as limpas e as falhas, sem dados) e não avisava se parasse — como a fila do titular | fechado a 13/10/2026: a verificação diária conta o que as duas deviam ter limpo há mais de um dia (§15.11; migração 0088) |
 | a limpeza só passa com a marca da 0049, dentro da função do dono; fora dela, o gatilho recusa (`checkout.closed`) | `sessao_checkout_antes_de_gravar()` (0072) |
 
 O prazo de 7 dias é proposta (`docs/25` §7, J3/J4: **C**, jurista).
@@ -1235,3 +1235,66 @@ Fica de fora, da revisão do #411: a lista das fichas parecidas só se vê antes
 exportação (P3-3); a exportação lê em READ COMMITTED, dentro da transacção
 da idempotência (P3-5).
 
+
+### 15.11 O aviso quando as duas tarefas param (desenho de 13/10/2026)
+
+Pedido do Diogo, 13/10/2026 (*«A»*, à pergunta «pego nos avisos dessas duas
+tarefas automáticas?»). Fecha o desvio ao §15.6 que ficou na §15.10: a fila
+do titular (`src/clientes/titular-fila.ts`) e a limpeza das sessões de
+checkout (`src/checkout/limpeza-sessoes.ts`) correm de hora a hora dentro da
+API e, se pararem ou falharem sempre, só o registo da aplicação o diz —
+ninguém o lê. Ex.: a API arranca sem a tarefa por um erro de configuração;
+a Ana pediu o apagamento e a encomenda dela acabou há uma semana, mas o
+contacto e a morada continuam lá, e ninguém sabe. Lição dos sistemas
+actuais: o recálculo diário esteve parado 15 dias sem ninguém saber
+(`docs/11` §3.8). Skill: `observability-security` («tarefas automáticas que
+não param em silêncio»).
+
+**O que já existe e se segue** (lido a 13/10/2026): a verificação diária da
+VPS (`infra/vps/ficheiros/sbin/eurolify-verificacao`, 07:00, ADR-0027) já
+confere duas tarefas pelo **efeito na base**, não por um sinal da tarefa: a
+limpeza dos prazos das contas (`contas_prazos_em_atraso()`) e a dos
+ficheiros sem uso (`ficheiros_sem_uso_em_atraso()`, 0035). Cada função conta
+o que já devia ter sido feito há mais de um dia; com mais de zero, a
+verificação avisa o Diogo pelo Healthchecks.io, com a frase do problema.
+
+| # | O quê | Proposta | Porquê |
+|---|---|---|---|
+| T1 | **Como se vê que parou** | pelo efeito, como as outras duas: o que a tarefa já devia ter limpo e continua lá | apanha a tarefa parada, a que falha sempre e a que nunca arrancou, sem a tarefa ter de dizer nada |
+| T2 | **A fila do titular** | `titular_pendentes_em_atraso()`: as linhas por aplicar há mais de **1 dia** (`criado_em`) cuja encomenda já acabou (`titular_encomenda_acabou`, a mesma regra da tarefa). A encomenda não guarda quando mudou de estado, por isso conta-se pela idade da linha | a tarefa corre de hora a hora; um dia é folga para uma volta que falhou por acaso |
+| T3 | **As sessões de checkout** | `checkout_sessoes_em_atraso()`: as sessões que ainda têm dados e que pela regra da §15.4 já deviam estar limpas há mais de **1 dia** (o mesmo critério de `checkout_sessoes_limpar`, com 8 dias em vez de 7) | o mesmo |
+| T4 | **O que as funções devolvem** | só uma contagem, de todos os comerciantes, sem dados pessoais nem identificadores; `SECURITY DEFINER`, fechadas a todos e abertas só ao papel da limpeza (`eurolify_limpeza`), como a da 0035 | quem lê é a verificação da máquina, que não entra como a API |
+| T5 | **O aviso** | a verificação diária chama as duas; com mais de zero, uma linha no aviso: «N encomenda(s) de pedidos de apagamento por limpar há mais de um dia: a fila do titular (clientes/titular-fila.ts) não está a correr (docker logs eurolify-api)» e o mesmo para as sessões. Sem a função (migração por publicar), não avisa; uma consulta que falhe ou uma resposta que não seja número avisa, **só com a categoria** («a consulta falhou»), nunca a primeira linha do erro do `psql`, que pode trazer valores e agora também sai no `medir` (revisão do #428, P3-3) | o padrão das outras duas, sem a fuga |
+| T6 | **Para quem** | o Diogo, como hoje (ADR-0027); na produção, o Diogo e o Bruno (`docs/11` §3.8) | não muda quem recebe |
+
+**Fica de fora:** as outras tarefas da API que correm sozinhas (a fila do
+VIES, os pagamentos, os documentos, os avisos de prazo e de tarefas, as
+notificações, os envios; 14 ao todo em `servidor.ts`) também não avisam se
+pararem. Ficam para outro pedido, uma a uma, com o mesmo padrão, se o Diogo
+ou o Bruno o pedirem. **Por onde pode sair errado:** um aviso falso quando
+uma encomenda que estava na fila há mais de um dia acaba na hora antes das
+07:00 e a tarefa ainda não teve a volta seguinte (ex.: a encomenda da Ana,
+na fila desde 2/10, passa a concluída às 06:40) — no dia seguinte já não
+aparece. A janela é de até duas horas antes das 07:00 (a encomenda muda a
+qualquer hora e a tarefa corre de hora a hora; revisão do #433, P2-3), e
+vale para cada encomenda da fila que acabe nela: com muitas, o aviso falso
+fica mais provável. **Como ler o aviso:** um número que aparece num dia e
+desaparece no seguinte não é a tarefa parada; o que repete dois dias seguidos
+é. Se os avisos falsos se tornarem frequentes, a correcção é contar desde que
+a encomenda acabou, e isso volta ao Diogo ou ao Bruno.
+
+**Decidido:** Q-T1, aprovado pelo Diogo a 13/10/2026 (*«A»*), com **1 dia**
+de folga e o aviso pela verificação diária das 07:00.
+
+**Em código** (13/10/2026, issue #233):
+
+| O quê | Onde |
+|---|---|
+| T2 e T3: as duas contagens, cada comerciante no contexto dele só durante a contagem (a `encomenda` e a `sessao_checkout` têm o RLS forçado também para o dono); `SECURITY DEFINER`, fechadas a todos e abertas só ao `eurolify_limpeza` | migração `0088_tarefas_em_atraso.sql` |
+| T5: as duas linhas do aviso; uma falha só com a categoria | `infra/vps/ficheiros/sbin/eurolify-verificacao` (`em_atraso`) |
+| testes: a fila acabada há dois dias conta e deixa de contar depois da tarefa; a encomenda em curso não conta; as sessões de 9 dias e a concluída com dados há dois dias contam, a de 7 dias e meio não; a API não as chama; falham sem o contexto por comerciante | `apps/api/test/checkout-api.test.ts` |
+| o aviso, a função por publicar, a falha sem a linha do erro e a resposta que não é número | `infra/vps/testes/verificacao.sh` (falha se a linha do erro do `psql` voltar ao aviso) |
+
+Não verificado: o tempo das duas contagens com muitos comerciantes e sessões
+(uma consulta por comerciante, sem `EXPLAIN`); o aviso a sério só se vê na
+VPS depois da publicação.
