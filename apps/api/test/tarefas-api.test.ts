@@ -279,9 +279,9 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
   const daLista = async (fila: keyof typeof FILAS, caso: string) =>
     (await lista(`?fila=${fila}`)).dados.find((t) => t.caso === id(fila, caso));
 
-  it("a lista tem os casos abertos das sete filas, do comerciante só, com o prazo em vigor", async () => {
+  it("a lista tem os casos abertos das oito filas, do comerciante só, com o prazo em vigor", async () => {
     const l = await lista();
-    expect(l.filas).toHaveLength(7);
+    expect(l.filas).toHaveLength(8);
     expect(l.dados.map((t) => t.caso).sort()).toEqual(
       [
         id("pagamento", casos.diferenca),
@@ -303,6 +303,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
       livre_resolucao: 3,
       problema: 1,
       reembolso: 1,
+      ligacao_faturacao: 0,
     });
     // Do prazo mais próximo ao mais longe.
     const prazos = l.dados.map((t) => t.prazo);
@@ -971,7 +972,7 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
       select f.fila,
         tarefas_prazo_por_omissao(f.fila, now(), current_date + 5, 'Europe/Lisbon') as prazo
       from tarefas_filas() f`.execute(base.dono);
-    expect(r.rows).toHaveLength(7);
+    expect(r.rows).toHaveLength(8);
     expect(r.rows.filter((x) => x.prazo === null)).toEqual([]);
     const def = await sql<{ d: string }>`
       select pg_get_constraintdef(c.oid) as d from pg_constraint c

@@ -170,14 +170,27 @@ export async function criarLigacao(
   });
 }
 
-/** As entidades legais activas e quem emite por elas (o ecrã do Hub, docs/22 §30). */
+/**
+ * As entidades legais activas e quem emite por elas (o ecrã do Hub, docs/22
+ * §30), com as faturas retidas porque a ligação não estava pronta
+ * (`ligacao_sem_teste`; docs/29 §18, L6).
+ */
 export async function entidadesDaFaturacao(db: Kysely<BaseDados>, c: string) {
   return noDocumentos(db, c, (trx) =>
     trx
-      .selectFrom("entidade_legal")
-      .select(["id", "denominacao", "pais", "emissor_fiscal"])
-      .where("estado", "=", "activa")
-      .orderBy("criado_em")
+      .selectFrom("entidade_legal as e")
+      .select(["e.id", "e.denominacao", "e.pais", "e.emissor_fiscal"])
+      .select((eb) =>
+        eb
+          .selectFrom("documento_fiscal as d")
+          .select(sql<number>`count(*)::int`.as("n"))
+          .whereRef("d.entidade_legal_id", "=", "e.id")
+          .where("d.estado", "=", "retido")
+          .where(sql<boolean>`'ligacao_sem_teste' = ANY (d.motivos)`)
+          .as("retidas_sem_ligacao"),
+      )
+      .where("e.estado", "=", "activa")
+      .orderBy("e.criado_em")
       .execute(),
   );
 }
@@ -416,6 +429,8 @@ async function ligacaoComErro(
       .updateTable("ligacao_faturacao")
       .set({
         estado: "com_erro",
+        // A fila do «A decidir» e o e-mail aos donos (docs/29 §18).
+        com_erro_motivo: "renovacao_recusada",
         erro: erro.slice(0, 200),
         versao: l.versao + 1,
       })
@@ -467,6 +482,9 @@ export async function testarLigacao(
       .updateTable("ligacao_faturacao")
       .set({
         estado: erro === null ? "pronta" : "com_erro",
+        // Um teste falhado também põe o caso na fila, mas sem e-mail: quem
+        // testou está a ver o resultado (docs/29 §18.3).
+        com_erro_motivo: erro === null ? null : "teste_falhou",
         testada_em: new Date(),
         erro,
         versao: agora.versao + 1,

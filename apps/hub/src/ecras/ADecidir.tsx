@@ -8,6 +8,7 @@ import {
 import { api, ErroHub, type Eu, type Membros, type Papel } from "../api";
 import { ACarregar, CaixaDeErro, LigacaoInterna, useHub } from "../contexto";
 import { mensagemDeErro, semSessao } from "../erros";
+import { enderecoFaturacao } from "../faturacao";
 import { entradaDe } from "../modulos";
 import {
   consultaDe,
@@ -535,6 +536,15 @@ function Linha({
               </span>
             </>
           )}
+          {/* A ligação com erro resolve-se no ecrã Faturação (docs/29 §18, L6). */}
+          {x.fila === "ligacao_faturacao" ? (
+            <>
+              <br />
+              <LigacaoInterna href={enderecoFaturacao(comerciante)}>
+                {t.decidirAbrirFaturacao}
+              </LigacaoInterna>
+            </>
+          ) : null}
         </td>
         <td data-rotulo={t.colunaMotivo}>{motivoDe(t, x.motivo)}</td>
         <td data-rotulo={t.colunaNaFila}>{haQuanto(x.entrou_em)}</td>

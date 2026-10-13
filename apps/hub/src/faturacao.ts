@@ -15,6 +15,8 @@ export interface EntidadeFaturacao {
   pais: string;
   /** `eurolify`, `sistema_proprio` ou `por_configurar` (docs/29 §15). */
   emissor: string;
+  /** As faturas retidas à espera da ligação (`ligacao_sem_teste`; docs/29 §18). */
+  retidas_sem_ligacao?: number;
 }
 
 export type EstadoLigacao = "por_testar" | "pronta" | "com_erro";

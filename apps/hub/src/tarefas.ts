@@ -5,7 +5,7 @@ import type { Textos } from "./textos";
 // comerciante. A regra de quem vê, quem atribui e quem pode ser responsável
 // é da API e da base (R2, R3); aqui nada a decide.
 
-/** As sete filas, pela ordem do `docs/33` §1 (só para mostrar e escolher). */
+/** As oito filas, pela ordem do `docs/33` §1 e do `docs/29` §18 (só para mostrar e escolher). */
 export const FILAS_TAREFAS = [
   "pagamento",
   "documento_fiscal",
@@ -14,6 +14,7 @@ export const FILAS_TAREFAS = [
   "livre_resolucao",
   "problema",
   "reembolso",
+  "ligacao_faturacao",
 ] as const;
 export type FilaTarefa = (typeof FILAS_TAREFAS)[number];
 
@@ -204,6 +205,7 @@ export const DECIDE_A_FILA: Record<FilaTarefa, string> = {
   livre_resolucao: "returns:write",
   problema: "refunds:write",
   reembolso: "refunds:write",
+  ligacao_faturacao: "invoices:accounts",
 };
 
 /** Há quanto tempo, em horas inteiras, de `desde` até `agora`. */
