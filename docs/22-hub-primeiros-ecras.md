@@ -1831,7 +1831,7 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
 ✅ **Aspecto e os quatro textos novos dos impedimentos aprovados** (Diogo, 13/10/2026, *«A»*), pelas capturas de 1280 px claro e 375 px escuro.
 
 **Desvios do desenho:**
-- **Não há a marca «nova»:** a API não distingue a variante acrescentada depois de publicar da que alguém tirou; as duas dizem «fora» e vêm por marcar.
+- **A marca «nova»** (pedido #427): numa publicada, a variante que está fora e nasceu depois da última publicação (`criado_em` da variante depois de `publicado_em`) diz «nova»; a outra que está fora diz «fora». Numa que não está à venda, só «fora».
 - **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma variante vem marcada** (Diogo, 13/10/2026: *«A»*; `docs/06`, EJ): a base só põe fora a variante acrescentada a uma publicação publicada, e assim nada volta à venda sem ser escolhido (revisão do #421, P2-2).
 - **«Retirar» pergunta com a caixa do navegador** (`window.confirm`), como as outras perguntas da ficha.
 - **Os textos de `classificacao_em_falta`, `natureza_incompativel`, `familia_restrita` e `data_ou_local_em_falta`** foram escritos aqui (a §27.3 dizia «o texto do código»); a família mostra o código interno.
