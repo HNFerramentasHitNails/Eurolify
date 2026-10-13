@@ -4284,6 +4284,16 @@ try {
     .waitFor();
   const campoPreco = rp.getByLabel("Preço com IVA (€)");
   await campoPreco.waitFor();
+  // A página do preço tem «Conta» e «Sair» e o título dela na janela
+  // (revisão do #421).
+  confere(
+    (await rp.getByRole("button", { name: "Sair", exact: true }).count()) ===
+      1 &&
+      (await rp.getByRole("link", { name: "Conta", exact: true }).count()) ===
+        1 &&
+      (await rp.title()).startsWith("Preço da variante —"),
+    "preço: a página tem «Conta», «Sair» e o título «Preço da variante» na janela",
+  );
   confere(
     (await rp
       .getByText("lista base · Portugal · EUR · preços com IVA")

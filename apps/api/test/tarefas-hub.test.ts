@@ -130,7 +130,7 @@ describe.skipIf(URL_BASE === undefined)("Hub: as tarefas das filas", () => {
 
   it("a lista mostra só as filas que o papel lê (R2); o armazém não vê a diferença de pagamento", async () => {
     const dono = await ok(como("dono", "GET", "/hub/tasks"));
-    expect((dono["filas"] as string[]).length).toBe(7);
+    expect((dono["filas"] as string[]).length).toBe(8);
     expect(casosDe(dono)).toEqual(
       [
         `pdi_${casos.diferenca}`,

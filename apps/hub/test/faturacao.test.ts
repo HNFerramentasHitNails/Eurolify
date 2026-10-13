@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BALDES,
+  resumoDaLigacaoComErro,
   enderecoConfigurar,
   escolhasDe,
   faltaNasEscolhas,
@@ -511,5 +512,36 @@ describe("configurar a ligação", () => {
     expect(enderecoConfigurar("mer_x", "isx_y")).toBe(
       "/faturacao/configurar?comerciante=mer_x&ligacao=isx_y",
     );
+  });
+});
+
+// A linha de um caso da fila `ligacao_faturacao` no «A decidir» (docs/29
+// §18, L6; revisão do #422, P2-1).
+describe("a ligação com erro no «A decidir»", () => {
+  const f = {
+    entidades: [
+      {
+        id: "lgl_1",
+        nome: "Loja Exemplo, Lda",
+        pais: "PT",
+        emissor: "eurolify",
+        retidas_sem_ligacao: 12,
+      },
+      { id: "lgl_2", nome: "Outra, Lda", pais: "PT", emissor: "eurolify" },
+    ],
+    ligacoes: [
+      { id: "isx_1", entidade_legal: "lgl_1", adaptador: "moloni" },
+      { id: "isx_2", entidade_legal: "lgl_2", adaptador: "moloni" },
+    ] as LigacaoFaturacao[],
+  };
+
+  it("diz a entidade, o software e as faturas retidas; null se a ligação já não estiver", () => {
+    expect(resumoDaLigacaoComErro(t, f, "isx_1")).toBe(
+      "Loja Exemplo, Lda · Moloni · 12 faturas retidas à espera da ligação.",
+    );
+    expect(resumoDaLigacaoComErro(t, f, "isx_2")).toBe(
+      "Outra, Lda · Moloni · Nenhuma fatura retida por agora.",
+    );
+    expect(resumoDaLigacaoComErro(t, f, "isx_3")).toBeNull();
   });
 });

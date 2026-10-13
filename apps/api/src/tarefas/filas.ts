@@ -40,4 +40,11 @@ export const FILAS: Record<FilaTarefa, Fila> = {
   },
   problema: { prefixo: "prb", ler: "returns:read", decidir: "refunds:write" },
   reembolso: { prefixo: "rfd", ler: "refunds:read", decidir: "refunds:write" },
+  // A ligação ao software de faturação com erro (docs/29 §18; migração 0084):
+  // só o dono liga a conta.
+  ligacao_faturacao: {
+    prefixo: "isx",
+    ler: "invoices:read",
+    decidir: "invoices:accounts",
+  },
 };

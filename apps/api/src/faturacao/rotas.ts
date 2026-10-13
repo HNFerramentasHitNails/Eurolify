@@ -586,6 +586,8 @@ export function rotasDosDocumentos(
             nome: e.denominacao,
             pais: e.pais,
             emissor: e.emissor_fiscal,
+            // As faturas à espera da ligação (docs/29 §18, L6).
+            retidas_sem_ligacao: e.retidas_sem_ligacao ?? 0,
           })),
           // O que falta mapear (docs/22 §32.4), sem ler o emissor.
           ligacoes: ligacoes.map((l) => ({

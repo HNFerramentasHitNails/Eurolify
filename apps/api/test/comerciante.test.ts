@@ -170,6 +170,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0081_moloni_autorizacao",
         "0082_titular_exportacao_indices",
         "0083_envios_eventos_depois_do_apagamento",
+        "0084_ligacao_com_erro_na_fila",
       ]);
     });
 
