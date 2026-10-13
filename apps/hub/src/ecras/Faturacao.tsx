@@ -253,6 +253,15 @@ function Entidade({
             depoisDeTestar={depoisDeTestar}
           />
         )}
+        {(e.retidas_sem_ligacao ?? 0) > 0 ? (
+          <p className="erro">
+            {e.retidas_sem_ligacao === 1
+              ? t.faturacaoRetidasUma
+              : preencher(t.faturacaoRetidas, {
+                  n: e.retidas_sem_ligacao ?? 0,
+                })}
+          </p>
+        ) : null}
       </section>
       {ambitos.includes("tax:read") ? (
         <section aria-labelledby={`oss-${e.id}`} className="cartao">

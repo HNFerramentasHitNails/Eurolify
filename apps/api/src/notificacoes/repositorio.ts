@@ -4,6 +4,7 @@ import { comComerciante } from "../comerciante/repositorio.js";
 import { ErroCorreio, type Correio, type Mensagem } from "./correio.js";
 import {
   mensagemDe,
+  type DadosDaLigacao,
   type DadosDaTarefa,
   type DadosDoAviso,
 } from "./modelos.js";
@@ -198,7 +199,9 @@ async function tomarVez(
   // contrário da realidade.
   const espera = await (n.tipo === "task.overdue"
     ? tarefaEspera(trx, n.referencia)
-    : devolucaoEspera(trx, n.referencia));
+    : n.tipo === "invoicing.connection_error"
+      ? ligacaoEspera(trx, n.referencia)
+      : devolucaoEspera(trx, n.referencia));
   if (espera !== null) {
     await mudar(trx, id, { estado: "cancelada", ultimo_erro: espera });
     res.canceladas += 1;
@@ -220,14 +223,19 @@ async function tomarVez(
   }
   // Uns dados que não dão texto falham já, com o código, em vez de repetir
   // o erro a cada volta (revisão do #389, P3-3).
+  // As faturas retidas contam-se agora, não à hora do erro: a fatura que o
+  // deu só fica retida depois (docs/29 §18; revisão do #422, P1-2).
+  let dados = n.dados as unknown as
+    DadosDoAviso | DadosDaTarefa | DadosDaLigacao;
+  if (n.tipo === "invoicing.connection_error") {
+    const { rows: r } = await sql<{
+      n: number;
+    }>`select faturacao_aviso_retidas(${n.referencia}::uuid) as n`.execute(trx);
+    dados = { ...(dados as DadosDaLigacao), retidas: r[0]?.n ?? 0 };
+  }
   let mensagem: Mensagem;
   try {
-    mensagem = mensagemDe(
-      n.tipo,
-      n.lingua,
-      n.dados as unknown as DadosDoAviso | DadosDaTarefa,
-      destino,
-    );
+    mensagem = mensagemDe(n.tipo, n.lingua, dados, destino);
   } catch {
     await mudar(trx, id, { estado: "falhada", ultimo_erro: "dados_invalidos" });
     res.falhadas += 1;
@@ -252,6 +260,20 @@ async function devolucaoEspera(
   return rows[0]?.dias === null || rows[0]?.dias === undefined
     ? "devolucao_ja_nao_espera"
     : null;
+}
+
+/**
+ * Nada, se a ligação continua com erro na mesma passagem (docs/29 §18);
+ * senão, o código.
+ */
+async function ligacaoEspera(
+  trx: Transaction<BaseDados>,
+  passagem: string,
+): Promise<string | null> {
+  const { rows } = await sql<{
+    espera: boolean;
+  }>`select faturacao_aviso_espera(${passagem}::uuid) as espera`.execute(trx);
+  return rows[0]?.espera === true ? null : "ligacao_ja_nao_espera";
 }
 
 /** Nada, se o caso do aviso ainda espera; senão, o código. */

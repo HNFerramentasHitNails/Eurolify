@@ -1557,6 +1557,7 @@ export const TIPOS_NOTIFICACAO = [
   "refund.deadline_approaching",
   "refund.deadline_passed",
   "task.overdue",
+  "invoicing.connection_error",
 ] as const;
 export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
 export const ESTADOS_NOTIFICACAO = [
@@ -1774,6 +1775,15 @@ export interface TabelaLigacaoFaturacao {
   sessao_em: ColumnType<Date | null, never, Date | null>;
   testada_em: ColumnType<Date | null, never, Date | null>;
   erro: ColumnType<string | null, never, string | null>;
+  /** Postos pelo gatilho ao entrar em erro, limpos ao sair (migração 0084). */
+  com_erro_desde: ColumnType<Date | null, never, never>;
+  com_erro_passagem: ColumnType<string | null, never, never>;
+  /** A API grava-o com o estado `com_erro` (docs/29 §18, L2). */
+  com_erro_motivo: ColumnType<
+    "renovacao_recusada" | "teste_falhou" | null,
+    never,
+    "renovacao_recusada" | "teste_falhou" | null
+  >;
   versao: ColumnType<number, never, number>;
   criada_por: ColumnType<string, string, never>;
   criada_em: ColumnType<Date, never, never>;
@@ -2030,6 +2040,7 @@ export const FILAS_TAREFAS = [
   "livre_resolucao",
   "problema",
   "reembolso",
+  "ligacao_faturacao",
 ] as const;
 export type FilaTarefa = (typeof FILAS_TAREFAS)[number];
 

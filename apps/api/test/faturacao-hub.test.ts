@@ -131,6 +131,7 @@ describe.skipIf(URL_BASE === undefined)("Hub: o ecrã Faturação", () => {
           nome: "Loja Exemplo, Lda",
           pais: "PT",
           emissor: expect.any(String) as unknown,
+          retidas_sem_ligacao: 0,
         },
       ]);
       expect(r["ligacoes"]).toEqual([
