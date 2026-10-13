@@ -83,6 +83,20 @@ const Texto = (max: number) =>
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
 const quemDe = (chave: { chaveId: string }) => `chave:key_${chave.chaveId}`;
 
+/** Um armazém como a API o mostra, pela chave e pelo Hub (docs/22 §31). */
+export const paraArmazem = (
+  a: Awaited<ReturnType<typeof listarArmazens>>[number],
+) => ({
+  id: `whs_${a.id}`,
+  loja: `sto_${a.loja_id}`,
+  nome: a.nome,
+  morada: a.morada,
+  estado: a.estado,
+  // O peso da embalagem por omissão, em gramas (docs/36 Q6; 0079).
+  embalagem_g: a.embalagem_g,
+  versao: a.versao,
+});
+
 export function rotasDoStock(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -106,14 +120,7 @@ export function rotasDoStock(
     async (pedido, resposta) =>
       emStock(resposta, async () => ({
         dados: (await listarArmazens(base, chaveDo(pedido).comercianteId)).map(
-          (a) => ({
-            id: `whs_${a.id}`,
-            loja: `sto_${a.loja_id}`,
-            nome: a.nome,
-            morada: a.morada,
-            estado: a.estado,
-            versao: a.versao,
-          }),
+          paraArmazem,
         ),
       })),
   );

@@ -308,6 +308,121 @@ const moradaDe = (m: MoradaPedida) => ({
   localidade: m.localidade,
 });
 
+/** Um método como a API o mostra, pela chave e pelo Hub (docs/22 §31). */
+export const paraMetodo = (
+  m: Awaited<ReturnType<typeof listarMetodosEntrega>>[number],
+) => ({
+  id: `shm_${m.id}`,
+  mercado: `mkt_${m.mercado_id}`,
+  nome: m.nome,
+  prazo: m.prazo,
+  tarifa: Number(m.tarifa),
+  gratis_a_partir_de:
+    m.gratis_a_partir_de === null ? null : Number(m.gratis_a_partir_de),
+  pede_telefone: m.pede_telefone,
+  // Os envios (docs/36 §3.2; 0074).
+  conta:
+    m.conta_transportadora_id === null
+      ? null
+      : `cac_${m.conta_transportadora_id}`,
+  servico: m.servico,
+  prazo_max_dias: m.prazo_max_dias,
+  codigos_postais: m.codigos_postais,
+  aceita_onu: m.aceita_onu,
+  peso_max_g: m.peso_max_g,
+  estado: m.estado,
+  versao: m.versao,
+});
+
+export const CamposMetodo = {
+  nome: NomesPorLingua,
+  prazo: Type.Optional(
+    Type.Record(Lingua, Type.String({ maxLength: 200 }), {
+      maxProperties: 30,
+    }),
+  ),
+  tarifa: Type.Integer({ minimum: 0, maximum: 100_000_000 }),
+  gratis_a_partir_de: Type.Optional(
+    Type.Union([
+      Type.Integer({ minimum: 1, maximum: 100_000_000_000 }),
+      Type.Null(),
+    ]),
+  ),
+  pede_telefone: Type.Optional(Type.Boolean()),
+};
+
+// Os campos dos envios (docs/36 §3.2): a conta e o serviço vão juntos, ou
+// nenhum (método «manual»).
+export const CamposEnvios = {
+  conta: Type.Optional(Type.Union([IdConta, Type.Null()])),
+  servico: Type.Optional(
+    Type.Union([
+      Type.String({ pattern: "^[0-9A-Za-z_.:/-]{1,100}$" }),
+      Type.Null(),
+    ]),
+  ),
+  prazo_max_dias: Type.Optional(Type.Integer({ minimum: 1, maximum: 30 })),
+  codigos_postais: Type.Optional(
+    Type.Array(Type.String({ pattern: "^[0-9A-Za-z][0-9A-Za-z -]{0,11}$" }), {
+      maxItems: 200,
+    }),
+  ),
+  aceita_onu: Type.Optional(
+    Type.Array(Type.String({ pattern: "^UN[0-9]{4}$" }), { maxItems: 200 }),
+  ),
+  peso_max_g: Type.Optional(
+    Type.Union([
+      Type.Integer({ minimum: 1, maximum: 1_000_000 }),
+      Type.Null(),
+    ]),
+  ),
+};
+export const enviosDo = (b: {
+  conta?: string | null;
+  servico?: string | null;
+  prazo_max_dias?: number;
+  codigos_postais?: string[];
+  aceita_onu?: string[];
+  peso_max_g?: number | null;
+}) => ({
+  ...(b.conta === undefined
+    ? {}
+    : { conta: b.conta === null ? null : semPrefixo(b.conta) }),
+  ...(b.servico === undefined ? {} : { servico: b.servico }),
+  ...(b.prazo_max_dias === undefined
+    ? {}
+    : { prazo_max_dias: b.prazo_max_dias }),
+  ...(b.codigos_postais === undefined
+    ? {}
+    : { codigos_postais: b.codigos_postais }),
+  ...(b.aceita_onu === undefined ? {} : { aceita_onu: b.aceita_onu }),
+  ...(b.peso_max_g === undefined ? {} : { peso_max_g: b.peso_max_g }),
+});
+
+
+/** O corpo de um método novo, pela chave e pelo Hub. */
+export const CorpoNovoMetodo = Type.Object(
+  { mercado: IdMercado, ...CamposMetodo, ...CamposEnvios },
+  { additionalProperties: false },
+);
+
+/** O corpo de uma mudança a um método, na versão lida. */
+export const CorpoMudarMetodo = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1 }),
+    nome: Type.Optional(NomesPorLingua),
+    prazo: CamposMetodo.prazo,
+    tarifa: Type.Optional(CamposMetodo.tarifa),
+    gratis_a_partir_de: CamposMetodo.gratis_a_partir_de,
+    pede_telefone: Type.Optional(Type.Boolean()),
+    estado: Type.Optional(umDe(["activo", "arquivado"] as const)),
+    ...CamposEnvios,
+  },
+  { additionalProperties: false },
+);
+
+export { IdMetodo };
+
 export function rotasDoCheckout(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -1099,31 +1214,6 @@ export function rotasDoCheckout(
 
   // ------------------------------------- Administração: métodos de entrega
 
-  const paraMetodo = (
-    m: Awaited<ReturnType<typeof listarMetodosEntrega>>[number],
-  ) => ({
-    id: `shm_${m.id}`,
-    mercado: `mkt_${m.mercado_id}`,
-    nome: m.nome,
-    prazo: m.prazo,
-    tarifa: Number(m.tarifa),
-    gratis_a_partir_de:
-      m.gratis_a_partir_de === null ? null : Number(m.gratis_a_partir_de),
-    pede_telefone: m.pede_telefone,
-    // Os envios (docs/36 §3.2; 0074).
-    conta:
-      m.conta_transportadora_id === null
-        ? null
-        : `cac_${m.conta_transportadora_id}`,
-    servico: m.servico,
-    prazo_max_dias: m.prazo_max_dias,
-    codigos_postais: m.codigos_postais,
-    aceita_onu: m.aceita_onu,
-    peso_max_g: m.peso_max_g,
-    estado: m.estado,
-    versao: m.versao,
-  });
-
   rotas.get(
     "/shipping-methods",
     {
@@ -1152,71 +1242,6 @@ export function rotasDoCheckout(
       })),
   );
 
-  const CamposMetodo = {
-    nome: NomesPorLingua,
-    prazo: Type.Optional(
-      Type.Record(Lingua, Type.String({ maxLength: 200 }), {
-        maxProperties: 30,
-      }),
-    ),
-    tarifa: Type.Integer({ minimum: 0, maximum: 100_000_000 }),
-    gratis_a_partir_de: Type.Optional(
-      Type.Union([
-        Type.Integer({ minimum: 1, maximum: 100_000_000_000 }),
-        Type.Null(),
-      ]),
-    ),
-    pede_telefone: Type.Optional(Type.Boolean()),
-  };
-
-  // Os campos dos envios (docs/36 §3.2): a conta e o serviço vão juntos, ou
-  // nenhum (método «manual»).
-  const CamposEnvios = {
-    conta: Type.Optional(Type.Union([IdConta, Type.Null()])),
-    servico: Type.Optional(
-      Type.Union([
-        Type.String({ pattern: "^[0-9A-Za-z_.:/-]{1,100}$" }),
-        Type.Null(),
-      ]),
-    ),
-    prazo_max_dias: Type.Optional(Type.Integer({ minimum: 1, maximum: 30 })),
-    codigos_postais: Type.Optional(
-      Type.Array(Type.String({ pattern: "^[0-9A-Za-z][0-9A-Za-z -]{0,11}$" }), {
-        maxItems: 200,
-      }),
-    ),
-    aceita_onu: Type.Optional(
-      Type.Array(Type.String({ pattern: "^UN[0-9]{4}$" }), { maxItems: 200 }),
-    ),
-    peso_max_g: Type.Optional(
-      Type.Union([
-        Type.Integer({ minimum: 1, maximum: 1_000_000 }),
-        Type.Null(),
-      ]),
-    ),
-  };
-  const enviosDo = (b: {
-    conta?: string | null;
-    servico?: string | null;
-    prazo_max_dias?: number;
-    codigos_postais?: string[];
-    aceita_onu?: string[];
-    peso_max_g?: number | null;
-  }) => ({
-    ...(b.conta === undefined
-      ? {}
-      : { conta: b.conta === null ? null : semPrefixo(b.conta) }),
-    ...(b.servico === undefined ? {} : { servico: b.servico }),
-    ...(b.prazo_max_dias === undefined
-      ? {}
-      : { prazo_max_dias: b.prazo_max_dias }),
-    ...(b.codigos_postais === undefined
-      ? {}
-      : { codigos_postais: b.codigos_postais }),
-    ...(b.aceita_onu === undefined ? {} : { aceita_onu: b.aceita_onu }),
-    ...(b.peso_max_g === undefined ? {} : { peso_max_g: b.peso_max_g }),
-  });
-
   rotas.post(
     "/shipping-methods",
     {
@@ -1224,10 +1249,7 @@ export function rotasDoCheckout(
       schema: {
         description: "Cria um método de entrega num mercado.",
         headers: CabecalhoIdempotencia,
-        body: Type.Object(
-          { mercado: IdMercado, ...CamposMetodo, ...CamposEnvios },
-          { additionalProperties: false },
-        ),
+        body: CorpoNovoMetodo,
         response: {
           201: Type.Object({ id: Type.String() }),
           ...RESPOSTA_DE_ERRO,
@@ -1269,19 +1291,7 @@ export function rotasDoCheckout(
           "Muda um método de entrega, na versão lida (escrita optimista). Arquivar tira-o do checkout.",
         headers: CabecalhoIdempotencia,
         params: Type.Object({ id: IdMetodo }),
-        body: Type.Object(
-          {
-            versao: Type.Integer({ minimum: 1 }),
-            nome: Type.Optional(NomesPorLingua),
-            prazo: CamposMetodo.prazo,
-            tarifa: Type.Optional(CamposMetodo.tarifa),
-            gratis_a_partir_de: CamposMetodo.gratis_a_partir_de,
-            pede_telefone: Type.Optional(Type.Boolean()),
-            estado: Type.Optional(umDe(["activo", "arquivado"] as const)),
-            ...CamposEnvios,
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoMudarMetodo,
         response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
       },
     },

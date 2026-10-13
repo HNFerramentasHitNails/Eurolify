@@ -148,6 +148,64 @@ export interface ContaTransportadora {
   versao: number;
 }
 
+/** Um mercado, só para escolher o de um método (docs/22 §31.2). */
+export interface MercadoHub {
+  id: string;
+  loja: string;
+  nome: string;
+  paises: string[];
+  moeda: string;
+  linguas: string[];
+  lingua_principal: string;
+  preco_inclui_iva: boolean;
+  estado: string;
+  versao: number;
+}
+
+/** Um método de entrega (docs/25 §3.6; docs/36 §3.2). Montantes em cêntimos. */
+export interface MetodoEntrega {
+  id: string;
+  mercado: string;
+  nome: Record<string, string>;
+  prazo: Record<string, string>;
+  tarifa: number;
+  gratis_a_partir_de: number | null;
+  pede_telefone: boolean;
+  /** null: «Manual», sem etiquetas pelo Eurolify. */
+  conta: string | null;
+  servico: string | null;
+  prazo_max_dias: number;
+  codigos_postais: string[];
+  aceita_onu: string[];
+  peso_max_g: number | null;
+  estado: "activo" | "arquivado";
+  versao: number;
+}
+
+/** Os campos de um método que o Hub escreve (os ONU não, §31.1). */
+export interface CamposMetodoEntrega {
+  nome: Record<string, string>;
+  prazo: Record<string, string>;
+  tarifa: number;
+  gratis_a_partir_de: number | null;
+  pede_telefone: boolean;
+  conta: string | null;
+  servico: string | null;
+  prazo_max_dias: number;
+  codigos_postais: string[];
+  peso_max_g: number | null;
+}
+
+/** Um armazém, com o peso da embalagem (docs/36 Q6). */
+export interface ArmazemHub {
+  id: string;
+  loja: string;
+  nome: string;
+  estado: string;
+  embalagem_g: number;
+  versao: number;
+}
+
 /** Um serviço de uma conta (docs/36 §8). */
 export interface ServicoConta {
   codigo: string;
@@ -871,6 +929,41 @@ export const api = {
       `/hub/carrier-accounts/${encodeURIComponent(id)}/services`,
       { comerciante },
     ),
+  // Os métodos de entrega e a embalagem (docs/22 §31).
+  mercados: (comerciante: string) =>
+    pedir<{ dados: MercadoHub[] }>("GET", "/hub/markets", { comerciante }),
+  armazens: (comerciante: string) =>
+    pedir<{ dados: ArmazemHub[] }>("GET", "/hub/warehouses", { comerciante }),
+  definirEmbalagem: (comerciante: string, armazem: string, gramas: number) =>
+    pedir<null>(
+      "PUT",
+      `/hub/warehouses/${encodeURIComponent(armazem)}/packaging`,
+      { comerciante, corpo: { embalagem_g: gramas } },
+    ),
+  metodosEntrega: (comerciante: string) =>
+    pedir<{ dados: MetodoEntrega[] }>("GET", "/hub/shipping-methods", {
+      comerciante,
+    }),
+  criarMetodoEntrega: (
+    comerciante: string,
+    corpo: CamposMetodoEntrega & { mercado: string },
+  ) =>
+    pedir<{ id: string }>("POST", "/hub/shipping-methods", {
+      comerciante,
+      corpo,
+    }),
+  mudarMetodoEntrega: (
+    comerciante: string,
+    id: string,
+    corpo: Partial<CamposMetodoEntrega> & {
+      versao: number;
+      estado?: MetodoEntrega["estado"];
+    },
+  ) =>
+    pedir<null>("PATCH", `/hub/shipping-methods/${encodeURIComponent(id)}`, {
+      comerciante,
+      corpo,
+    }),
   sair: () => pedir<{ ok: true }>("POST", "/hub/session/end"),
   membros: (comerciante: string) =>
     pedir<Membros>("GET", "/hub/members", { comerciante }),

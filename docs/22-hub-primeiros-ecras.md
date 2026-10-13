@@ -2288,7 +2288,8 @@ nunca o NIF nem o nome do cliente.
 
 Pedido do Diogo, 12/10/2026: *«depois avança com os métodos de entrega»*. A
 13/10/2026 aprovou o aspecto dos ecrãs do §29 (*«aprovo; avança com os
-métodos de entrega»*). **Este desenho está por aprovar.**
+métodos de entrega»*). Desenho aprovado pelo Diogo a 13/10/2026 (*«sim, aprovo; avança com o
+código»*).
 
 A API já tem quase tudo:
 - os métodos (`docs/25` §3.6, Q2; `docs/36` §3.2);
@@ -2407,3 +2408,26 @@ Eurolify», e o ecrã di-lo.
   - o armazém só a ver;
   - capturas a 375, 768 e 1280 px, em claro e escuro, para o OK do aspecto
     (`eurolify-hub-quality-gate`).
+
+### 31.6 Em código (13/10/2026; pedido #413)
+
+- **API:**
+  - as seis rotas do §31.2 estão em `src/envios/rotas-hub.ts`;
+  - os esquemas e a forma do método (`CorpoNovoMetodo`, `CorpoMudarMetodo`,
+    `paraMetodo`) passam a viver ao nível do módulo em
+    `src/checkout/rotas.ts`, para a chave e o Hub usarem os mesmos;
+  - a lista dos armazéns diz `embalagem_g` (`paraArmazem`);
+  - sem migração.
+- **Hub:**
+  - os separadores «Contas», «Métodos de entrega» e «Embalagem»;
+  - `src/ecras/EnviosMetodos.tsx` e o apoio em `src/envios-metodos.ts`;
+  - no `PATCH` só vão os campos que mudaram. Assim, um método cuja conta
+    deixou de estar pronta ainda pode mudar de tarifa: o servidor só confere
+    a conta quando se lhe toca;
+  - os códigos dos envios têm, neste ecrã, um texto próprio. Exemplo:
+    `shipping.account_not_ready` quer dizer «a conta escolhida não está
+    pronta», e não «as credenciais».
+- **Testes:**
+  - `test/envios-hub-metodos.test.ts` (API, 4);
+  - `test/envios-metodos.test.ts` (Hub, 5);
+  - as capturas criam um método «Manual» e põem a embalagem.

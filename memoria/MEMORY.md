@@ -147,3 +147,4 @@
 - [Relatório OSS (#310 parte 3, EF): docs/37; #392 no main (0078); 3 revisões; P1-B (não fecha antes do último fechado) e P1-A (o dono classifica uma vez) decididos pelo Diogo; C para o contabilista — 12/10/2026](relatorio-oss-12out2026.md)
 - [Envios, parte C (#393, #406): adaptador da Sendcloud em modo teste (só sendcloud:letter), serviços por conta (0080), aviso como sinal; subcontratantes dos EUA por decidir antes do modo real — 12/10/2026](envios-parte-c-sendcloud-12out2026.md)
 - [Hub, envios: contas de transportadora (#393, docs/22 §29): rotas /hub/carrier-accounts e o módulo «Envios»; os avisos ainda não chegam à API na VPS (nginx só publica /hub/) — 12/10/2026](hub-envios-contas-12out2026.md)
+- [Hub, envios: métodos de entrega e embalagem (#393, docs/22 §31): rotas /hub/shipping-methods, markets e warehouses; separadores no módulo «Envios»; ONU fora do Hub — 13/10/2026](hub-envios-metodos-13out2026.md)
