@@ -337,6 +337,24 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
     );
   });
 
+  it("nenhum gatilho que cria notificações corre numa cópia reposta em modo replica (regra da 0053; 0090, #435)", async () => {
+    // «A» (ALWAYS) correria também em replica; «O», só na origem.
+    const { rows } = await sql<{ nome: string; ligado: string }>`
+      select t.tgname as nome, t.tgenabled as ligado
+      from pg_trigger t join pg_proc f on f.oid = t.tgfoid
+      where not t.tgisinternal
+        and f.prosrc ~* ${String.raw`insert\s+into\s+(public\.)?notificacao\M`}
+      order by 1`.execute(base.dono);
+    expect(rows.map((r) => r.nome)).toEqual(
+      expect.arrayContaining([
+        "atribuicao_vencida_notificacao",
+        "devolucao_prazo_notificacao",
+        "ligacao_faturacao_com_erro_notificacao",
+      ]),
+    );
+    expect(rows.filter((r) => r.ligado === "A")).toEqual([]);
+  });
+
   describe("funções fechadas por omissão", () => {
     it("nenhuma função do esquema public fica aberta a PUBLIC", async () => {
       const { rows } = await sql<{ nome: string }>`
