@@ -5,6 +5,7 @@ import { Type } from "typebox";
 import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
 import { escrever, idCom, Instante, semPrefixo } from "../catalogo/rotas.js";
+import { perfilDeFichaPseudonimizada } from "../clientes/repositorio.js";
 import { chaveDo } from "../identidade/autenticacao.js";
 import { CabecalhoIdempotencia } from "../identidade/rotas.js";
 import {
@@ -453,6 +454,25 @@ export function rotasDoIva(
               en: "The key lacks the scope for this operation",
             },
             "âmbito pedido: customers:read",
+          );
+        }
+        // Um perfil guardado por obrigação fiscal (ficha pseudonimizada): a
+        // decisão devolve o país e o número do NIF, que só o dono lê (docs/23
+        // §15.12, EL).
+        if (
+          b.perfil !== undefined &&
+          b.perfil !== null &&
+          !chave.ambitos.includes("customers:billing") &&
+          (await perfilDeFichaPseudonimizada(base, c, semPrefixo(b.perfil)))
+        ) {
+          throw new ErroApi(
+            "auth.forbidden",
+            403,
+            {
+              pt: "A chave não tem o âmbito desta operação",
+              en: "The key lacks the scope for this operation",
+            },
+            "âmbito pedido: customers:billing (perfil guardado por obrigação fiscal)",
           );
         }
         const [tabelas, comerciante, perfil] = await Promise.all([

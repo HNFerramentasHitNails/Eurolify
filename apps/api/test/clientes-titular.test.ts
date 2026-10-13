@@ -41,6 +41,9 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
   let donoId: string;
   let semPrivacidade: string;
   let deB: string;
+  // Como o apoio: lê e escreve fichas, sem customers:billing (§15.12).
+  let apoio: string;
+  let entidadeA: string;
 
   const pedir = (
     metodo: "POST" | "GET" | "PATCH" | "PUT" | "DELETE",
@@ -146,7 +149,7 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       lingua: "pt",
       fuso: "Europe/Lisbon",
     });
-    await criarEntidadeLegal(base.api, a, {
+    entidadeA = await criarEntidadeLegal(base.api, a, {
       denominacao: "A, Lda.",
       forma_juridica: "sociedade por quotas",
       pais: "PT",
@@ -181,11 +184,196 @@ describe.skipIf(URL_BASE === undefined)("pedidos do titular", () => {
       )
     ).segredo;
     deB = (await chave(b, "B", todos)).segredo;
+    apoio = (
+      await chave(a, "Apoio", ["customers:read", "customers:write", "tax:read"])
+    ).segredo;
   }, 60_000);
 
   afterAll(async () => {
     await app.close();
     await base.fechar();
+  });
+
+  it("depois do apagamento, só o dono lê o nome, o NIF e a morada do perfil guardado (docs/23 §15.12, EL)", async () => {
+    const u = unico();
+    const nif = nifNovo();
+    const id = await ficha({ nome: `Rita ${u}` });
+    const usado = await perfil(id, {
+      tipo: "particular",
+      nome_documento: `Rita Faturada ${u}`,
+      nif,
+      morada: {
+        linha1: `Rua da Rita ${u}`,
+        codigo_postal: "1000-001",
+        localidade: "Lisboa",
+        pais: "PT",
+      },
+    });
+    const pid = String(usado["id"]);
+    const isencao = await ok(
+      pedir("PUT", `/billing-profiles/${pid}/exemption`, {
+        codigo_motivo: "M05",
+        motivo: `a Rita ${u} exporta`,
+        nota: `falado com a Rita ${u}`,
+      }),
+      201,
+    );
+    await comoDono(async (trx) => {
+      await sql`update perfil_faturacao set usado_em_documento = true
+          where id = ${pid.slice(4)}::uuid`.execute(trx);
+      await sql`insert into validacao_vies (comerciante_id, perfil_id, pais_consultado,
+            numero_consultado, consultado_em, resultado, nome_devolvido, morada_devolvida,
+            motivo, quem)
+          values (${a}::uuid, ${pid.slice(4)}::uuid, 'PT', ${nif}, now(), 'valido',
+            ${`RITA ${u}`}, ${`RUA DA RITA ${u}`}, 'pedido', 'sistema:vies')`.execute(
+        trx,
+      );
+    });
+    // O anexo só o põe uma pessoa (0055).
+    const pessoa = `pessoa:per_${randomUUID()}`;
+    await comoDono(async (trx) => {
+      await sql`insert into anexo_isencao (comerciante_id, isencao_id, nome, tipo,
+            tamanho, resumo, bytes, posto_por)
+          values (${a}::uuid, ${String(isencao["id"]).slice(4)}::uuid,
+            ${`declaracao-rita-${u}.pdf`}, 'application/pdf', 8,
+            encode(sha256('\\x255044462d312e34'::bytea), 'hex'),
+            '\\x255044462d312e34'::bytea,
+            ${pessoa})`.execute(trx);
+    }, pessoa);
+    // Antes do pedido, o apoio lê tudo, como hoje.
+    expect(
+      await ok(pedir("GET", `/billing-profiles/${pid}`, undefined, apoio)),
+    ).toMatchObject({ nif, guardado_por_obrigacao_fiscal: false });
+    await ok(pseudonimizar(id));
+
+    const dados = [nif, `Rita Faturada ${u}`, `Rua da Rita ${u}`, `RITA ${u}`];
+    const semDados = (corpo: string) => {
+      for (const d of [
+        ...dados,
+        `a Rita ${u}`,
+        `falado com a Rita ${u}`,
+        `declaracao-rita-${u}`,
+      ]) {
+        expect(corpo, d).not.toContain(d);
+      }
+    };
+    // G1: o perfil, sozinho e na lista.
+    const um = await pedir("GET", `/billing-profiles/${pid}`, undefined, apoio);
+    expect(um.statusCode, um.body).toBe(200);
+    semDados(um.body);
+    expect(um.json<Json>()).toMatchObject({
+      guardado_por_obrigacao_fiscal: true,
+      usado_em_documento: true,
+      nome_documento: null,
+      nif: null,
+      morada: null,
+    });
+    const lista = await pedir(
+      "GET",
+      `/customers/${id}/billing-profiles`,
+      undefined,
+      apoio,
+    );
+    expect(lista.statusCode, lista.body).toBe(200);
+    semDados(lista.body);
+    // G2: as provas do VIES.
+    const provas = await pedir(
+      "GET",
+      `/billing-profiles/${pid}/vies-checks`,
+      undefined,
+      apoio,
+    );
+    expect(provas.statusCode, provas.body).toBe(200);
+    semDados(provas.body);
+    expect(provas.json<{ dados: Json[] }>().dados).toMatchObject([
+      { resultado: "valido", numero_consultado: null, nome_devolvido: null },
+    ]);
+    // G3 e G4: as isenções e os anexos.
+    const isencoes = await pedir(
+      "GET",
+      `/billing-profiles/${pid}/exemptions`,
+      undefined,
+      apoio,
+    );
+    expect(isencoes.statusCode, isencoes.body).toBe(200);
+    semDados(isencoes.body);
+    expect(isencoes.json<{ dados: Json[] }>().dados).toMatchObject([
+      { codigo_motivo: "M05", motivo: "(reservado)", nota: null },
+    ]);
+    const anexos = await pedir(
+      "GET",
+      `/exemptions/${String(isencao["id"])}/attachments`,
+      undefined,
+      apoio,
+    );
+    expect(anexos.statusCode, anexos.body).toBe(200);
+    semDados(anexos.body);
+    // G5: a procura pelo NIF não mostra a ficha apagada.
+    const procura = await ok(
+      pedir("POST", "/customers/search", { procura: nif }, apoio),
+    );
+    expect(procura["dados"]).toEqual([]);
+    // G6: a simulação do IVA com o perfil.
+    await recusa(
+      pedir(
+        "POST",
+        "/tax/decisions/simulate",
+        {
+          entidade_legal: `lgl_${entidadeA}`,
+          categoria: "normal",
+          natureza: "bem",
+          montante: 1230,
+          preco_inclui_iva: true,
+          entrega: { pais: "PT", codigo_postal: "1000-001" },
+          finalidade: "consumo",
+          perfil: pid,
+        },
+        apoio,
+      ),
+      403,
+      "auth.forbidden",
+    );
+
+    // O dono lê tudo, como antes.
+    expect(await ok(pedir("GET", `/billing-profiles/${pid}`))).toMatchObject({
+      guardado_por_obrigacao_fiscal: true,
+      nome_documento: `Rita Faturada ${u}`,
+      nif,
+    });
+    expect(
+      (await ok(pedir("GET", `/billing-profiles/${pid}/vies-checks`)))["dados"],
+    ).toMatchObject([{ numero_consultado: nif, nome_devolvido: `RITA ${u}` }]);
+    expect(
+      (await ok(pedir("GET", `/billing-profiles/${pid}/exemptions`)))["dados"],
+    ).toMatchObject([{ nota: `falado com a Rita ${u}` }]);
+    expect(
+      (await ok(pedir("POST", "/customers/search", { procura: nif })))["dados"],
+    ).toMatchObject([{ id }]);
+  });
+
+  it("numa ficha que não foi apagada, o apoio lê o perfil como hoje (§15.12)", async () => {
+    const u = unico();
+    const nif = nifNovo();
+    const id = await ficha({ nome: `Rui ${u}` });
+    const p = await perfil(id, {
+      tipo: "particular",
+      nome_documento: `Rui Vivo ${u}`,
+      nif,
+    });
+    expect(
+      await ok(
+        pedir("GET", `/billing-profiles/${String(p["id"])}`, undefined, apoio),
+      ),
+    ).toMatchObject({
+      nome_documento: `Rui Vivo ${u}`,
+      nif,
+      guardado_por_obrigacao_fiscal: false,
+    });
+    expect(
+      (await ok(pedir("POST", "/customers/search", { procura: nif }, apoio)))[
+        "dados"
+      ],
+    ).toMatchObject([{ id }]);
   });
 
   it("a pseudonimização troca também o motivo do histórico (texto livre; #322)", async () => {

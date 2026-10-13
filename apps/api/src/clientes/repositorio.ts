@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { sql, type Kysely, type Transaction } from "kysely";
+import { sql, type Kysely, type RawBuilder, type Transaction } from "kysely";
 import {
   CANAIS_CONSENTIMENTO,
   type TipoDeAnexo,
@@ -294,6 +294,12 @@ export async function listarClientes(
   limite: number,
   depois: string | null,
   procura?: string,
+  /**
+   * Sem customers:billing (§15.12): a procura por NIF não mostra as fichas
+   * pseudonimizadas, porque confirmava que o NIF é da pessoa que pediu o
+   * apagamento.
+   */
+  semFichasApagadasNoNif = false,
 ) {
   return noClientes(db, comercianteId, async (trx) => {
     const base = () => {
@@ -322,6 +328,11 @@ export async function listarClientes(
                 sql<string>`nif_para_procura(${procura})`,
               ),
           );
+          if (semFichasApagadasNoNif) {
+            q = q.where(
+              sql<boolean>`not ${fichaPseudonimizada(sql`cliente.id`)}`,
+            );
+          }
         }
       }
       return q;
@@ -415,6 +426,23 @@ const camposDaMorada = (m: Morada | null) => ({
   morada_pais: m?.pais ?? null,
 });
 
+/**
+ * Se a ficha, ou aquela em que foi fundida (subindo por `fundido_em`), foi
+ * pseudonimizada por um pedido de apagamento (docs/23 §15.12; EL).
+ * Os perfis dela que ficaram por obrigação fiscal só se lêem com
+ * `customers:billing` (o dono). A regra vive só aqui: as rotas que lêem
+ * perfis, provas do VIES, isenções e anexos passam por ela.
+ */
+export function fichaPseudonimizada(cliente: RawBuilder<unknown>) {
+  return sql<boolean>`exists (
+    with recursive acima (id, estado, fundido_em) as (
+      select c.id, c.estado, c.fundido_em from cliente c where c.id = ${cliente}
+      union
+      select c.id, c.estado, c.fundido_em from cliente c
+      join acima a on c.id = a.fundido_em)
+    select from acima where acima.estado = 'pseudonimizado')`;
+}
+
 function perfisComNif(trx: Transaction<BaseDados>, comercianteId: string) {
   return (
     trx
@@ -445,7 +473,37 @@ function perfisComNif(trx: Transaction<BaseDados>, comercianteId: string) {
           "isencao_em_vigor",
         ),
       )
+      .select(
+        fichaPseudonimizada(sql`perfil_faturacao.cliente_id`).as("guardado"),
+      )
   );
+}
+
+/**
+ * Se o perfil é de uma ficha pseudonimizada (§15.12), para os outros
+ * domínios que o lêem (a simulação do IVA).
+ */
+export async function perfilDeFichaPseudonimizada(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  perfilId: string,
+): Promise<boolean> {
+  return noClientes(db, comercianteId, (trx) => perfilGuardado(trx, perfilId));
+}
+
+/** Se o perfil é de uma ficha pseudonimizada (§15.12). */
+export async function perfilGuardado(
+  trx: Transaction<BaseDados>,
+  perfilId: string,
+): Promise<boolean> {
+  const r = await trx
+    .selectFrom("perfil_faturacao")
+    .select(
+      fichaPseudonimizada(sql`perfil_faturacao.cliente_id`).as("guardado"),
+    )
+    .where("id", "=", perfilId)
+    .executeTakeFirst();
+  return r?.guardado ?? false;
 }
 
 export async function criarPerfil(
@@ -902,6 +960,8 @@ export async function listarValidacoes(
       dados,
       total: Number(n),
       ultimo: haMais ? (dados.at(-1)?.id ?? null) : null,
+      // O perfil é de uma ficha pseudonimizada (§15.12).
+      guardado: await perfilGuardado(trx, perfilId),
     };
   });
 }
@@ -1055,12 +1115,20 @@ export async function listarAnexosDaIsencao(
     if (existe === undefined) {
       throw new ErroClientes("customers.not_found", "isenção inexistente");
     }
-    return trx
+    const { perfil_id } = await trx
+      .selectFrom("isencao_manual")
+      .select("perfil_id")
+      .where("id", "=", isencaoId)
+      .executeTakeFirstOrThrow();
+    // O nome do ficheiro pode ter o nome da pessoa (§15.12).
+    const guardado = await perfilGuardado(trx, perfil_id);
+    const linhas = await trx
       .selectFrom("anexo_isencao")
       .select(COLUNAS_DO_ANEXO)
       .where("isencao_id", "=", isencaoId)
       .orderBy("id")
       .execute();
+    return linhas.map((l) => ({ ...l, guardado }));
   });
 }
 
@@ -1100,12 +1168,16 @@ export async function listarIsencoes(
     if (existe === undefined) {
       throw new ErroClientes("customers.not_found", "perfil inexistente");
     }
-    return trx
+    // O perfil é de uma ficha pseudonimizada (§15.12): a nota e os motivos
+    // são texto livre que pode falar da pessoa.
+    const guardado = await perfilGuardado(trx, perfilId);
+    const linhas = await trx
       .selectFrom("isencao_manual")
       .selectAll()
       .where("perfil_id", "=", perfilId)
       .orderBy("id", "desc")
       .execute();
+    return linhas.map((l) => ({ ...l, guardado }));
   });
 }
 
