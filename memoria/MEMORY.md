@@ -150,3 +150,4 @@
 - [Hub, envios: métodos de entrega e embalagem (#393, docs/22 §31): rotas /hub/shipping-methods, markets e warehouses; separadores no módulo «Envios»; ONU fora do Hub — 13/10/2026](hub-envios-metodos-13out2026.md)
 - [Hub, envios: o ecrã «Expedir» (#393, docs/22 §33): vista do armazém, expedições, etiqueta e seguimento pelo Hub; cenário de encomenda paga partilhado nos testes; capturas da encomenda simuladas — 13/10/2026](hub-expedir-13out2026.md)
 - [Envios na VPS de ensaio (#393, docs/36 §17): a chave dos envios gerada uma vez pelo preparar.sh e o caminho dos avisos da Sendcloud no nginx; cópia da chave fora da máquina por fazer — 13/10/2026](envios-na-vps-13out2026.md)
+- [Envios: encomenda parada perto da data-limite (#393, docs/36 §18, Q4): a 5 dias ou menos, com unidades por expedir, abre um problema «atraso» uma vez só; migração 0084 — 13/10/2026](envios-encomenda-parada-13out2026.md)

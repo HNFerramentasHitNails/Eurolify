@@ -14,6 +14,7 @@ import {
   type MoradaEtiqueta,
 } from "./adaptador.js";
 import { ErroEnvios } from "./erros.js";
+import { avisarEncomendasParadas } from "./paradas.js";
 import {
   adaptadorDe,
   credenciaisDe,
@@ -57,7 +58,7 @@ function comTempo<T>(cfg: ConfigEnvios | undefined, p: Promise<T>): Promise<T> {
 }
 
 /** O código de um erro, sem dados (para o registo e para os problemas). */
-const codigoDe = (erro: unknown) =>
+export const codigoDe = (erro: unknown) =>
   typeof (erro as { codigo?: unknown }).codigo === "string"
     ? (erro as { codigo: string }).codigo
     : erro instanceof Error
@@ -1136,11 +1137,31 @@ export function agendarTrabalhoEnvios(
   },
 ): () => void {
   let aCorrer = false;
+  // As encomendas paradas procuram-se de hora a hora (docs/36 §18), na
+  // primeira volta depois de a API arrancar e depois uma vez por hora.
+  let paradasEm = 0;
+  const paradas = async () => {
+    if (Date.now() - paradasEm < 60 * 60 * 1000) return;
+    paradasEm = Date.now();
+    try {
+      const r = await avisarEncomendasParadas(base);
+      if (r.falhas > 0) {
+        registo.error(r, "envios: as encomendas paradas correram com falhas");
+      } else if (r.abertos > 0) {
+        registo.info(r, "envios: encomendas paradas avisadas");
+      }
+    } catch (erro) {
+      registo.error(
+        { erro: codigoDe(erro) },
+        "envios: as encomendas paradas falharam",
+      );
+    }
+  };
   const t = setInterval(
     () => {
       if (aCorrer) return;
       aCorrer = true;
-      correrTrabalho(base, cfg)
+      void correrTrabalho(base, cfg)
         .then((r) => {
           if (r.falhas > 0) {
             registo.error(r, "envios: a volta correu com falhas");
@@ -1151,6 +1172,7 @@ export function agendarTrabalhoEnvios(
         .catch((erro: unknown) => {
           registo.error({ erro: codigoDe(erro) }, "envios: a volta falhou");
         })
+        .then(paradas)
         .finally(() => {
           aCorrer = false;
         });

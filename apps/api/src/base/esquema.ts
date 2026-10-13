@@ -1505,6 +1505,16 @@ export interface TabelaEtiquetaFicheiro {
   criado_em: ColumnType<Date, never, never>;
 }
 
+/** Uma encomenda parada já avisada (docs/36 §18, 0084): só se acrescenta. */
+export interface TabelaEncomendaParada {
+  encomenda_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  data_limite: ColumnType<Date, string, never>;
+  por_expedir: ColumnType<number, number, never>;
+  problema_id: ColumnType<string, string, never>;
+  avisada_em: ColumnType<Date, never, never>;
+}
+
 export interface TabelaEventoSeguimento {
   id: Generated<string>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1657,6 +1667,7 @@ export interface BaseDados {
   movimento_stock: TabelaMovimentoStock;
   expedicao: TabelaExpedicao;
   etiqueta_ficheiro: TabelaEtiquetaFicheiro;
+  encomenda_parada: TabelaEncomendaParada;
   evento_seguimento: TabelaEventoSeguimento;
   aviso_transportadora: TabelaAvisoTransportadora;
   linha_expedicao: TabelaLinhaExpedicao;

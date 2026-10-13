@@ -107,10 +107,13 @@ const FUNCOES_DA_API = [
   "entrar_com_passkey",
   // Os envios (0079): a porta dos avisos e o trabalho da API.
   "envios_avisos_resumir",
+  // As encomendas paradas (0084): a volta de todos e a de um comerciante.
+  "envios_comerciantes_com_paradas",
   "envios_comerciantes_com_trabalho",
   "envios_conta_do_aviso",
   // Os envios depois do apagamento do titular (0083): o gatilho do evento.
   "envios_encomenda_limpa",
+  "envios_paradas",
   "envios_trabalho",
   "envios_trabalho_adiar",
   "envios_trabalho_feito",

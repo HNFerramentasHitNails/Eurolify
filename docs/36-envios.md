@@ -743,9 +743,104 @@ contentor, por isso tirou-se a linha `[::]:443` só nessa cópia):
 
 **Aplicado na VPS a 13/10/2026** (#423, fluxo `aplicar-script`): a chave
 gerada, a API recriada com o `/health` a responder e o nginx do Hub
-recarregado (`memoria/envios-na-vps-13out2026.md`). **Por medir:** o 17.2,
-ponto 4, que só fica cumprido depois de o #424 estar aplicado e de o `medir`
-correr. O fluxo `medir` ainda não o fazia; o `eurolify-medir` ganha a
-secção «envios» (a `ENVIOS_CHAVE` na API no ar, só sim ou não, e as
-respostas de `/webhooks/` pedidas da própria máquina). Um `GET` leva 403 do
-`limit_except`, e não 405, como se mediu no nginx local.
+recarregado (`memoria/envios-na-vps-13out2026.md`). **Medido a 13/10/2026** (o 17.2, ponto 4; #424, fluxo `medir`): a
+`ENVIOS_CHAVE` está na API no ar; o `POST` à Sendcloud com uma conta
+fictícia leva 401 da API; o `GET` leva 403 do nginx (`limit_except`, e não
+405); os CTT e os pagamentos levam 404 do nginx.
+
+## 18. Encomendas paradas perto da data-limite (desenho; Q4, issue #393)
+
+Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
+envios»*; aprovado no mesmo dia: *«sim, aprovo; avança com o código»*. Completa a Q4, aprovada a
+12/10/2026 (`docs/06`, ED): *«etiqueta incerta, perdida, devolvida e
+encomenda parada vão para a fila «problema» da peça 21, sem fila nova»*. As
+três primeiras já estão no código (§15). A **encomenda parada** ficou por
+fazer: procurei em `apps/api/src` e nas migrações por `data_limite`,
+«parada» e «sem expedição», e só o checkout lê a data-limite. Skills:
+`order-fulfilment`, `consumer-rights-eu`, `platform-architect`.
+
+Ex.: a encomenda de 13/10/2026 foi paga com a data-limite de 12/11/2026. A
+07/11/2026 ainda tem unidades por expedir. Abre-se um problema: «A encomenda
+tem 2 unidades por expedir e a data-limite de entrega é 12/11/2026».
+Aparece na lista «A decidir» do Hub, com o prazo de 2 dias.
+
+### 18.1 O que entra
+
+| O quê | Como |
+|---|---|
+| **Quando está parada** | o estado é `paga`, `em_preparacao` ou `expedida_parcial`, há unidades por expedir e faltam **5 dias ou menos** para a data-limite, contados no fuso da loja (Q4). Inclui as que já passaram da data-limite |
+| **A data-limite** | a que o cliente viu no checkout (L1), copiada na encomenda (`metodo_entrega.data_limite`). Nunca se recalcula a partir do método de hoje |
+| **O que abre** | um **problema** da pós-venda, do tipo `outro` (como as perdidas, §15), com uma descrição sem dados pessoais: unidades por expedir e data-limite |
+| **Uma vez por encomenda** | uma marca na encomenda (`parada_avisada_em`), posta na mesma transacção que o problema, como a `etiqueta_motivo` da incerta (§15). Uma encomenda nunca abre dois problemas por estar parada |
+| **Quem procura** | a volta dos envios, que já corre de 5 em 5 minutos (`agendarTrabalhoEnvios`), uma vez por hora. Um erro numa encomenda não pára as outras |
+| **O aviso** | o da fila `problema`: aparece na lista «A decidir», com o prazo de 2 dias, e o aviso ao vencer (`docs/33`, R6) vai também por e-mail (`docs/34` §12). Não há aviso novo |
+| **O que a pessoa faz** | expede (a encomenda sai do estado, mas o problema fica até ser fechado), combina com o cliente, cancela ou reembolsa. O problema fecha-se com `POST /problems/{id}/close` ou com o reembolso (`decidirProblema`), e decide sempre uma pessoa (regra 5 do fiscal: nada em lote) |
+
+### 18.2 O que fica de fora, e porquê
+
+| Fica de fora |
+|---|
+| **Avisar o cliente.** O e-mail ao cliente espera pela escolha do serviço transaccional (`docs/34` §9) |
+| **Cancelar ou reembolsar sozinho.** A lei dá ao consumidor o pedido de um prazo adicional e só depois a resolução (L4, Dir. 2011/83/UE, art. 18.º). Quem decide é uma pessoa |
+| **Fechar o problema quando a encomenda é expedida.** Uma expedição pode sair depois da data-limite, e a pessoa tem de ver o caso. Fica aberto até ela o fechar |
+| **Uma fila nova** em «A decidir»: a Q4 diz «sem fila nova» |
+| **Os 5 dias por comerciante.** Fica um valor só, numa função da base (`envios_dias_de_aviso_parada()`), como o `posvenda_dias_de_aviso()`. Muda-se se um comerciante o pedir |
+
+### 18.3 Por onde é que isto ainda pode sair errado
+
+- **Uma encomenda antiga sem `data_limite`** (de antes da 0074): sem data,
+  não há aviso. Diz-se na lista de verificação do pedido quantas há no
+  ensaio.
+- **O fuso:** o «dia» é o da loja (`comerciante.fuso`), como no checkout. Um
+  teste à volta da meia-noite.
+- **Duas voltas ao mesmo tempo** (dois processos da API): a marca condicional
+  (`parada_avisada_em IS NULL`) e o problema na mesma transacção impedem o
+  segundo.
+- **Uma encomenda que volta a parar** (expedida em parte, ainda com
+  unidades): não abre outro problema. O primeiro diz quantas unidades havia
+  quando abriu, e a encomenda mostra o resto.
+- **Muitas encomendas paradas de uma vez** (um armazém fechado): abre um
+  problema por encomenda, todos na lista, sem cortar (`docs/33`, R10).
+
+### 18.4 Testes que têm de falhar sem a protecção
+
+- uma encomenda a 6 dias não abre; a 5 abre; a que já passou também abre;
+- a segunda volta não abre outro;
+- `expedida`, `cancelada` ou sem unidades por expedir não abre;
+- o fuso: perto da meia-noite, o dia é o da loja;
+- o isolamento entre comerciantes (RLS): a volta de um não toca no outro;
+- sem `data_limite`, não abre e não falha.
+
+### 18.5 Como entra no código (quando aprovado)
+
+Um pedido só, com:
+- a migração 0084 (a 0083 já era do #420): a marca, a função dos dias e a função que lista as
+  paradas;
+- a volta em `src/envios/`;
+- os testes;
+- este §18 com «Em código».
+
+Sem ecrã novo: o problema já aparece em «A decidir» e na encomenda.
+
+### 18.6 Em código (13/10/2026; migração 0084)
+
+| O quê | Onde |
+|---|---|
+| os 5 dias, num sítio só, e a data-limite lida da cópia da encomenda (NULL quando falta ou não é uma data, sem parar a volta) | `envios_dias_de_aviso_parada()`, `envios_data_limite()`, migração 0084 |
+| a marca «já avisada», com o problema que abriu; só se acrescenta, com o RLS forçado | `encomenda_parada` |
+| as candidatas por comerciante, postas e tiradas pelos gatilhos da encomenda e da marca; as que já existiam entram na migração | `tarefa_parada` (interna) |
+| a decisão, dentro do comerciante: o estado, a data no fuso da loja, sem marca e com unidades que ainda não saíram (uma expedição só criada ainda está no armazém) | `envios_paradas()` |
+| a volta: de hora a hora, na volta dos envios; abre o problema e a marca na mesma transacção; uma segunda volta ao mesmo tempo desfaz o seu | `src/envios/paradas.ts`; `agendarTrabalhoEnvios` |
+| 4 testes com o PostgreSQL 18.6 | `test/envios-paradas.test.ts` |
+
+**Desvios do desenho:**
+- **O problema é do tipo `atraso`**, e não `outro`: a pós-venda já tem esse
+  tipo (0058), e é o que o caso é.
+- **A marca é uma tabela própria** (`encomenda_parada`), e não uma coluna na
+  encomenda: a encomenda tem os campos guardados por gatilho (0047), e a
+  tabela guarda também o problema que abriu, a data e as unidades.
+- **Uma tabela interna de candidatas** (`tarefa_parada`), como a
+  `tarefa_encomenda` da 0047: a volta de todos os comerciantes não lê a
+  encomenda, que tem o RLS forçado também para o dono das funções. Para
+  escolher os comerciantes conta-se o fuso mais adiantado (UTC+14); o dia de
+  cada loja decide-se dentro dela.
