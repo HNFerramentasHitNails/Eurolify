@@ -1,4 +1,5 @@
 import type { ConfigEnvios } from "../src/envios/adaptador.js";
+import type { ConfigPagamentos } from "../src/pagamentos/adaptador.js";
 import { randomBytes } from "node:crypto";
 import { Writable } from "node:stream";
 import { sql } from "kysely";
@@ -52,6 +53,9 @@ export function hubDeTeste(
     armazenamento?: Armazenamento;
     faturacao?: ConfigFaturacao;
     envios?: ConfigEnvios;
+    /** Os pagamentos e os limites, para os testes com encomendas pagas. */
+    pagamentos?: ConfigPagamentos;
+    limites?: { pedidos: number; janelaMs: number };
   } = {},
 ) {
   const registo: string[] = [];
@@ -68,8 +72,8 @@ export function hubDeTeste(
     opcoes.comTotp === true ? { ...HUB, chaveTotp: CHAVE_TOTP } : HUB,
     opcoes.armazenamento,
     undefined,
-    undefined,
-    undefined,
+    opcoes.limites,
+    opcoes.pagamentos,
     opcoes.faturacao,
     opcoes.envios,
   );

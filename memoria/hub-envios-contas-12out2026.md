@@ -45,7 +45,8 @@ desenho do `docs/22` §29 (issue #393).
 
 ## O que ficou por verificar
 
-- **Os avisos não chegam à API na VPS.** O `nginx-hub.conf` só publica
+- **Os avisos não chegam à API na VPS** (resolvido a 13/10/2026 para a
+  Sendcloud: `envios-na-vps-13out2026.md`). O `nginx-hub.conf` só publica
   `/hub/`; os avisos das transportadoras e dos pagamentos precisam de um
   caminho público (mudança à VPS, ADR-0028). O texto do ecrã que o diz é
   uma rede temporária: retira-se com esse pedido, ou revê-se a 31/03/2027.

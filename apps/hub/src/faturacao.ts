@@ -33,6 +33,8 @@ export interface LigacaoFaturacao {
   testada_em: string | null;
   erro: string | null;
   versao: number;
+  /** O que falta mapear (docs/22 §32.4); null numa ligação desligada. */
+  faltam?: Necessario | null;
 }
 
 export interface Faturacao {
@@ -258,10 +260,182 @@ export function nomeDoPeriodo(t: Textos, p: string): string {
   return preencher(t.faturacaoTrimestre, { n: m[2] ?? "", ano: m[1] ?? "" });
 }
 
+// ------------------------------------------- Configurar (docs/22 §32)
+
+/** O que o Eurolify precisa de ver mapeado (a mesma chave da retenção). */
+export interface Necessario {
+  /** Os pares (país, taxa em centésimas). */
+  taxas: { pais: string; taxa: number }[];
+  isencoes: { pais: string; codigo: string }[];
+  meios: string[];
+}
+
+export interface Opcao {
+  id: string;
+  nome: string;
+}
+
+/** GET /hub/invoicing-connections/{id}/issuer-options. */
+export interface OpcoesDoEmissor {
+  listas: {
+    series: Opcao[];
+    taxas: (Opcao & { valor: number; zona: string | null })[];
+    isencoes: Opcao[];
+    metodos_pagamento: Opcao[];
+    linguas: (Opcao & { codigo: string | null })[];
+    vencimentos: (Opcao & { dias: number | null })[];
+    unidades: (Opcao & { abreviatura: string | null })[];
+    categorias: Opcao[];
+  };
+  necessario: Necessario;
+  ligacao: {
+    versao: number;
+    serie: string | null;
+    taxas: { pais: string; taxa: number; emissor: string }[];
+    isencoes: { codigo: string; emissor: string }[];
+    config: Record<string, string | Record<string, string> | undefined>;
+  };
+}
+
+export type ResultadoNoEmissor =
+  | {
+      tipo: "artigo";
+      id: string;
+      nome: string;
+      referencia: string | null;
+      preco: number | null;
+    }
+  | { tipo: "cliente"; id: string; nome: string; numero: string | null };
+
+/** Os campos da configuração escolhidos de uma lista (docs/29 §13.2). */
+export const CAMPOS_DE_LISTA = [
+  "lingua",
+  "vencimento",
+  "unidade",
+  "categoria",
+] as const;
+export const CAMPOS_DE_PESQUISA = [
+  "artigo_portes",
+  "cliente_consumidor_final",
+] as const;
+type CampoConfig =
+  (typeof CAMPOS_DE_LISTA)[number] | (typeof CAMPOS_DE_PESQUISA)[number];
+
+/** O que a pessoa escolheu no ecrã; "" = por escolher. */
+export interface Escolhas {
+  serie: string;
+  /** Pela chave `PT|2300`. */
+  taxas: Record<string, string>;
+  /** Pelo código do motivo. */
+  isencoes: Record<string, string>;
+  /** Pelo meio de pagamento do Eurolify. */
+  metodos: Record<string, string>;
+  config: Record<CampoConfig, string>;
+}
+
+export const chaveDoPar = (p: { pais: string; taxa: number }) =>
+  `${p.pais}|${String(p.taxa)}`;
+
+/** As escolhas já gravadas na ligação (nada se escolhe por adivinhar). */
+export function escolhasDe(l: OpcoesDoEmissor["ligacao"]): Escolhas {
+  const texto = (k: string) => {
+    const v = l.config[k];
+    return typeof v === "string" ? v : "";
+  };
+  const metodos = l.config["metodos_pagamento"];
+  return {
+    serie: l.serie ?? "",
+    taxas: Object.fromEntries(l.taxas.map((t) => [chaveDoPar(t), t.emissor])),
+    isencoes: Object.fromEntries(l.isencoes.map((i) => [i.codigo, i.emissor])),
+    metodos: typeof metodos === "object" ? { ...metodos } : {},
+    config: {
+      lingua: texto("lingua"),
+      vencimento: texto("vencimento"),
+      unidade: texto("unidade"),
+      categoria: texto("categoria"),
+      artigo_portes: texto("artigo_portes"),
+      cliente_consumidor_final: texto("cliente_consumidor_final"),
+    },
+  };
+}
+
+/**
+ * O que ainda falta com estas escolhas: a mesma conta do servidor
+ * (`faltaNaLigacao`), para o «Faltam: …» mudar à medida que se escolhe.
+ */
+export function faltaNasEscolhas(n: Necessario, e: Escolhas): Necessario {
+  return {
+    taxas: n.taxas.filter((p) => (e.taxas[chaveDoPar(p)] ?? "") === ""),
+    isencoes: n.isencoes.filter((i) => (e.isencoes[i.codigo] ?? "") === ""),
+    meios: n.meios.filter((m) => (e.metodos[m] ?? "") === ""),
+  };
+}
+
+/** «Faltam 2 taxas e 1 método de pagamento.»; null quando nada falta. */
+export function resumoDoQueFalta(t: Textos, f: Necessario): string | null {
+  const partes = [
+    [f.taxas.length, t.faltaUmaTaxa, t.faltaTaxas],
+    [f.isencoes.length, t.faltaUmaIsencao, t.faltaIsencoes],
+    [f.meios.length, t.faltaUmMeio, t.faltaMeios],
+  ] as const;
+  const ditas = partes
+    .filter(([n]) => n > 0)
+    .map(([n, um, varios]) => (n === 1 ? um : preencher(varios, { n })));
+  if (ditas.length === 0) return null;
+  const lista =
+    ditas.length === 1
+      ? (ditas[0] ?? "")
+      : `${ditas.slice(0, -1).join(", ")} ${t.faltaE} ${ditas[ditas.length - 1] ?? ""}`;
+  return preencher(t.faltam, { lista });
+}
+
+/**
+ * As taxas do emissor para um par (Q1 em A): **nenhuma vem escolhida**; as
+ * de mesmo valor e mesma zona fiscal ficam no topo, e as outras a seguir,
+ * pela ordem do emissor.
+ */
+export function taxasParaOPar<T extends { valor: number; zona: string | null }>(
+  taxas: readonly T[],
+  par: { pais: string; taxa: number },
+): { batem: T[]; outras: T[] } {
+  const bate = (x: T) =>
+    x.valor === par.taxa && (x.zona ?? "").toUpperCase() === par.pais;
+  return { batem: taxas.filter(bate), outras: taxas.filter((x) => !bate(x)) };
+}
+
+/** O corpo do PATCH: só o que foi escolhido, sempre com a versão lida. */
+export function paraGravar(e: Escolhas, versao: number) {
+  const config: Record<string, string | Record<string, string>> = {};
+  for (const k of [...CAMPOS_DE_LISTA, ...CAMPOS_DE_PESQUISA]) {
+    if (e.config[k] !== "") config[k] = e.config[k];
+  }
+  const metodos = Object.fromEntries(
+    Object.entries(e.metodos).filter(([, v]) => v !== ""),
+  );
+  if (Object.keys(metodos).length > 0) config["metodos_pagamento"] = metodos;
+  return {
+    versao,
+    serie: e.serie === "" ? null : e.serie,
+    taxas: Object.entries(e.taxas)
+      .filter(([, v]) => v !== "")
+      .map(([k, emissor]) => {
+        const [pais = "", taxa = "0"] = k.split("|");
+        return { pais, taxa: Number(taxa), emissor };
+      }),
+    isencoes: Object.entries(e.isencoes)
+      .filter(([, v]) => v !== "")
+      .map(([codigo, emissor]) => ({ codigo, emissor })),
+    config,
+  };
+}
+
 // ------------------------------------------------------------ Os endereços
 
 export const enderecoFaturacao = (comerciante: string) =>
   `/faturacao?${new URLSearchParams({ comerciante }).toString()}`;
+
+export const enderecoConfigurar = (comerciante: string, ligacao: string) =>
+  `/faturacao/configurar?${new URLSearchParams({ comerciante, ligacao }).toString()}`;
 
 export const enderecoOss = (
   comerciante: string,

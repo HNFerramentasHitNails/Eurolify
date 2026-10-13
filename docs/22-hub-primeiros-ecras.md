@@ -2013,7 +2013,7 @@ assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
 | Fica de fora, e porquê |
 |---|
 | **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§31). Precisam das listas dos mercados e dos armazéns no Hub. |
-| **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Desenha-se com eles (`docs/27`). |
+| **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Ficam no ecrã «Expedir» (§33). |
 | **O modo real**: é uma migração com decisão escrita (`docs/36` §16.2). O ecrã diz «Teste» e não oferece outro. |
 | **Os CTT**: a conta cria-se, vê-se e arquiva-se, mas sem credenciais nem teste: o adaptador não declara campos, e o ecrã diz «Esta transportadora ainda não está ligada ao Eurolify», até haver o adaptador (V1). |
 
@@ -2064,15 +2064,13 @@ ter ficado criada e pede para conferir a lista.
 «passou o teste», e o ecrã nunca o diz por outras palavras.
 
 **O caminho dos avisos.** O ecrã mostra o caminho
-(`/webhooks/carriers/{transportadora}/cac_…`), não o endereço completo. Na
-VPS de ensaio, só o Hub (`/hub/`) e o MCP estão publicados
-(`infra/vps/ficheiros/nginx-hub.conf`): **os avisos das transportadoras, e os
-dos pagamentos, ainda não chegam à API**. O ecrã di-lo. Até lá, a volta
-consulta o seguimento de hora a hora. Publicar o caminho é uma mudança à
-VPS, com pedido próprio (ADR-0028). **Rede temporária:** o texto
-`enviosAvisosVps` retira-se no mesmo pedido que publicar
-`/webhooks/carriers/` no nginx da VPS; sem esse pedido, revê-se a
-31/03/2027, com a migração para Paris (ADR-0018).
+(`/webhooks/carriers/{transportadora}/cac_…`), não o endereço completo.
+**Desde 13/10/2026** (`docs/36` §17), o nginx da VPS de ensaio publica só o
+caminho dos avisos da Sendcloud. Os dos pagamentos e de outras
+transportadoras continuam fechados, e o ecrã só mostra o caminho numa conta
+da Sendcloud. Sem avisos, a volta consulta o seguimento de hora a hora.
+**Rede temporária, retirada a 13/10/2026:** o texto `enviosAvisosVps` saiu no
+mesmo pedido.
 
 ### 29.4 Antes de dizer que está feito (o pedido do código)
 
@@ -2473,3 +2471,399 @@ Eurolify», e o ecrã di-lo.
 
   As capturas fazem o caminho normal: vazio, criar «Manual», sem contas
   prontas e a embalagem.
+
+## 32. Faturação: criar a ligação ao Moloni e os mapas no Hub (issue #310)
+
+Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho da ligação ao
+Moloni no Hub»*). É a parte que a Q1 do §30 deixou para depois: «entram numa
+parte seguinte, com a leitura das listas do Moloni». **Aprovado pelo Diogo a
+13/10/2026**, com a Q1 em A (*«sim, aprovo o desenho com a Q1 em A»*;
+`docs/06`, EI).
+
+Hoje a ligação, a série e os mapas só se criam pela integração. É preciso
+escrever os números do Moloni à mão: a série, cada (país, taxa) → `tax_id`,
+cada código de isenção → motivo do Moloni e os ids da configuração (`docs/29`
+§13.2). Um número errado põe uma taxa errada numa fatura (`docs/04`).
+
+Skills: `eu-vat-oss-ioss`, `third-party-extensions`, `headless-commerce`,
+`eurolify-design`, `eurolify-hub-modular`, `eurolify-hub-quality-gate`,
+`observability-security`.
+
+Ex.: a dona da «Loja Exemplo»:
+1. Carrega em «Criar a ligação ao Moloni», liga a conta (§30) e testa.
+2. Abre «Configurar». Escolhe a série «Loja online 2026» e, para «IVA 23 %
+   (PT)», a taxa «Taxa Normal 23 % · PT» do Moloni. Para o motivo «M16»,
+   escolhe o «M16» do Moloni.
+3. Procura «Portes» e escolhe o artigo; procura «Consumidor final» e escolhe
+   o cliente.
+4. Grava. A ligação fica «por testar», testa outra vez e fica «Pronta».
+
+### 32.1 O que diz o Moloni (páginas lidas a 12/10 e 13/10/2026, **M**; nenhuma lida pela API: as credenciais da conta de teste não estão no ambiente)
+
+| O que se escolhe | Método do Moloni | O que devolve |
+|---|---|---|
+| a série | `documentSets/getAll` (`company_id`; até 50) | `document_set_id`, `name`, `active_by_default` |
+| as taxas | `taxes/getAll` | `tax_id`, `value`, `saft_type`, `fiscal_zone` (`docs/eurolify/fontes-api-moloni-11out2026.md` §9) |
+| as isenções | `taxExemptions/getAll` | `code`, `name`, `description` |
+| os métodos de pagamento | `paymentMethods/getAll` (`company_id`; até 50) | `payment_method_id`, `name` |
+| a língua | `languages/getAll` (sem parâmetros) | `language_id`, `code`, `title` |
+| o vencimento | `maturityDates/getAll` (`company_id`) | `maturity_date_id`, `name`, `days` |
+| a unidade dos artigos criados | `measurementUnits/getAll` (`company_id`) | `unit_id`, `name`, `short_name` |
+| a categoria dos artigos criados | `productCategories/getAll` (`company_id`, `parent_id` = 0 para as de topo) | `category_id`, `name`, `num_categories` |
+| o artigo dos portes | `products/getBySearch` (`search` no nome, na referência ou no EAN; até 50) | `product_id`, `name`, `reference`, `price` |
+| o cliente «Consumidor final» | `customers/getBySearch` (`search` no número, no contribuinte ou no nome; até 50) | `customer_id`, `vat`, `name`, `number` |
+
+**Por medir na conta de teste:** os campos exactos de cada resposta e se
+estas leituras contam para o limite de pedidos (§13.5).
+
+### 32.2 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **Criar a ligação ao Moloni** de uma entidade que não tem nenhuma activa: sem série nem mapas, «por testar» |
+| **Configurar**: a série, as taxas, as isenções, os métodos de pagamento, a língua, o vencimento, a unidade e a categoria dos artigos criados, o artigo dos portes e o cliente «Consumidor final», **sempre escolhidos de uma lista lida do Moloni** |
+| **Ver o que falta**: o Eurolify diz que pares (país, taxa), que códigos de isenção e que meios de pagamento precisam de mapa. O que falta não impede gravar, mas fica à vista, e uma fatura que precise dele fica retida (`taxa_sem_mapa`, `isencao_sem_mapa`, motivos que já existem) |
+
+| Fica de fora, e porquê |
+|---|
+| **Escolher o emissor da entidade** (Eurolify ou sistema próprio): como no §30.1, entra com o ecrã dos documentos fiscais |
+| **Criar séries, taxas ou artigos no Moloni**: nunca a partir do Eurolify; cria-se no Moloni e escolhe-se aqui |
+| **O adaptador de ensaio**: não lê listas; continua só pela integração |
+| **Desligar a ligação**: fica pela integração, porque desligar com documentos a meio tem regras próprias (R15) |
+
+### 32.3 Como o Hub lê e escreve
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `POST /hub/invoicing-connections` `{ entidade_legal }` | `invoices:accounts` (o dono) | a mesma `criarLigacao`, com `adaptador = moloni`, sem série nem mapas; uma activa por entidade (a base já o garante) |
+| `GET /hub/invoicing-connections/{id}/issuer-options` | `invoices:accounts` | **lê do Moloni**, com as credenciais da ligação: as séries, as taxas, as isenções, os métodos de pagamento, as línguas, os vencimentos, as unidades e as categorias de topo. **Junta o que o Eurolify precisa de mapear**: os pares (país, taxa) da tabela do Motor de IVA vigentes hoje nos países dos mercados activos do comerciante, os códigos de motivo de isenção do Motor (os de `GET /tax/reasons`) e os meios de pagamento que o comerciante aceita (a régua método → conta, `docs/26`). Nunca escolhe nada |
+| `GET /hub/invoicing-connections/{id}/issuer-search?tipo=artigo\|cliente&q=` | `invoices:accounts` | pesquisa no Moloni (`products/getBySearch` ou `customers/getBySearch`), até 50; de cada cliente só o id, o número e o nome, **nunca o contribuinte nem a morada** |
+| `PATCH /hub/invoicing-connections/{id}` `{ versao, serie, taxas, isencoes, config }` | `invoices:accounts` | a mesma `mudarLigacao` da chave: fica por testar e, com documentos a meio no emissor, recusa (R15). **Antes de gravar, o servidor relê as listas do Moloni e confere que cada id escolhido existe lá** (uma série apagada entretanto, ou um id escrito à mão por uma integração do Hub, é recusado com `invoices.invalid_field`) |
+
+- **Os erros do Moloni** (credenciais mortas, rede) saem como na ligação
+  (`invoices.issuer_error`, tapados). A ligação passa a «com erro» só pela
+  renovação, nunca por uma leitura de listas.
+- **O limite próprio por empresa** (§13.5) conta também estas leituras.
+- **Sem cópia das listas na base.** Lêem-se quando se abre «Configurar» e
+  quando se grava. Nada do Moloni fica guardado além dos ids escolhidos.
+
+### 32.4 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Faturação** (§30.3), uma entidade sem ligação | Para o dono: «Criar a ligação ao Moloni» (em vez da frase da Q1 do §30). Cria e mostra a ligação «Por testar», com «Ligar o Moloni» | já existe uma activa (relê); sem `invoices:accounts` (só a frase) |
+| **Faturação**, uma entidade com ligação Moloni ligada | «Configurar», e por baixo do estado «Faltam 2 taxas e 1 método de pagamento» (do `issuer-options`), ou nada quando nada falta | — |
+| **Configurar** (`/faturacao/configurar?comerciante=…&ligacao=isx_…`) | Uma secção por grupo, cada uma com listas de escolha preenchidas pelo Moloni, sempre com o nome e o id do Moloni lado a lado (`Taxa Normal 23 % · PT (id 11)`): **Série**; **Taxas** (uma linha por par do Eurolify, «IVA 23 % · Portugal», e a taxa do Moloni a escolher); **Isenções** (uma linha por código); **Métodos de pagamento** (uma linha por meio); **Para os clientes criados** (língua, vencimento); **Para os artigos criados** (unidade, categoria); **Portes** e **Consumidor final** (um campo de pesquisa que mostra até 50 resultados). Por baixo, «Faltam: …» actualizado à medida que se escolhe. «Gravar» grava tudo de uma vez, com a versão lida. Depois de gravar, «A ligação ficou por testar.» e o botão «Testar» | a ler o Moloni; o Moloni recusou ou não respondeu (a frase, tapada, e «Tentar outra vez»); lista vazia no Moloni («O Moloni não tem nenhuma série; crie-a no Moloni e volte.»); conflito (409: «Outra pessoa mudou esta ligação entretanto.», com as escolhas da pessoa guardadas no ecrã); um id que deixou de existir (`invoices.invalid_field`: a frase da API e a lista relida); documentos a meio (`invoices.issuer_busy`); sem permissão |
+
+### 32.5 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| **Escolher a taxa errada do Moloni** (uma de 23 % de outra zona fiscal, ou de 13 % em vez de 23 %) | a lista mostra o valor, a zona fiscal e o id; nada vem escolhido (Q1); o teste da ligação não chega para isto. **O contabilista confere os mapas antes do primeiro comerciante de fora** (**C**, `docs/05`) |
+| Escolher por nome um cliente ou artigo com nome parecido | a pesquisa mostra o número e a referência ao lado do nome, e guarda-se o id (`AGENTS.md`, «Não se erra», regra 6) |
+| Um id que deixa de existir no Moloni depois de gravado | o servidor confere ao gravar; depois disso, a emissão falha no Moloni e o documento fica retido com a frase dele (§13.5), nunca sai com outra coisa |
+| Dados pessoais dos clientes do Moloni no Hub | a pesquisa de clientes só devolve o id, o número e o nome; o contribuinte e a morada não saem |
+| A leitura gastar o limite do Moloni | o limite próprio por empresa (§13.5); as listas lêem-se só ao abrir e ao gravar |
+
+### 32.6 Decidido
+
+✅ **Q1: A** (Diogo, 13/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
+
+**Q1. O ecrã sugere a taxa do Moloni quando o valor e a zona fiscal batem?**
+Ex.: para «IVA 23 % · Portugal», o Moloni tem a «Taxa Normal» (23 %, zona
+PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
+- **A (proposta):** não sugere nem escolhe. As taxas do Moloni com o mesmo
+  valor e a mesma zona aparecem **no topo da lista**, e a pessoa escolhe
+  sempre. Nada fica escolhido sem alguém o escolher («Não se erra», regra
+  6), e duas taxas iguais no Moloni são justamente o caso em que adivinhar
+  sai caro.
+- **B:** vem pré-escolhida quando só há uma que bate; a pessoa confirma. Poupa
+  cliques, mas um «Gravar» distraído grava uma escolha que ninguém fez.
+
+### 32.7 Antes de dizer que está feito (o pedido do código)
+
+- **API**:
+  - as quatro rotas pelo papel: só o dono; o gestor, o apoio e o armazém
+    recebem 403; outro comerciante, 404;
+  - as listas contra o Moloni simulado, incluindo a recusa e a rede;
+  - a pesquisa de clientes sem contribuinte nem morada;
+  - o `PATCH` recusa um id que não existe no Moloni, com a versão (409) e
+    com documentos a meio;
+  - o «o que falta» bate com os motivos de retenção (uma fatura com uma
+    taxa por mapear fica retida).
+- **Hub**:
+  - criar, ligar, configurar e testar só com o teclado;
+  - o conflito, a lista vazia e a recusa do Moloni;
+  - capturas a 375, 768 e 1280 px, em claro e escuro.
+- **Na conta de teste do Moloni** (com as credenciais no ambiente e o OK de
+  cada escrita): ler as listas a sério antes de abrir isto a um comerciante.
+
+### 32.8 Em código (13/10/2026; pedido #412)
+
+| O quê | Onde |
+|---|---|
+| as quatro rotas `/hub/invoicing-connections…` (criar, `issuer-options`, `issuer-search`, `PATCH`), só com `invoices:accounts` | `apps/api/src/faturacao/rotas.ts` |
+| o que o Eurolify precisa de mapear (`necessarioDe`), o que falta (`faltaNaLigacao`, a mesma chave de `motivosDoConteudo`), ler e pesquisar no emissor, e gravar com a conferência dos ids (`configurarLigacao`) | `apps/api/src/faturacao/repositorio.ts` |
+| as listas, a pesquisa e a confirmação de um artigo ou cliente por id (`products/getOne`, `customers/getOne`) no Moloni | `apps/api/src/faturacao/moloni.ts`; o contrato em `adaptador.ts` |
+| «Criar a ligação ao Moloni», «Configurar», «Falta mapear: …» e o ecrã `/faturacao/configurar` | `apps/hub/src/ecras/Faturacao.tsx`, `ConfigurarFaturacao.tsx`; a lógica em `apps/hub/src/faturacao.ts` |
+| testes: as rotas pelo papel, as listas, a pesquisa sem contribuinte, a conferência ao gravar, o 409, a recusa do Moloni e os documentos a meio (`apps/api/test/faturacao-configurar.test.ts`); a lógica do Hub (`apps/hub/test/faturacao.test.ts`); as capturas com `/faturacao/configurar` | — |
+
+**Desvios do desenho (para o Diogo ou o Bruno confirmarem):**
+- **O «Falta mapear» do ecrã Faturação vem de `GET /hub/invoicing`**, não do
+  `issuer-options`: conta-se só com a base, sem ler o Moloni a cada abertura
+  da página (poupa o limite de pedidos, §13.5).
+- **Ao gravar, uma taxa do Moloni com outro valor que o do par é recusada**
+  (ex.: a «Taxa Reduzida» de 6 % para «IVA 23 % · Portugal»). O desenho só
+  pedia conferir que o id existe; um valor diferente é sempre um erro, e o
+  teste da ligação não o apanha (§32.5). A zona fiscal não se confere: as
+  regiões (Açores, Madeira) podem ter zonas próprias no Moloni, por medir.
+- **O artigo e o cliente conferem-se por id** com `products/getOne` e
+  `customers/getOne` (páginas do Moloni lidas a 13/10/2026), em vez de uma
+  lista; o «Consumidor final» tem de ter o NIF 999999990 no Moloni.
+- **Ao gravar, confere-se só o que muda** (revisão, P2-1), e só se aceitam
+  taxas de IVA (P2-2).
+
+**Encontrado pelo Moloni simulado:** a lista das isenções do Moloni
+(`{code, name, description}`) tinha a mesma forma que um erro com
+`human_errors` e o adaptador lia-a como erro. Um erro é agora só
+`{code, description}` com o código a começar pelo número do erro (página
+«Controlo de erros» do Moloni, lida a 13/10/2026).
+
+**Revisão do #412** (agente da sessão, Sonnet 5.5; 0 P0, 1 P1, 6 P2, 12 P3):
+- **P1-1, corrigido:** o que se pesquisa (`q` de `issuer-search`, que pode
+  ser o NIF ou o nome de um cliente) sai tapado do registo da API.
+- **P2-1, corrigido:** ao gravar, o servidor confere só o que muda; uma
+  escolha antiga que o Moloni já não tem não impede de gravar o resto.
+- **P2-2, corrigido:** só as taxas de IVA do Moloni (`saft_type` 1, como na
+  leitura dos documentos) entram na lista e podem gravar-se.
+- **P2-3, corrigido:** gravar já não desmonta o formulário; o foco vai para
+  «Testar»; uma lista vazia não tem rótulo a apontar para texto.
+- **P2-4, corrigido:** as leituras do Hub usam no máximo dois terços do
+  limite por empresa e nunca esperam; o resto fica para as emissões.
+- **P2-5, corrigido:** teste com a base de mercados em PT e ES, taxas antiga,
+  vigente e futura, as regiões, uma categoria de outra entidade, um método de
+  pagamento e credenciais recusadas (401) sem pôr a ligação com erro.
+- **P2-6, não feito:** o Hub não tem testes que desenhem ecrãs (não há
+  biblioteca para isso no repositório; acrescentá-la é outra decisão). Os
+  estados ficam cobertos pelas capturas e pelas funções testadas.
+- **P3 corrigidos:** 1 (só os mercados e os meios da entidade; sem
+  categorias arquivadas), 4 (a mensagem segue o estado devolvido), 5 (o texto
+  do `invalid_field`), 6 (o «Consumidor final» confere-se ao gravar, pelo
+  NIF, sem o mostrar), 7 (criar outra quando a ligação está desligada), 8 (uma
+  releitura falhada não apaga as escolhas), 10 (ler sem trancar a ligação),
+  12 (uma entidade com sistema próprio não ganha ligação ao Moloni).
+- **P3 que ficam:** 2 (só «hoje» e o fuso de Lisboa: a retenção apanha o
+  resto), 3 (um método em falta não tem motivo de retenção próprio: rebenta
+  na emissão como erro do emissor), 9 (o texto da lista vazia é o mesmo para
+  todas as listas), 11 (como o Moloni responde a um id que não existe está
+  por medir).
+
+**Por fazer:**
+- **Ler as listas na conta de teste do Moloni** antes de abrir isto a um
+  comerciante: os campos exactos de cada resposta, se `taxes/getAll` traz
+  `fiscal_zone` como o código do país, se `documentSets/getAll` e
+  `paymentMethods/getAll` paginam acima de 50 (hoje lê-se só a primeira
+  página). Precisa das credenciais no ambiente.
+- **A passagem completa só com o teclado** (criar, ligar, configurar e
+  testar): as listas e os botões são elementos nativos, mas não foi feita.
+- **As capturas do ecrã Configurar** usam listas de exemplo servidas no
+  navegador (as capturas não têm Moloni); o resto do ecrã é o verdadeiro.
+
+## 33. Envios: «Expedir» — as expedições, a etiqueta e o seguimento (issue #393)
+
+Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
+envios»*, depois de aprovar o aspecto do §31 (*«aprovo; junta quando ficar
+verde»*). Desenho aprovado pelo Diogo a 13/10/2026 (*«sim, aprovo; avança
+com o código»*).
+
+A API já tem tudo:
+- a vista do armazém (`docs/27` §6, `GET /fulfilment/orders`);
+- as expedições (`docs/27` §3.7);
+- a etiqueta e o seguimento (`docs/36` §4 e §7.1).
+
+O Hub dá-lhes um ecrã para o trabalho de todos os dias no armazém. Skills:
+`order-fulfilment`, `eurolify-transport-logistics-eu`, `eu-gdpr-privacy`,
+`eurolify-design`, `eurolify-hub-modular`, `observability-security`.
+
+Ex.: a Rita, do armazém, abre «Expedir» e vê a encomenda de ontem, paga,
+com «Correio registado». Abre-a e vê as duas linhas (2 vernizes e 1 lima),
+o nome, o telefone e a morada de quem recebe. Carrega em «Criar a
+expedição», com tudo por expedir. Depois carrega em «Pedir a etiqueta»: a
+etiqueta fica «Emitida», com o número de seguimento. A Rita descarrega o
+PDF, imprime-o, cola-o na caixa e carrega em «Marcar como expedida».
+
+### 33.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **Um módulo «Expedir»** na entrada do Hub, para quem tem `fulfilment:read`: o dono, o gestor, o armazém e o apoio. |
+| **As encomendas por expedir**, das mais antigas para as mais recentes, como a API as dá (no máximo 100 de cada vez). A lista diz quantas mostra e, se forem 100, que há mais. |
+| **A encomenda na vista do armazém**: as linhas, com a quantidade e quanto já saiu; o método de entrega; quem recebe, com o nome, o telefone e a morada; e as expedições. **Sem** preços, NIF, e-mail nem perfil de faturação (`docs/27` §6). |
+| **Criar uma expedição** (`fulfilment:write`: o dono, o gestor e o armazém). Escolhem-se as linhas e as quantidades, e por omissão vai tudo o que falta. O servidor recusa mais do que falta. |
+| **A etiqueta**, quando o método tem conta: pedir, ver o estado (por pedir, a pedir, emitida, recusada com o motivo, incerta, anulada), descarregar o ficheiro, anular e «Consultar a transportadora» (uma etiqueta incerta nunca se pede outra vez às cegas, `docs/36` §4.1). |
+| **O seguimento**: os eventos da transportadora, normalizados, com a data. |
+| **O estado da expedição**, pelas transições da `docs/27` §3.7: «Marcar como expedida» (a saída do stock, com os lotes que o servidor escolhe: os que expiram primeiro; **com conta, só depois de a etiqueta estar emitida**); «Cancelar» uma criada que não saiu (**com uma etiqueta viva, anula-se primeiro**); e, **só num método «Manual»**, a transportadora e o seguimento escritos à mão e «entregue», «devolvida» ou «perdida». |
+
+| Fica de fora, e porquê |
+|---|
+| **Escolher os lotes à mão:** o servidor escolhe os que expiram primeiro. Escolher outro lote vai para um pedido à parte. |
+| **Mudar o serviço de uma expedição:** é uma decisão de uma pessoa, com motivo (`docs/27` R6). O ecrã não o oferece. |
+| **Imprimir ou pedir etiquetas em lote:** nesta parte, uma expedição de cada vez. |
+| **Corrigir à mão o estado de uma expedição com etiqueta.** Nesse caso, quem decide «entregue» é o seguimento da transportadora (`docs/36` §4.2). O ecrã não oferece estes botões. |
+| **O resto da encomenda:** os preços, o pagamento, a linha do tempo (`orders:read`), cancelar e as devoluções. Ficam para os ecrãs das encomendas e da pós-venda. |
+
+### 33.2 Como o Hub lê e escreve
+
+Segue o padrão do §29.2:
+- a sessão da pessoa e o cabeçalho `Eurolify-Comerciante`;
+- sem `Idempotency-Key` (`docs/21` §11);
+- `cache-control: private, no-store`, também nos 403;
+- quem escreve fica `pessoa:per_…` nos movimentos e na etiqueta (nas rotas
+  da chave fica `chave:key_…`).
+
+| Caminho do Hub | Âmbito | A rota da chave |
+|---|---|---|
+| `GET /hub/fulfilment/orders` | `fulfilment:read` | `GET /fulfilment/orders` |
+| `GET /hub/fulfilment/orders/{id}` | `fulfilment:read` | `GET /fulfilment/orders/{id}` |
+| `POST /hub/orders/{id}/shipments` | `fulfilment:write` | `POST /orders/{id}/shipments` |
+| `PATCH /hub/shipments/{id}` | `fulfilment:write` | `PATCH /shipments/{id}` |
+| `POST /hub/shipments/{id}/label` | `fulfilment:write` | `POST /shipments/{id}/label` |
+| `GET /hub/shipments/{id}/label` | `fulfilment:read` | `GET /shipments/{id}/label` |
+| `GET /hub/shipments/{id}/label/file` | `fulfilment:read` | `GET /shipments/{id}/label/file` |
+| `POST /hub/shipments/{id}/label/void` | `fulfilment:write` | `POST /shipments/{id}/label/void` |
+| `GET /hub/shipments/{id}/events` | `fulfilment:read` | `GET /shipments/{id}/events` |
+| `POST /hub/shipments/{id}/refresh` | `fulfilment:write` | `POST /shipments/{id}/refresh` |
+
+- **Os papéis não mudam:**
+  - `fulfilment:write`: o dono, o gestor e o armazém;
+  - `fulfilment:read`: também o apoio, que só vê.
+- **Uma resposta perdida:**
+  - Ao **criar uma expedição**, o ecrã relê a encomenda em vez de repetir.
+    O servidor só recusa um segundo pedido que passe do que falta: uma
+    expedição parcial repetida seria aceite. Por isso o ecrã diz para
+    conferir as expedições antes de criar outra (revisão do #418, P2-2).
+  - Ao **pedir uma etiqueta**, a etiqueta fica «a pedir» ou «incerta», e só
+    «Consultar a transportadora» a resolve (`docs/36` R2).
+- **O ficheiro da etiqueta** descarrega-se por um pedido com a sessão, e não
+  fica em nenhuma cache. É um documento com dados pessoais: o ecrã diz que se
+  apaga 30 dias depois de a expedição acabar (`docs/36` Q7).
+
+### 33.3 O ecrã
+
+| Ecrã | O que mostra | Estados além do normal |
+|---|---|---|
+| **Expedir** (`/expedir`) | Uma linha por encomenda (cartões no telemóvel): o número, a data, o estado («Paga», «Em preparação», «Expedida em parte»), o método de entrega, o número de artigos por expedir e a localidade. A contagem à vista. | nada por expedir; a carregar; erro; sem permissão; 100 mostradas (diz que há mais e que são as mais antigas) |
+| **A encomenda** (`/expedir/{ord_…}`) | Quem recebe (o nome, o telefone e a morada) e o método. As linhas, com «por expedir» e «já saiu». O formulário «Criar a expedição», com uma quantidade por linha, preenchida com o que falta. As expedições, cada uma com o estado e a etiqueta. | tudo já saiu (sem formulário); recusa do servidor (mais do que falta, sem armazém, a encomenda não está para expedir); conflito; resposta perdida (relê); só ver |
+| **A expedição**, dentro da encomenda | **Com conta:** a etiqueta (o estado, o motivo de uma recusa, o seguimento com a ligação pública da transportadora, o peso), «Pedir a etiqueta», «Descarregar a etiqueta», «Anular», «Consultar a transportadora», o seguimento e «Marcar como expedida». **Manual:** a transportadora e o seguimento escritos à mão, «Marcar como expedida» e depois «entregue», «devolvida» ou «perdida». Em ambos, «Cancelar» enquanto está criada. | etiqueta recusada (o motivo e o que fazer); incerta (não se pede outra; consultar); a transportadora sem resposta; sem `ENVIOS_CHAVE` no servidor; conflito; confirmação antes de cancelar, anular e marcar como perdida |
+
+**Os textos** estão em PT, ES e EN. Cada estado tem uma cor, por token. Os
+dados de quem recebe não vão para o título da janela.
+
+### 33.4 Por onde é que isto ainda pode sair errado
+
+- **Uma etiqueta paga duas vezes.** O servidor só deixa uma viva por
+  expedição, e numa incerta só se pode consultar. O ecrã nunca repete o
+  pedido sozinho.
+- **Marcar como expedida sem a caixa ter saído** tira o stock. Pede-se
+  confirmação, e o texto diz que a saída do stock não se desfaz pelo ecrã.
+- **O telefone e a morada à vista** de quem tem `fulfilment:read`. É a vista
+  mínima da `docs/27` §6. Nada vai para os registos nem para o
+  armazenamento do navegador.
+- **Nesta parte, as etiquetas não se imprimem em lote.** Uma loja com muitas
+  encomendas vai precisar disso (pedido seguinte).
+
+### 33.5 Antes de dizer que está feito (o pedido do código)
+
+- **API:**
+  - as rotas do Hub fazem o mesmo que as da chave;
+  - o apoio leva 403 nas escritas;
+  - a encomenda e a expedição de outro comerciante dão 404;
+  - `no-store`, também nos 403 e no ficheiro;
+  - o `quem` da pessoa nos movimentos e na etiqueta;
+  - a vista sem preços, NIF nem e-mail (comparar as chaves exactas da resposta).
+- **Hub:**
+  - a passagem do exemplo contra a Sendcloud de ensaio, nos testes;
+  - a etiqueta recusada, a incerta e o conflito;
+  - o apoio só a ver;
+  - capturas a 375, 768 e 1280 px, em claro e escuro, para o OK do aspecto.
+
+### 33.6 Em código (13/10/2026)
+
+- **API:**
+  - as dez rotas do §33.2 estão em `src/envios/rotas-hub-expedir.ts`;
+  - a sessão com o âmbito e a escrita com `eurolify.quem` passam a uma
+    função partilhada (`ferramentasDoHub`, em `src/envios/rotas-hub.ts`);
+  - a vista do armazém, os esquemas das expedições e as formas da etiqueta
+    e dos eventos passam ao nível do módulo, para a chave e o Hub usarem os
+    mesmos;
+  - sem migração.
+- **Hub:**
+  - o módulo «Expedir» (`fulfilment:read`), antes de «Envios»;
+  - `src/ecras/Expedir.tsx` e o apoio em `src/expedir.ts`;
+  - o descarregamento da etiqueta usa um endereço `blob:` que se revoga
+    logo a seguir;
+  - o nome de quem recebe nunca vai para o título da janela.
+- **Testes:**
+  - `test/envios-hub-expedir.test.ts` (API, 3). A encomenda paga vem do
+    cenário partilhado `test/envios-cenario.ts`, que passou a servir também
+    o teste das etiquetas.
+  - `test/expedir.test.ts` (Hub, 5).
+- **Capturas:**
+  - a lista vazia é contra a API verdadeira;
+  - a lista com uma encomenda e a página da encomenda usam **respostas
+    simuladas da API**, porque o ensaio não tem uma encomenda paga. Os dados
+    são fictícios.
+  - Nas capturas confere-se:
+    - o título da janela sem o nome de quem recebe;
+    - que, com a etiqueta emitida, não se pode pedir outra;
+    - que uma quantidade a mais fica marcada no campo.
+- **Sem prova:**
+  - a passagem só com o teclado;
+  - a etiqueta recusada e a incerta no ecrã (estão nos testes da API das
+    etiquetas);
+  - o apoio só a ver, nas capturas.
+
+**Revisão do agente** (Claude Sonnet 5.5, publicada no #418): 0 P0, 2 P1 e
+7 P2.
+
+**Corrigido:**
+- **P1-1:** o mapa dos erros do ecrã usa os códigos que o servidor dá
+  (`shipments.*`, `orders.invalid_transition`). Um teste confere que cada
+  código do mapa existe no servidor. Para isso, os códigos do stock
+  passaram a `src/stock/erros.ts`, um ficheiro sem dependências.
+- **P1-2:**
+  - com conta, «Marcar como expedida» só aparece com a etiqueta emitida;
+  - «Cancelar» não aparece com uma etiqueta viva (emitida, incerta ou a
+    pedir), e o ecrã diz que se anula primeiro;
+  - um teste da API confere a recusa do servidor.
+- **P2-1:** um erro ao reler a página mostra-se também quando já há dados,
+  com «Tentar outra vez». O texto da resposta perdida já não diz que releu.
+- **P2-2:** a afirmação sobre a resposta perdida foi corrigida aqui, no
+  código e no teste. Um teste documenta que uma expedição parcial repetida
+  é aceite.
+- **P2-3:** uma falha ao ler a etiqueta tem «Tentar outra vez».
+- **P2-4:** a confirmação de «perdida» já não diz de quem é a perda
+  (era uma regra sem fonte).
+- **P2-6:**
+  - chaves exactas também no detalhe, em quem recebe e nas linhas;
+  - o isolamento cobre todas as rotas, sem condição;
+  - `no-store` nos 404.
+- **P2-7:** o texto de anular diz «antes de marcar como expedida, e se a
+  transportadora deixar».
+- **P3-1, P3-2 e P3-5:**
+  - o ficheiro já apagado tem texto próprio;
+  - a ligação do seguimento só se abre com `https://`;
+  - a lista dos eventos tem estilo.
+
+**Fica, declarado:**
+- **P2-5:** pedir, anular e consultar a etiqueta exigem o `quem`, mas a
+  base não o guarda em nenhuma tabela. Está provado na expedição, na saída
+  do stock e na transição da encomenda.
+- **P2-6 (d):** a passagem do exemplo contra a Sendcloud de ensaio não está
+  nos testes. A API usa a transportadora de ensaio (CTT), com o contrato
+  inteiro.
+- **P3-3, P3-4, P3-6 e P3-7:**
+  - as leituras da etiqueta sem guarda de ordem;
+  - o 400 de validação sem `no-store`;
+  - o espanhol nos códigos sem texto;
+  - «entregue» sem confirmação.

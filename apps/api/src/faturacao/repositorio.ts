@@ -14,7 +14,7 @@ import type {
   TaxaDoEmissor,
 } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
-import type { Decisao } from "../iva/decisao.js";
+import { diaNoFuso, type Decisao } from "../iva/decisao.js";
 import { cifrar, decifrar } from "../pagamentos/cifra.js";
 import {
   ErroDeRede,
@@ -23,7 +23,9 @@ import {
   type ConfigFaturacao,
   type CredenciaisEmissor,
   type DocumentoNoEmissor,
+  type ListasDoEmissor,
   type PedidoRascunho,
+  type ResultadoNoEmissor,
 } from "./adaptador.js";
 import { ErroDocumentos, traduzir } from "./erros.js";
 
@@ -473,6 +475,447 @@ export async function testarLigacao(
       .execute();
   });
   return { estado: erro === null ? "pronta" : "com_erro", erro };
+}
+
+// ------------------------------- Configurar no Hub (docs/22 §32)
+
+/** O que o Eurolify precisa de ver mapeado numa ligação (§32.3). */
+export interface Necessario {
+  /** Os pares (país, taxa em centésimas) vigentes hoje. */
+  taxas: { pais: string; taxa: number }[];
+  /** Os códigos de motivo de isenção do Motor de IVA. */
+  isencoes: { pais: string; codigo: string }[];
+  /** Os meios de pagamento que o comerciante aceita. */
+  meios: string[];
+}
+
+/**
+ * Os pares (país, taxa) da tabela do Motor de IVA vigentes hoje (Lisboa) nos
+ * países dos mercados activos e no da entidade, os códigos de motivo desses
+ * países e os meios de pagamento activos. É a mesma chave que a retenção usa
+ * (`motivosDoConteudo`: `taxa_sem_mapa` pelo par, `isencao_sem_mapa` pelo
+ * código), para que «o que falta» diga as faturas que ficariam retidas.
+ * Nunca escolhe nada.
+ */
+async function necessarioDe(
+  trx: Transaction<BaseDados>,
+  entidadeId: string,
+): Promise<Necessario> {
+  const entidade = await trx
+    .selectFrom("entidade_legal")
+    .select("pais")
+    .where("id", "=", entidadeId)
+    .executeTakeFirst();
+  // Só os mercados das lojas desta entidade (revisão do #412, P3-1).
+  const mercados = await trx
+    .selectFrom("mercado")
+    .innerJoin("loja", "loja.id", "mercado.loja_id")
+    .select(["mercado.id", "mercado.paises"])
+    .where("mercado.estado", "=", "activo")
+    .where("loja.entidade_legal_id", "=", entidadeId)
+    .execute();
+  const paises = [
+    ...new Set([
+      ...(entidade === undefined ? [] : [entidade.pais]),
+      ...mercados.flatMap((m) => m.paises),
+    ]),
+  ].sort();
+  if (paises.length === 0) return { taxas: [], isencoes: [], meios: [] };
+  const dia = diaNoFuso(new Date(), "Europe/Lisbon") ?? "9999-12-31";
+  const linhas = await trx
+    .selectFrom("taxa_iva")
+    .select(["pais", "regiao", "categoria", "tipo", "percentagem"])
+    .select(sql<string>`to_char(inicio, 'YYYY-MM-DD')`.as("inicio"))
+    .where("pais", "in", paises)
+    // Uma categoria arquivada já não decide nada (P3-1).
+    .where(
+      "categoria",
+      "in",
+      trx
+        .selectFrom("categoria_fiscal")
+        .select("codigo")
+        .where("estado", "<>", "arquivada"),
+    )
+    .execute();
+  // A de início mais recente até hoje, por (país, região, categoria) — como
+  // `taxaEmVigor` no Motor.
+  const vigentes = new Map<string, (typeof linhas)[number]>();
+  for (const t of linhas) {
+    if (t.inicio > dia) continue;
+    const k = `${t.pais}|${t.regiao ?? ""}|${t.categoria}`;
+    const antes = vigentes.get(k);
+    if (antes === undefined || t.inicio > antes.inicio) vigentes.set(k, t);
+  }
+  const pares = new Map<string, { pais: string; taxa: number }>();
+  for (const t of vigentes.values()) {
+    if (t.tipo !== "taxa" || t.percentagem === null) continue;
+    pares.set(`${t.pais}|${String(t.percentagem)}`, {
+      pais: t.pais,
+      taxa: t.percentagem,
+    });
+  }
+  const motivos = await trx
+    .selectFrom("motivo_iva")
+    .select(["pais", "codigo"])
+    .where("pais", "in", paises)
+    .orderBy("pais")
+    .orderBy("codigo")
+    .execute();
+  const vistos = new Set<string>();
+  const idsDosMercados = mercados.map((m) => m.id);
+  const meios =
+    idsDosMercados.length === 0
+      ? []
+      : await trx
+          .selectFrom("metodo_pagamento")
+          .select("metodo")
+          .distinct()
+          .where("estado", "=", "activo")
+          .where("mercado_id", "in", idsDosMercados)
+          .orderBy("metodo")
+          .execute();
+  return {
+    taxas: [...pares.values()].sort(
+      (a, b) => a.pais.localeCompare(b.pais) || b.taxa - a.taxa,
+    ),
+    // O mapa é pelo código: um código repetido noutro país conta uma vez.
+    isencoes: motivos.filter((m) => {
+      if (vistos.has(m.codigo)) return false;
+      vistos.add(m.codigo);
+      return true;
+    }),
+    meios: meios.map((m) => m.metodo),
+  };
+}
+
+/** O que falta mapear numa ligação, pela mesma chave da retenção. */
+export function faltaNaLigacao(
+  necessario: Necessario,
+  ligacao: {
+    taxas: TaxaDoEmissor[];
+    isencoes: IsencaoDoEmissor[];
+    config: ConfigDaLigacao;
+  },
+): Necessario {
+  return {
+    taxas: necessario.taxas.filter(
+      (n) => !ligacao.taxas.some((t) => t.pais === n.pais && t.taxa === n.taxa),
+    ),
+    isencoes: necessario.isencoes.filter(
+      (n) => !ligacao.isencoes.some((i) => i.codigo === n.codigo),
+    ),
+    meios: necessario.meios.filter(
+      (m) => ligacao.config.metodos_pagamento?.[m] === undefined,
+    ),
+  };
+}
+
+/** O que falta em cada ligação activa (o ecrã «Faturação»; sem o emissor). */
+export async function faltasDasLigacoes(
+  db: Kysely<BaseDados>,
+  c: string,
+): Promise<Map<string, Necessario>> {
+  return noDocumentos(db, c, async (trx) => {
+    const ligacoes = await trx
+      .selectFrom("ligacao_faturacao")
+      .select(["id", "entidade_legal_id", "taxas", "isencoes", "config"])
+      .where("activa", "=", true)
+      .execute();
+    const r = new Map<string, Necessario>();
+    for (const l of ligacoes) {
+      r.set(
+        l.id,
+        faltaNaLigacao(await necessarioDe(trx, l.entidade_legal_id), l),
+      );
+    }
+    return r;
+  });
+}
+
+/** O Hub cria a ligação ao Moloni de uma entidade: sem série nem mapas. */
+export async function criarLigacaoMoloni(
+  db: Kysely<BaseDados>,
+  c: string,
+  entidadeId: string,
+  cfg: ConfigFaturacao | undefined,
+  quem: string,
+) {
+  exigirChave(cfg);
+  const a = adaptadorDe(cfg, "moloni");
+  if (a.listas === undefined) {
+    throw new ErroDocumentos(
+      "invoices.not_configured",
+      "o adaptador moloni deste servidor não lê listas",
+    );
+  }
+  return noDocumentos(db, c, async (trx) => {
+    await marcar(trx, quem);
+    // Quem emite pelo sistema próprio não emite pelo Eurolify (docs/29 §15;
+    // revisão do #412, P3-12).
+    const e = await trx
+      .selectFrom("entidade_legal")
+      .select("emissor_fiscal")
+      .where("id", "=", entidadeId)
+      .executeTakeFirst();
+    if (e?.emissor_fiscal === "sistema_proprio") {
+      throw new ErroDocumentos(
+        "invoices.other_issuer",
+        "os documentos desta entidade saem do sistema próprio",
+      );
+    }
+    return criarLigacao(
+      trx,
+      c,
+      {
+        entidade_legal: entidadeId,
+        adaptador: "moloni",
+        serie: null,
+        taxas: [],
+        isencoes: [],
+      },
+      quem,
+    );
+  });
+}
+
+/** Um erro do emissor numa leitura sai como `issuer_error`; a ligação não muda. */
+async function doEmissor<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof ErroDoEmissor || e instanceof ErroDeRede) {
+      throw new ErroDocumentos(
+        "invoices.issuer_error",
+        e.message.slice(0, 200),
+      );
+    }
+    throw e;
+  }
+}
+
+/** A ligação, o adaptador com listas e as credenciais prontas a usar. */
+async function paraLerNoEmissor(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  cfg: ConfigFaturacao | undefined,
+) {
+  // Só leitura: sem trancar a ligação (revisão do #412, P3-10).
+  const l = await noDocumentos(db, c, (trx) =>
+    trx
+      .selectFrom("ligacao_faturacao")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst(),
+  );
+  if (l === undefined) {
+    throw new ErroDocumentos("invoices.not_found", "esta ligação não existe");
+  }
+  if (!l.activa) {
+    throw new ErroDocumentos(
+      "invoices.invalid_transition",
+      "esta ligação está desligada",
+    );
+  }
+  const a = adaptadorDe(cfg, l.adaptador);
+  const listas = a.listas?.bind(a);
+  const pesquisar = a.pesquisar?.bind(a);
+  const existe = a.existe?.bind(a);
+  if (listas === undefined || pesquisar === undefined) {
+    throw new ErroDocumentos(
+      "invoices.invalid_field",
+      "este emissor não tem listas: a ligação configura-se pela API",
+    );
+  }
+  const cred = await doEmissor(() => credenciaisActuais(db, c, id, cfg));
+  if (cred === null) {
+    throw new ErroDocumentos(
+      "invoices.issuer_not_ready",
+      "a ligação não tem credenciais: ligar a conta primeiro",
+    );
+  }
+  return {
+    l,
+    lerListas: () => doEmissor(() => listas(cred)),
+    pesquisar: (tipo: "artigo" | "cliente", texto: string) =>
+      doEmissor(() => pesquisar(cred, tipo, texto)),
+    existe:
+      existe === undefined
+        ? null
+        : (tipo: "artigo" | "cliente" | "consumidor_final", id: string) =>
+            doEmissor(() => existe(cred, tipo, id)),
+  };
+}
+
+/**
+ * As listas do emissor e o que o Eurolify precisa de mapear (§32.3). Lê do
+ * emissor de cada vez; nada fica guardado.
+ */
+export async function opcoesDoEmissor(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  cfg: ConfigFaturacao | undefined,
+): Promise<{
+  listas: ListasDoEmissor;
+  necessario: Necessario;
+  ligacao: {
+    versao: number;
+    serie: string | null;
+    taxas: TaxaDoEmissor[];
+    isencoes: IsencaoDoEmissor[];
+    config: ConfigDaLigacao;
+  };
+}> {
+  const emissor = await paraLerNoEmissor(db, c, id, cfg);
+  const l = emissor.l;
+  const listas = await emissor.lerListas();
+  const necessario = await noDocumentos(db, c, (trx) =>
+    necessarioDe(trx, l.entidade_legal_id),
+  );
+  return {
+    listas,
+    necessario,
+    ligacao: {
+      versao: l.versao,
+      serie: l.serie,
+      taxas: l.taxas,
+      isencoes: l.isencoes,
+      config: l.config,
+    },
+  };
+}
+
+export async function pesquisarNoEmissor(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  tipo: "artigo" | "cliente",
+  texto: string,
+  cfg: ConfigFaturacao | undefined,
+): Promise<ResultadoNoEmissor[]> {
+  const emissor = await paraLerNoEmissor(db, c, id, cfg);
+  return (await emissor.pesquisar(tipo, texto)).slice(0, 50);
+}
+
+/**
+ * O Hub grava a série, os mapas e a configuração (§32.3): **antes**, relê as
+ * listas do emissor e confere que cada id escolhido existe lá, e que a taxa
+ * do emissor tem o valor do par que mapeia. Depois, a mesma `mudarLigacao`
+ * (fica por testar; com documentos a meio, a base recusa — R15).
+ */
+export async function configurarLigacao(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  versao: number,
+  dados: {
+    serie?: string | null;
+    taxas?: TaxaDoEmissor[];
+    isencoes?: IsencaoDoEmissor[];
+    config?: ConfigDaLigacao;
+  },
+  cfg: ConfigFaturacao | undefined,
+  quem: string,
+) {
+  const emissor = await paraLerNoEmissor(db, c, id, cfg);
+  const l = emissor.l;
+  if (l.versao !== versao) {
+    throw new ErroDocumentos("invoices.version_conflict", "a ligação mudou", {
+      versao: l.versao,
+    });
+  }
+  const listas = await emissor.lerListas();
+  const recusa = (o_que: string) => {
+    throw new ErroDocumentos(
+      "invoices.invalid_field",
+      `${o_que} não existe no emissor: escolher outra vez da lista`,
+    );
+  };
+  const tem = (lista: { id: string }[], v: string) =>
+    lista.some((o) => o.id === v);
+  // Confere-se só o que muda: uma linha gravada antes, que o ecrã não
+  // mostra, nunca impede de gravar o resto (revisão do #412, P2-1).
+  const antes = l.config;
+  if (
+    dados.serie != null &&
+    dados.serie !== l.serie &&
+    !tem(listas.series, dados.serie)
+  ) {
+    recusa(`a série ${dados.serie}`);
+  }
+  for (const t of dados.taxas ?? []) {
+    const igual = l.taxas.some(
+      (x) => x.pais === t.pais && x.taxa === t.taxa && x.emissor === t.emissor,
+    );
+    if (igual) continue;
+    const daLista = listas.taxas.find((o) => o.id === t.emissor);
+    if (daLista === undefined) recusa(`a taxa de IVA ${t.emissor}`);
+    else if (daLista.valor !== t.taxa) {
+      throw new ErroDocumentos(
+        "invoices.invalid_field",
+        `a taxa ${t.emissor} do emissor (${String(daLista.valor / 100)} %) não é a do par ${t.pais} ${String(t.taxa / 100)} %`,
+      );
+    }
+  }
+  for (const i of dados.isencoes ?? []) {
+    const igual = l.isencoes.some(
+      (x) => x.codigo === i.codigo && x.emissor === i.emissor,
+    );
+    if (!igual && !tem(listas.isencoes, i.emissor)) {
+      recusa(`a isenção ${i.emissor}`);
+    }
+  }
+  const config = dados.config ?? {};
+  const porLista: [string, { id: string }[]][] = [
+    ["lingua", listas.linguas],
+    ["vencimento", listas.vencimentos],
+    ["unidade", listas.unidades],
+    ["categoria", listas.categorias],
+  ];
+  for (const [chave, lista] of porLista) {
+    const v = config[chave];
+    if (typeof v === "string" && v !== antes[chave] && !tem(lista, v)) {
+      recusa(`${chave} ${v}`);
+    }
+  }
+  for (const [meio, v] of Object.entries(config.metodos_pagamento ?? {})) {
+    if (
+      v !== antes.metodos_pagamento?.[meio] &&
+      !tem(listas.metodos_pagamento, v)
+    ) {
+      recusa(`o método de pagamento ${v} (${meio})`);
+    }
+  }
+  const porId: [string, "artigo" | "consumidor_final"][] = [
+    ["artigo_portes", "artigo"],
+    ["cliente_consumidor_final", "consumidor_final"],
+  ];
+  for (const [chave, tipo] of porId) {
+    const v = config[chave];
+    if (typeof v !== "string" || v === antes[chave]) continue;
+    if (emissor.existe === null) recusa(`${chave} ${v}`);
+    else if (!(await emissor.existe(tipo, v))) {
+      throw new ErroDocumentos(
+        "invoices.invalid_field",
+        tipo === "artigo"
+          ? `o artigo ${v} não existe no emissor: escolher outra vez da lista`
+          : `o cliente ${v} não existe no emissor ou não tem o NIF de consumidor final`,
+      );
+    }
+  }
+  return noDocumentos(db, c, async (trx) => {
+    await marcar(trx, quem);
+    const nova = await mudarLigacao(trx, c, id, versao, dados);
+    // O estado como ficou (o gatilho decide se passou a «por testar»;
+    // revisão do #412, P3-4).
+    const { estado } = await trx
+      .selectFrom("ligacao_faturacao")
+      .select("estado")
+      .where("id", "=", id)
+      .executeTakeFirstOrThrow();
+    return { versao: nova, estado };
+  });
 }
 
 // ------------------------------------------ A autorização (docs/29 §17)

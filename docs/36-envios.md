@@ -503,9 +503,22 @@ resto corre contra uma transportadora de ensaio com o contrato inteiro da §8.
   composição congelada). Do §14 também ficam o P3-5 (leitura da conta sem
   bloqueio) e o P3-7 (rotação da chave); o P3-8 (tempo-limite) ficou feito.
 
-**Não testado:** o apagamento do titular a levar o ficheiro e a limpar os
-avisos e os eventos (os gatilhos existem; o teste precisa de uma encomenda
-acabada e de um pedido de apagamento); a etiqueta incerta sem resposta há
+**Testado depois (13/10/2026, migração 0083; revisão do #414, P3-1):** o
+apagamento do titular leva o ficheiro e limpa os avisos e os eventos; e o
+que a transportadora manda **depois** do apagamento, numa encomenda já
+limpa, entra sem o nome: o evento com o marcador no texto (o estado
+normalizado e a data ficam) e o aviso, ao ligar-se à expedição, com o
+marcador no corpo (`envios_encomenda_limpa()`; o caso «depois do apagamento
+do titular» em `envios-etiquetas.test.ts`, com duas contraprovas). A
+encomenda conta como limpa pelo e-mail do contacto (o nome é texto livre do
+cliente). Um aviso que chega durante o apagamento espera por ele (a leitura
+toma a encomenda, `FOR KEY SHARE`; caso «durante o apagamento», com
+contraprova). **Excepção:** um aviso que não se liga a nenhuma expedição
+(assinatura errada, referência desconhecida, etiqueta já não viva) fica em
+bruto até ao resumo dos 30 dias, como já era (revisão do #420, P2-1, P2-2,
+P3-1).
+
+**Não testado:** a etiqueta incerta sem resposta há
 mais de um dia (o problema); um evento que o armazém recuse (o ponto de
 retorno); o resumo dos avisos aos 30 dias. A concorrência testa-se pela API,
 mas o segundo pedido chega depois de o primeiro ter gravado `a_pedir`, não
@@ -602,3 +615,130 @@ parte. Ficam por verificar numa conta de teste:
 - os estados de uma transportadora portuguesa;
 - se `sendcloud:letter` aparece na lista de serviços de uma conta portuguesa.
   Se não aparecer, o modo teste fica sem serviços.
+
+## 17. Ligar os envios na VPS de ensaio (desenho; issue #393)
+
+Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
+envios»* e *«sim, avança com o desenho»*. Desenho aprovado pelo Diogo a
+13/10/2026 (*«sim, aprovo; avança com o código»*).
+Mexe na VPS: entra por um pedido revisto e é o GitHub que o aplica
+(ADR-0028, regra 9 do `AGENTS.md`). Skills: `observability-security`,
+`eu-gdpr-privacy`, `order-fulfilment`.
+
+**Hoje, na VPS de ensaio** (lido no repositório a 13/10/2026):
+- a API arranca sem `ENVIOS_CHAVE`:
+  - o `eurolify-publicar` só lhe passa o `api.env`, o `api-base.env`, o
+    `api-hub.env`, o `api-totp.env`, o `api-smtp.env` e o `api-vies.env`;
+  - por isso, ligar uma transportadora dá `shipping.not_configured` e não
+    se pedem etiquetas;
+  - o Hub di-lo («Os envios ainda não estão ligados neste servidor»);
+- o nginx do Hub (`infra/vps/ficheiros/nginx-hub.conf`) só publica `/hub/` e
+  os ecrãs: os avisos da Sendcloud não chegam à API (§29.3 do `docs/22`).
+
+Ex.: depois deste pedido, o Diogo liga a Sendcloud em modo teste pelo Hub do
+ensaio. Cola as chaves de uma conta de teste, carrega em «Testar a ligação»
+e a conta fica «Pronta». No painel da Sendcloud indica o endereço
+`https://hub.eurolify.eu/webhooks/carriers/sendcloud/cac_…` para os avisos.
+
+### 17.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **A chave dos envios** (`/etc/eurolify/api-envios.env`, 600, root). Tem `ENVIOS_CHAVE` (32 bytes em base64) e `ENVIOS_CHAVE_VERSAO=1`. **Gera-se na máquina uma vez e nunca se reescreve**, como a chave TOTP (passo 10 do `preparar.sh`): trocá-la deixaria ilegíveis as credenciais guardadas, e cada conta teria de as receber outra vez. É **diferente da dos pagamentos** (revisão do #406, P3-9). O `eurolify-publicar` só a passa à API se tiver o formato que a API aceita; uma estragada derrubava a API ao arrancar. |
+| **A cópia da chave** guarda-se fora da máquina e à parte das cópias da base, como a `api-totp.env` e a `age.key` (LEIA-ME da VPS). |
+| **Os avisos da Sendcloud no nginx**: uma `location` só para `/webhooks/carriers/sendcloud/cac_<uuid>`. Leva as mesmas travas da `/hub/`: o pedido original tem de ter essa forma, e o caminho que vai para a API é o normalizado. Só aceita `POST`, com corpo até 64 KB (o limite do site), e tem um
+limite de pedidos por IP (`limit_req`, o mecanismo do login do MCP em
+`nginx-mcp.conf`, com valores nossos: 60 por minuto e 20 de folga, sem
+fonte, a rever com os avisos reais). O resto de `/webhooks/` continua a dar 404. |
+| **O texto provisório do Hub** (`enviosAvisosVps`, «os avisos ainda não chegam») sai no mesmo pedido, como o §29.3 do `docs/22` diz (rede temporária com fim). |
+| **Os testes da VPS**: a chave dos envios ganha um teste como o `chave-totp.sh`. O `nginx -t` e o 404 dos outros `/webhooks/` medem-se depois de aplicar. |
+
+| Fica de fora, e porquê |
+|---|
+| **Os avisos dos pagamentos** (`/webhooks/payments/…`): o ensaio também não tem a chave dos pagamentos, e ligá-los é outra decisão. |
+| **O modo real da Sendcloud**: a decisão escrita sobre os subcontratantes de fora da UE continua por tomar (`docs/36` §16.2). Só o modo teste. |
+| **Os dados de clientes reais**: a VPS do ensaio está no Reino Unido até à migração para Paris (ADR-0018 e ADR-0019). Só contas e encomendas de teste. |
+| **Os CTT**: sem especificação nem credenciais de teste. |
+
+### 17.2 Como entra na máquina
+
+1. O pedido muda `infra/vps/`:
+   - `preparar.sh`: o passo 10 gera a chave, se faltar;
+   - `ficheiros/lib/`: a chave dos envios, com a validação;
+   - `ficheiros/sbin/eurolify-publicar`: passa o ficheiro à API;
+   - `ficheiros/nginx-hub.conf`: a `location` dos avisos;
+   - `testes/`: o teste novo;
+   - `LEIA-ME.md`: os ficheiros, a cópia e a troca da chave.
+2. Com o pedido no `main`, o fluxo `aplicar-script` corre o `preparar.sh`,
+   primeiro em `--mostrar` e depois a aplicar (ADR-0028). O passo 10c recria
+   a API com a mesma imagem quando a chave acaba de nascer.
+3. **O Diogo ou o Bruno guardam a cópia da chave fora da máquina**, do seu
+   computador, pela chave de emergência (ADR-0020), copiando o ficheiro sem
+   o abrir e nunca numa sessão do Claude. O uso fica numa memória. É o único
+   passo à mão. No ensaio pode esperar (perdê-la custa voltar a colar as
+   chaves de teste); antes de Paris é obrigatório.
+4. Mede-se, pelo fluxo só de leitura:
+   - o `/health` da API;
+   - `POST /webhooks/carriers/sendcloud/cac_<uuid qualquer>` sem assinatura
+     dá 401 ou 404 da API, e não do nginx;
+   - `GET` nesse caminho dá 403 do nginx;
+   - `/webhooks/payments/x` dá 404 do nginx.
+
+### 17.3 Por onde é que isto ainda pode sair errado
+
+- **Perder a chave** deixa as credenciais das transportadoras ilegíveis. A
+  API diz «defina-as outra vez» (`shipping.account_not_ready`). No ensaio
+  isso custa só voltar a colar as chaves de teste; a cópia fora da máquina
+  é obrigatória antes da migração para Paris.
+- **Um caminho aberto a mais no nginx**: a `location` é exacta, e há uma
+  medição de que o resto de `/webhooks/` dá 404.
+- **Um aviso com dados de quem recebe** pode trazer o nome. Fica gravado em
+  bruto (`aviso_transportadora`, `docs/36` §6). No ensaio só há encomendas
+  de teste.
+- **A API sem a chave** continua a arrancar, sem envios, como hoje. Uma
+  chave estragada não lhe chega.
+
+### 17.4 Antes de dizer que está feito
+
+- os testes da VPS (`infra/vps/testes/`) no fluxo `script-vps`;
+- o `shellcheck` no CI, como hoje;
+- o `nginx -t`, que hoje não corre no CI: corre o `preparar.sh` antes de
+  ligar o site (passo 14), e um erro deixa o site como estava;
+- as medições do 17.2 depois de aplicar, numa memória com a data;
+- o Hub sem o texto provisório, com as capturas do ecrã da conta.
+
+### 17.5 Em código (13/10/2026)
+
+- **A chave:**
+  - `infra/vps/ficheiros/lib/chave-envios.sh`, igual à da chave TOTP, com a
+    versão que a API aceita (`[0-9A-Za-z_-]{1,20}`);
+  - o passo 10 do `preparar.sh` gera-a e avisa para guardar a cópia;
+  - o 10c recria a API quando ela nasce ou muda;
+  - o `eurolify-publicar` só a passa à API se for válida.
+- **O nginx:**
+  - uma `location` com a expressão exacta do caminho e a mesma trava do
+    `$request_uri`;
+  - `limit_except POST`;
+  - `limit_req` de 60 pedidos por minuto, com 20 de folga;
+  - `location /webhooks/` dá 404.
+- **O Hub:** saiu o texto provisório `enviosAvisosVps` (§29.3 do
+  `docs/22`).
+- **Testes:**
+  - `infra/vps/testes/chave-envios.sh` (novo);
+  - `infra/vps/testes/publicar.sh`: chave nova, em falta e estragada.
+
+**Medido localmente a 13/10/2026**, com o nginx 1.27 num contentor, um
+certificado de ensaio e um servidor falso no lugar da API (sem IPv6 no
+contentor, por isso tirou-se a linha `[::]:443` só nessa cópia):
+
+| Pedido | Resultado |
+|---|---|
+| `nginx -t` | sem erros |
+| POST ao caminho dos avisos | chega à API |
+| GET ao mesmo caminho | 403 |
+| com consulta, CTT, pagamentos, maiúsculas, `%63ac_…`, `..%2F`, barra no fim | 404 |
+| corpo de 70 KB | 413 |
+| 30 POST seguidos | 19 passam, 11 levam 429 |
+| `/hub/me` e `/entrar` | como antes |
+
+**Por medir na VPS, depois de aplicar:** o 17.2, ponto 4.
