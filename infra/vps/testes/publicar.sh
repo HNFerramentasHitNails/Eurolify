@@ -121,7 +121,8 @@ printf '#!/usr/bin/env bash\nexit 0\n' >"$falsos/sleep"
 # $FALSOS/diario; os argumentos do journalctl ficam em $FALSOS/journalctl-args.
 cat >"$falsos/systemctl" <<'FALSO'
 #!/usr/bin/env bash
-if [[ "$*" == *InvocationID* ]]; then cat "$FALSOS/invocacao" 2>/dev/null || true; fi
+if [[ "$*" == "show eurolify-verificacao.service -p InvocationID --value" ]]; then cat "$FALSOS/invocacao" 2>/dev/null || true; fi
+if [[ "$*" == "show eurolify-verificacao.service -p ActiveState --value" ]]; then cat "$FALSOS/estado" 2>/dev/null || true; fi
 exit 0
 FALSO
 cat >"$falsos/journalctl" <<'FALSO'
@@ -837,7 +838,28 @@ for i in $(seq 1 60); do echo "- problema $i"; done >"$falsos/diario"
 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "no máximo 40 linhas" linha_na_saida "- problema 40"
 confere nao "e não mais" linha_na_saida "- problema 41"
-rm -f "$falsos/invocacao" "$falsos/diario" "$falsos/journalctl-args"
+# Revisão do #428: uma invocação estragada vai para as 26 h; aí, só a última
+# corrida; as linhas que só parecem da lista ficam de fora; a correr, diz-se.
+printf 'ABC\n' >"$falsos/invocacao"
+cat >"$falsos/diario" <<'DIARIO'
+Starting eurolify-verificacao.service - Eurolify: verificação diária da VPS (ADR-0027)...
+- problema de ontem
+Starting eurolify-verificacao.service - Eurolify: verificação diária da VPS (ADR-0027)...
+-- No entries --
+-sem espaço
+Sem problemas.
+DIARIO
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "uma invocação estragada vai para as 26 h" grep -q -- "--since -26 hours" "$falsos/journalctl-args"
+confere sim "nas 26 h, a última corrida" linha_na_saida "Sem problemas."
+confere nao "e não a de antes" linha_na_saida "- problema de ontem"
+confere nao "sem o «--» do journalctl" na_saida "No entries"
+confere nao "sem o que só começa por «-»" na_saida "-sem espaço"
+printf 'activating\n' >"$falsos/estado"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "a correr, diz-se" linha_na_saida "a verificação está a correr agora; medir outra vez daqui a uns minutos"
+confere nao "em vez de «sem registo»" linha_na_saida "sem registo da última verificação"
+rm -f "$falsos/invocacao" "$falsos/diario" "$falsos/journalctl-args" "$falsos/estado"
 
 rm -rf "$falsos"
 ((falhas == 0))

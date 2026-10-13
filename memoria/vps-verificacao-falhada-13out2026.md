@@ -21,14 +21,17 @@ que ela encontrou).
   `trig_01QKJAwTh78pHVGcN8Q97F51`, na sessão filha).
 - O `eurolify-medir` ganha a secção «verificação diária (o que encontrou na
   última vez)»: as linhas da lista («- …» ou «Sem problemas.») da última
-  corrida, pela invocação do systemd (sem ela, as últimas 26 h), no máximo
-  40. Só o estado da máquina; as linhas do systemd ficam de fora.
+  corrida, pela invocação do systemd (sem ela, as últimas 26 h a partir do
+  último arranque da unidade), no máximo 40; com a verificação a correr,
+  diz-se. Só o estado da máquina; as linhas do systemd ficam de fora
+  (revisão do #428).
 
 ## Números (com data e como se contaram)
 
 - 13/10/2026, `infra/vps/testes/publicar.sh` num Ubuntu 26.04 descartável
-  (a imagem do CI): 222 verificações certas, 9 delas novas. Contraprova: sem
-  o filtro das linhas, «sem as linhas do systemd» falha. Os outros nove
+  (a imagem do CI): 229 verificações certas, 16 delas novas. Contraprovas
+  (cada uma faz falhar o seu caso): sem o filtro das linhas; sem o corte no
+  último arranque da unidade; sem a mensagem da verificação a correr. Os outros nove
   testes da VPS, todos certos. `shellcheck` 0.10.0 sem avisos.
 
 ## O que ficou por verificar
@@ -37,5 +40,9 @@ que ela encontrou).
   `medir` novo estar na máquina (o `aplicar-script` instala-o ao juntar).
 - Se a verificação de 14/10 às 07:00 passa depois das actualizações e do
   reinício de 13/10 às 20:05.
-- Se o `InvocationID` da unidade fica guardado depois de uma corrida com
-  sucesso (com falha fica); sem ele vale o caminho das 26 h.
+- Se o `InvocationID` da unidade fica guardado depois de uma corrida, com
+  sucesso ou com falha (não verifiquei num systemd real); sem ele vale o
+  caminho das 26 h, a partir do último arranque da unidade.
+- Se a primeira linha de um erro do psql na verificação pode trazer um valor
+  (revisão do #428, P3-3; as funções das migrações 0026 e 0035 não foram
+  lidas para isto).
