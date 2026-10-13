@@ -41,9 +41,10 @@ export function escolhaInicial(
 
 /**
  * A marca de uma variante na publicação (§27.5): numa publicada, a que está
- * fora e nasceu depois da última publicação é «nova» (acrescentada depois de
- * publicar); a outra que está fora é «fora» (alguém a tirou, ou ficou de fora
- * ao publicar outra vez). Fora de `variantes_fora`, nenhuma.
+ * fora e nasceu depois de a publicação entrar em venda (`publicado_em`, que
+ * a base só muda ao passar a publicada, não ao publicar outra vez) é «nova»;
+ * a outra que está fora é «fora» (alguém a tirou). Fora de `variantes_fora`,
+ * nenhuma. Com as datas iguais ou ilegíveis, «fora» (revisão do #427).
  */
 export function marcaDaVariante(
   variante: { id: string; criado_em: string },

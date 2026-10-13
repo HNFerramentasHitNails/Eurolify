@@ -447,10 +447,16 @@ describe("a marca da variante na publicação (§27.5)", () => {
       marcaDaVariante({ id: B, criado_em: "2026-10-13T11:00:00.000Z" }, pub),
     ).toBe("nova");
   });
-  it("fora e nascida antes (alguém a tirou, ou ficou de fora ao publicar outra vez): «fora»", () => {
+  it("fora e nascida antes de a publicação entrar em venda (alguém a tirou): «fora»", () => {
     expect(
       marcaDaVariante({ id: B, criado_em: "2026-10-13T09:00:00.000Z" }, pub),
     ).toBe("fora");
+  });
+  it("com as datas iguais ou ilegíveis, «fora» (revisão do #427, P3-2)", () => {
+    expect(
+      marcaDaVariante({ id: B, criado_em: "2026-10-13T10:00:00.000Z" }, pub),
+    ).toBe("fora");
+    expect(marcaDaVariante({ id: B, criado_em: "ontem" }, pub)).toBe("fora");
   });
   it("à venda, ou sem publicação: nenhuma marca", () => {
     expect(
