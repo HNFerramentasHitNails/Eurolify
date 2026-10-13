@@ -368,7 +368,8 @@ else
   # O 10c recria a API para a ler; no --mostrar, diz que o faria.
   if fazer "gerar a chave dos envios em $api_envios" gerar_chave_envios "$api_envios"; then
     ENVIOS_GERADA=1
-    aviso "nasceu a chave dos envios: guarde uma cópia fora da máquina, à parte das cópias da base, antes de ligar a primeira conta (LEIA-ME, «A chave dos envios»)"
+    # No --mostrar não nasceu nada (revisão do pedido, P3-1).
+    ((MOSTRAR)) || aviso "nasceu a chave dos envios: o Diogo ou o Bruno guardam uma cópia fora da máquina, à parte das cópias da base (LEIA-ME, «A chave dos envios»)"
   else
     aviso "não se gerou a chave dos envios: a API corre sem os envios"
   fi

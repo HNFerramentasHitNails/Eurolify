@@ -117,10 +117,15 @@ trava, não a única.
 - **Nunca se reescreve**, como a do TOTP. O passo 10 só a cria se faltar.
   Se o ficheiro existir noutro formato, avisa e não lhe toca, e o
   `eurolify-publicar` arranca a API **sem** os envios até se corrigir à mão.
-- **Ao nascer**, o `preparar.sh` avisa: antes de ligar a primeira conta de
-  transportadora, guarda-se uma cópia fora da máquina e à parte das cópias
-  da base. A cópia lê-se pela chave de emergência (ADR-0020), e esse uso
-  fica numa memória.
+- **Ao nascer**, o `preparar.sh` avisa para guardar uma cópia fora da
+  máquina, à parte das cópias da base. **Quem a copia é o Diogo ou o Bruno,
+  do seu computador**, com a chave de emergência (ADR-0020): copiam o
+  ficheiro (`scp`) sem o abrir no terminal, e **nunca numa sessão do Claude**
+  (o conteúdo passaria pelo chat, regra 7 do `AGENTS.md`). O uso fica numa
+  memória.
+- **No ensaio**, perder a chave custa só voltar a colar as chaves de teste
+  das contas. Por isso a cópia pode esperar por uma ida à máquina por outra
+  razão; antes da migração para Paris (ADR-0018) é obrigatória.
 - **Se se perder**, as credenciais guardadas deixam de se poder ler. A API
   diz «defina-as outra vez» (`shipping.account_not_ready`), e cada conta
   recebe as chaves da transportadora outra vez pelo Hub.

@@ -634,8 +634,9 @@ e a conta fica «Pronta». No painel da Sendcloud indica o endereço
 | **A chave dos envios** (`/etc/eurolify/api-envios.env`, 600, root). Tem `ENVIOS_CHAVE` (32 bytes em base64) e `ENVIOS_CHAVE_VERSAO=1`. **Gera-se na máquina uma vez e nunca se reescreve**, como a chave TOTP (passo 10 do `preparar.sh`): trocá-la deixaria ilegíveis as credenciais guardadas, e cada conta teria de as receber outra vez. É **diferente da dos pagamentos** (revisão do #406, P3-9). O `eurolify-publicar` só a passa à API se tiver o formato que a API aceita; uma estragada derrubava a API ao arrancar. |
 | **A cópia da chave** guarda-se fora da máquina e à parte das cópias da base, como a `api-totp.env` e a `age.key` (LEIA-ME da VPS). |
 | **Os avisos da Sendcloud no nginx**: uma `location` só para `/webhooks/carriers/sendcloud/cac_<uuid>`. Leva as mesmas travas da `/hub/`: o pedido original tem de ter essa forma, e o caminho que vai para a API é o normalizado. Só aceita `POST`, com corpo até 64 KB (o limite do site), e tem um
-limite de pedidos por IP (`limit_req`, como o do login do MCP em
-`nginx-mcp.conf`). O resto de `/webhooks/` continua a dar 404. |
+limite de pedidos por IP (`limit_req`, o mecanismo do login do MCP em
+`nginx-mcp.conf`, com valores nossos: 60 por minuto e 20 de folga, sem
+fonte, a rever com os avisos reais). O resto de `/webhooks/` continua a dar 404. |
 | **O texto provisório do Hub** (`enviosAvisosVps`, «os avisos ainda não chegam») sai no mesmo pedido, como o §29.3 do `docs/22` diz (rede temporária com fim). |
 | **Os testes da VPS**: a chave dos envios ganha um teste como o `chave-totp.sh`. O `nginx -t` e o 404 dos outros `/webhooks/` medem-se depois de aplicar. |
 
@@ -658,9 +659,11 @@ limite de pedidos por IP (`limit_req`, como o do login do MCP em
 2. Com o pedido no `main`, o fluxo `aplicar-script` corre o `preparar.sh`,
    primeiro em `--mostrar` e depois a aplicar (ADR-0028). O passo 10c recria
    a API com a mesma imagem quando a chave acaba de nascer.
-3. **O Diogo guarda a cópia da chave fora da máquina.** Lê-a pela chave de
-   emergência (ADR-0020), e esse uso fica numa memória. É o único passo à
-   mão.
+3. **O Diogo ou o Bruno guardam a cópia da chave fora da máquina**, do seu
+   computador, pela chave de emergência (ADR-0020), copiando o ficheiro sem
+   o abrir e nunca numa sessão do Claude. O uso fica numa memória. É o único
+   passo à mão. No ensaio pode esperar (perdê-la custa voltar a colar as
+   chaves de teste); antes de Paris é obrigatório.
 4. Mede-se, pelo fluxo só de leitura:
    - o `/health` da API;
    - `POST /webhooks/carriers/sendcloud/cac_<uuid qualquer>` sem assinatura
@@ -672,8 +675,8 @@ limite de pedidos por IP (`limit_req`, como o do login do MCP em
 
 - **Perder a chave** deixa as credenciais das transportadoras ilegíveis. A
   API diz «defina-as outra vez» (`shipping.account_not_ready`). No ensaio
-  isso custa só voltar a colar as chaves de teste. Ainda assim, a cópia
-  fora da máquina é obrigatória antes de se guardar a primeira conta.
+  isso custa só voltar a colar as chaves de teste; a cópia fora da máquina
+  é obrigatória antes da migração para Paris.
 - **Um caminho aberto a mais no nginx**: a `location` é exacta, e há uma
   medição de que o resto de `/webhooks/` dá 404.
 - **Um aviso com dados de quem recebe** pode trazer o nome. Fica gravado em

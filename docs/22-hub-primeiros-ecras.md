@@ -2052,14 +2052,13 @@ ter ficado criada e pede para conferir a lista.
 «passou o teste», e o ecrã nunca o diz por outras palavras.
 
 **O caminho dos avisos.** O ecrã mostra o caminho
-(`/webhooks/carriers/{transportadora}/cac_…`), não o endereço completo. Na
-VPS de ensaio, só o Hub (`/hub/`) e o MCP estão publicados
-(`infra/vps/ficheiros/nginx-hub.conf`): **os avisos das transportadoras, e os
-dos pagamentos, ainda não chegam à API**. O ecrã di-lo. Até lá, a volta
-consulta o seguimento de hora a hora. Publicar o caminho é uma mudança à
-VPS, com pedido próprio (ADR-0028). **Rede temporária, retirada a
-13/10/2026:** o texto `enviosAvisosVps` saiu no pedido que publica o caminho
-dos avisos da Sendcloud no nginx da VPS (`docs/36` §17).
+(`/webhooks/carriers/{transportadora}/cac_…`), não o endereço completo.
+**Desde 13/10/2026** (`docs/36` §17), o nginx da VPS de ensaio publica só o
+caminho dos avisos da Sendcloud. Os dos pagamentos e de outras
+transportadoras continuam fechados, e o ecrã só mostra o caminho numa conta
+da Sendcloud. Sem avisos, a volta consulta o seguimento de hora a hora.
+**Rede temporária, retirada a 13/10/2026:** o texto `enviosAvisosVps` saiu no
+mesmo pedido.
 
 ### 29.4 Antes de dizer que está feito (o pedido do código)
 

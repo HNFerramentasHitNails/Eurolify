@@ -941,7 +941,9 @@ function Credenciais({
           </button>
         </form>
       ) : null}
-      {campos.length === 0 ? null : (
+      {/* Só o caminho da Sendcloud está publicado na VPS (docs/36 §17):
+          outra transportadora com avisos pede outra location no nginx. */}
+      {campos.length === 0 || conta.transportadora !== "sendcloud" ? null : (
         <>
           <h3>{t.enviosAvisos}</h3>
           <p>{t.enviosAvisosExplicacao}</p>
