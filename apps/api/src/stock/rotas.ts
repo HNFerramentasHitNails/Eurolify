@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { CamposDoRasto, respostasDoRasto } from "../base/rasto-resposta.js";
 import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { Kysely } from "kysely";
-import { Type } from "typebox";
+import { Type, type Static } from "typebox";
 import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { POLITICAS_STOCK, type BaseDados } from "../base/esquema.js";
 import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
@@ -30,7 +30,7 @@ import {
 // A API do stock e das expedições (docs/27 §7; issue #295; Diogo,
 // 10/10/2026: «sim, aprovo; avança com o código da fatia 9»).
 
-async function emStock<T>(resposta: FastifyReply, fn: () => Promise<T>) {
+export async function emStock<T>(resposta: FastifyReply, fn: () => Promise<T>) {
   try {
     return await fn();
   } catch (erro) {
@@ -57,9 +57,9 @@ const Livre = Type.Record(Type.String(), Type.Unknown());
 const IdArmazem = idCom("whs", "whs_…");
 const IdLoja = idCom("sto", "sto_…");
 const IdVariante = idCom("var", "var_…");
-const IdEncomenda = idCom("ord", "ord_…");
+export const IdEncomenda = idCom("ord", "ord_…");
 const IdLinha = idCom("oli", "oli_…");
-const IdExpedicao = idCom("shp", "shp_…");
+export const IdExpedicao = idCom("shp", "shp_…");
 const Versao = Type.Integer({ minimum: 1 });
 const Morada = Type.Object(
   {
@@ -95,6 +95,132 @@ export const paraArmazem = (
   // O peso da embalagem por omissão, em gramas (docs/36 Q6; 0079).
   embalagem_g: a.embalagem_g,
   versao: a.versao,
+});
+
+/** A encomenda na vista do armazém (docs/27 §6), pela chave e pelo Hub. */
+export const paraVista = (
+  v: Awaited<ReturnType<typeof listarParaExpedir>>[number],
+) => ({
+  id: `ord_${v.id}`,
+  estado: v.estado,
+  criada_em: v.criada_em.toISOString(),
+  metodo_entrega: v.metodo_entrega,
+  entrega: v.entrega,
+  destinatario: v.destinatario,
+  linhas: v.linhas.map((l) => ({
+    id: `oli_${l.id}`,
+    posicao: l.posicao,
+    variante: `var_${l.variante_id}`,
+    sku: l.sku,
+    nome: l.nome,
+    quantidade: l.quantidade,
+    expedida: l.expedida,
+  })),
+});
+
+/** A encomenda na vista do armazém, com as expedições. */
+export const paraVistaComExpedicoes = (
+  v: Awaited<ReturnType<typeof lerParaExpedir>>,
+) => ({
+  ...paraVista(v),
+  expedicoes: v.expedicoes.map((x) => ({
+    id: `shp_${x.id}`,
+    estado: x.estado,
+    transportadora: x.transportadora,
+    servico: x.servico,
+    seguimento: x.seguimento,
+    expedida_em: iso(x.expedida_em),
+    entregue_em: iso(x.entregue_em),
+    versao: x.versao,
+  })),
+});
+
+/** O corpo de uma expedição nova, pela chave e pelo Hub. */
+export const CorpoNovaExpedicao = Type.Object(
+  {
+    linhas: Type.Array(
+      Type.Object(
+        {
+          linha: IdLinha,
+          quantidade: Type.Integer({ minimum: 1, maximum: 10_000 }),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, maxItems: 200 },
+    ),
+    transportadora: Type.Optional(Texto(100)),
+    servico: Type.Optional(Texto(100)),
+    seguimento: Type.Optional(Texto(200)),
+  },
+  { additionalProperties: false },
+);
+
+/** O corpo de uma mudança à expedição, pela chave e pelo Hub. */
+export const CorpoMudarExpedicao = Type.Object(
+  {
+    versao: Versao,
+    estado: Type.Optional(
+      umDe([
+        "expedida",
+        "entregue",
+        "devolvida_ao_remetente",
+        "perdida",
+        "cancelada",
+      ] as const),
+    ),
+    transportadora: Type.Optional(Texto(100)),
+    servico: Type.Optional(Texto(100)),
+    seguimento: Type.Optional(Texto(200)),
+    prova_entrega: Type.Optional(Texto(500)),
+    lotes: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            variante: IdVariante,
+            lote: Type.String({ minLength: 1, maxLength: 60 }),
+            quantidade: Type.Integer({
+              minimum: 1,
+              maximum: 1_000_000,
+            }),
+          },
+          { additionalProperties: false },
+        ),
+        { maxItems: 200 },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+export const dadosDaNovaExpedicao = (b: Static<typeof CorpoNovaExpedicao>) => ({
+  linhas: b.linhas.map((l) => ({
+    linha: semPrefixo(l.linha),
+    quantidade: l.quantidade,
+  })),
+  ...(b.transportadora === undefined
+    ? {}
+    : { transportadora: b.transportadora }),
+  ...(b.servico === undefined ? {} : { servico: b.servico }),
+  ...(b.seguimento === undefined ? {} : { seguimento: b.seguimento }),
+});
+
+export const dadosDaMudanca = (b: Static<typeof CorpoMudarExpedicao>) => ({
+  ...(b.estado === undefined ? {} : { estado: b.estado }),
+  ...(b.transportadora === undefined
+    ? {}
+    : { transportadora: b.transportadora }),
+  ...(b.servico === undefined ? {} : { servico: b.servico }),
+  ...(b.seguimento === undefined ? {} : { seguimento: b.seguimento }),
+  ...(b.prova_entrega === undefined ? {} : { prova_entrega: b.prova_entrega }),
+  ...(b.lotes === undefined
+    ? {}
+    : {
+        lotes: b.lotes.map((l) => ({
+          variante: semPrefixo(l.variante),
+          lote: l.lote,
+          quantidade: l.quantidade,
+        })),
+      }),
 });
 
 export function rotasDoStock(
@@ -477,26 +603,6 @@ export function rotasDoStock(
 
   // ------------------------------------------- A vista do armazém (§6)
 
-  const paraVista = (
-    v: Awaited<ReturnType<typeof listarParaExpedir>>[number],
-  ) => ({
-    id: `ord_${v.id}`,
-    estado: v.estado,
-    criada_em: v.criada_em.toISOString(),
-    metodo_entrega: v.metodo_entrega,
-    entrega: v.entrega,
-    destinatario: v.destinatario,
-    linhas: v.linhas.map((l) => ({
-      id: `oli_${l.id}`,
-      posicao: l.posicao,
-      variante: `var_${l.variante_id}`,
-      sku: l.sku,
-      nome: l.nome,
-      quantidade: l.quantidade,
-      expedida: l.expedida,
-    })),
-  });
-
   rotas.get(
     "/fulfilment/orders",
     {
@@ -543,19 +649,7 @@ export function rotasDoStock(
           chaveDo(pedido).comercianteId,
           semPrefixo(pedido.params.id),
         );
-        return {
-          ...paraVista(v),
-          expedicoes: v.expedicoes.map((x) => ({
-            id: `shp_${x.id}`,
-            estado: x.estado,
-            transportadora: x.transportadora,
-            servico: x.servico,
-            seguimento: x.seguimento,
-            expedida_em: iso(x.expedida_em),
-            entregue_em: iso(x.entregue_em),
-            versao: x.versao,
-          })),
-        };
+        return paraVistaComExpedicoes(v);
       }),
   );
 
@@ -569,24 +663,7 @@ export function rotasDoStock(
         description:
           "Cria uma expedição com as linhas e quantidades a enviar (um kit em unidades do kit). Não mexe no stock até ser expedida. A primeira põe a encomenda em preparação.",
         params: Type.Object({ id: IdEncomenda }),
-        body: Type.Object(
-          {
-            linhas: Type.Array(
-              Type.Object(
-                {
-                  linha: IdLinha,
-                  quantidade: Type.Integer({ minimum: 1, maximum: 10_000 }),
-                },
-                { additionalProperties: false },
-              ),
-              { minItems: 1, maxItems: 200 },
-            ),
-            transportadora: Type.Optional(Texto(100)),
-            servico: Type.Optional(Texto(100)),
-            seguimento: Type.Optional(Texto(200)),
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoNovaExpedicao,
         response: {
           201: Type.Object({ id: Type.String() }),
           ...RESPOSTA_DE_ERRO,
@@ -600,21 +677,7 @@ export function rotasDoStock(
             trx,
             chave.comercianteId,
             semPrefixo(pedido.params.id),
-            {
-              linhas: pedido.body.linhas.map((l) => ({
-                linha: semPrefixo(l.linha),
-                quantidade: l.quantidade,
-              })),
-              ...(pedido.body.transportadora === undefined
-                ? {}
-                : { transportadora: pedido.body.transportadora }),
-              ...(pedido.body.servico === undefined
-                ? {}
-                : { servico: pedido.body.servico }),
-              ...(pedido.body.seguimento === undefined
-                ? {}
-                : { seguimento: pedido.body.seguimento }),
-            },
+            dadosDaNovaExpedicao(pedido.body),
             quemDe(chave),
           )}`,
         })),
@@ -629,41 +692,7 @@ export function rotasDoStock(
         description:
           "Muda a expedição: `expedida` dá saída do stock (a reserva passa a saída, com o lote de cada componente; sem lotes dados, o que expira primeiro dentro da validade), `entregue`, `devolvida_ao_remetente` ou `perdida`; `cancelada` desfaz uma expedição criada que não chegou a sair (as linhas voltam a estar por expedir); e a transportadora, o serviço e o seguimento.",
         params: Type.Object({ id: IdExpedicao }),
-        body: Type.Object(
-          {
-            versao: Versao,
-            estado: Type.Optional(
-              umDe([
-                "expedida",
-                "entregue",
-                "devolvida_ao_remetente",
-                "perdida",
-                "cancelada",
-              ] as const),
-            ),
-            transportadora: Type.Optional(Texto(100)),
-            servico: Type.Optional(Texto(100)),
-            seguimento: Type.Optional(Texto(200)),
-            prova_entrega: Type.Optional(Texto(500)),
-            lotes: Type.Optional(
-              Type.Array(
-                Type.Object(
-                  {
-                    variante: IdVariante,
-                    lote: Type.String({ minLength: 1, maxLength: 60 }),
-                    quantidade: Type.Integer({
-                      minimum: 1,
-                      maximum: 1_000_000,
-                    }),
-                  },
-                  { additionalProperties: false },
-                ),
-                { maxItems: 200 },
-              ),
-            ),
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoMudarExpedicao,
         response: {
           200: Type.Object({ versao: Type.Integer() }),
           ...RESPOSTA_DE_ERRO,
@@ -678,32 +707,7 @@ export function rotasDoStock(
             chave.comercianteId,
             semPrefixo(pedido.params.id),
             pedido.body.versao,
-            {
-              ...(pedido.body.estado === undefined
-                ? {}
-                : { estado: pedido.body.estado }),
-              ...(pedido.body.transportadora === undefined
-                ? {}
-                : { transportadora: pedido.body.transportadora }),
-              ...(pedido.body.servico === undefined
-                ? {}
-                : { servico: pedido.body.servico }),
-              ...(pedido.body.seguimento === undefined
-                ? {}
-                : { seguimento: pedido.body.seguimento }),
-              ...(pedido.body.prova_entrega === undefined
-                ? {}
-                : { prova_entrega: pedido.body.prova_entrega }),
-              ...(pedido.body.lotes === undefined
-                ? {}
-                : {
-                    lotes: pedido.body.lotes.map((l) => ({
-                      variante: semPrefixo(l.variante),
-                      lote: l.lote,
-                      quantidade: l.quantidade,
-                    })),
-                  }),
-            },
+            dadosDaMudanca(pedido.body),
             quemDe(chave),
           ),
         })),

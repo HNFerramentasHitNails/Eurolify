@@ -916,11 +916,75 @@ export const pt = {
   faturacaoTesteFalhou: "O teste falhou: {erro}",
   faturacaoTesteFalhouSemErro: "O teste falhou.",
   faturacaoSemLigacao:
-    "Esta entidade ainda não está ligada a um software de faturação. A ligação cria-se pela integração.",
+    "Esta entidade ainda não está ligada a um software de faturação. Só o dono a pode ligar.",
   faturacaoSistemaProprio:
     "Os documentos desta entidade saem do sistema próprio.",
   faturacaoPorConfigurar:
     "Ainda não se escolheu quem emite os documentos desta entidade.",
+  faturacaoSemLigacaoDono:
+    "Esta entidade ainda não está ligada a um software de faturação.",
+  faturacaoCriarMoloni: "Criar a ligação ao Moloni",
+  faturacaoACriar: "A criar…",
+  faturacaoJaExiste: "Esta entidade já tem uma ligação. Lemos outra vez.",
+  faturacaoConfigurar: "Configurar",
+  faltam: "Falta mapear: {lista}.",
+  faltaE: "e",
+  faltaUmaTaxa: "1 taxa",
+  faltaTaxas: "{n} taxas",
+  faltaUmaIsencao: "1 isenção",
+  faltaIsencoes: "{n} isenções",
+  faltaUmMeio: "1 método de pagamento",
+  faltaMeios: "{n} métodos de pagamento",
+  configurarTitulo: "Configurar a ligação ao Moloni",
+  configurarExplicacao:
+    "Escolha, de listas lidas do Moloni, o que o Eurolify usa em cada fatura. Nada vem escolhido. Para ter uma série, taxa ou artigo que não está na lista, crie-o no Moloni e volte.",
+  configurarALer: "A ler o Moloni…",
+  configurarMoloniRecusou: "O Moloni recusou ou não respondeu: {erro}",
+  configurarSerie: "Série",
+  configurarTaxas: "Taxas",
+  configurarTaxaDoPar: "IVA {taxa} · {pais}",
+  configurarIsencoes: "Isenções",
+  configurarIsencaoDoCodigo: "Motivo {codigo} · {pais}",
+  configurarMetodos: "Métodos de pagamento",
+  metodoPagamento_mb_way: "MB WAY",
+  metodoPagamento_multibanco: "Multibanco",
+  configurarClientes: "Para os clientes criados",
+  configurarLingua: "Língua",
+  configurarVencimento: "Vencimento",
+  configurarArtigos: "Para os artigos criados",
+  configurarUnidade: "Unidade",
+  configurarCategoria: "Categoria",
+  configurarPortes: "Artigo dos portes",
+  configurarConsumidorFinal: "Cliente «Consumidor final»",
+  configurarPesquisa: "Procurar no Moloni",
+  configurarProcurar: "Procurar",
+  configurarAProcurar: "A procurar…",
+  configurarResultados: "Resultados no Moloni",
+  configurarSemResultados: "O Moloni não encontrou nada com «{q}».",
+  configurarEscolhidoId: "Escolhido: id {id}",
+  configurarPorEscolher: "— por escolher —",
+  configurarQueBatem: "Mesmo valor e zona fiscal",
+  configurarOutras: "Outras taxas do Moloni",
+  configurarListaVazia:
+    "O Moloni não tem nenhuma opção aqui; crie-a no Moloni e volte.",
+  configurarNadaAMapear: "Nada a mapear.",
+  configurarNadaFalta: "Nada falta mapear.",
+  configurarOpcao: "{nome} (id {id})",
+  configurarTaxaOpcao: "{nome} {valor} · {zona} (id {id})",
+  configurarArtigoOpcao: "{nome} · ref. {ref} (id {id})",
+  configurarClienteOpcao: "{nome} · n.º {numero} (id {id})",
+  configurarGravar: "Gravar",
+  configurarAGravar: "A gravar…",
+  configurarGravado: "Gravado. A ligação ficou por testar.",
+  configurarConflito:
+    "Outra pessoa mudou esta ligação entretanto. As suas escolhas ficaram no ecrã: confira e grave outra vez.",
+  configurarGravadoSemMudarEstado: "Gravado. Teste a ligação para confirmar.",
+  configurarReleituraFalhou:
+    "Não foi possível ler o Moloni outra vez; as suas escolhas ficaram no ecrã.",
+  configurarIdInvalido:
+    "O Moloni recusou uma das escolhas: {erro} As listas foram lidas outra vez.",
+  configurarOcupado:
+    "Há documentos a meio no Moloni desta ligação. Resolva-os antes de mudar a configuração.",
   faturacaoOssTitulo: "Relatório OSS",
   faturacaoOssAbrir: "Abrir o {periodo}",
   faturacaoOssAberto: "Aberto",
@@ -1313,6 +1377,136 @@ export const pt = {
   metodosMercadoNaoExiste:
     "Este mercado já não existe. Recarregue a página e escolha outro.",
   embalagemNaoExiste: "Este armazém já não existe ou não é deste comerciante.",
+  // Expedir (docs/22 §33).
+  modulo_expedir: "Expedir",
+  termos_expedir: "encomendas expedições etiquetas armazém seguimento enviar",
+  expedirTitulo: "Expedir",
+  expedirExplicacao:
+    "As encomendas pagas que falta enviar, das mais antigas para as mais recentes. Aqui não aparecem preços, NIF nem e-mail.",
+  expedirVazio: "Não há encomendas por expedir.",
+  expedirContagemUm: "1 encomenda por expedir.",
+  expedirContagem: "{n} encomendas por expedir.",
+  expedirContagemMaximo:
+    "Mostram-se as {n} mais antigas; há mais por expedir. Expeça estas para ver as seguintes.",
+  expedirColunaEncomenda: "Encomenda",
+  expedirColunaEstado: "Estado",
+  expedirColunaMetodo: "Método de entrega",
+  expedirColunaPorExpedir: "Artigos por expedir",
+  expedirColunaLocalidade: "Localidade",
+  expedirEncomendaDe: "Encomenda de {data}",
+  expedirEncomendaTitulo: "Encomenda a expedir",
+  expedirEstadoPaga: "Paga",
+  expedirEstadoEmPreparacao: "Em preparação",
+  expedirEstadoExpedidaParcial: "Expedida em parte",
+  expedirEstadoExpedida: "Expedida",
+  expedirVoltar: "Voltar a «Expedir»",
+  expedirSoVer: "O seu papel só vê as expedições: não cria nem muda.",
+  expedirQuemRecebe: "Quem recebe",
+  expedirTelefone: "Telefone:",
+  expedirLinhas: "Artigos",
+  expedirColunaArtigo: "Artigo",
+  expedirColunaQuantidade: "Quantidade",
+  expedirColunaJaSaiu: "Já numa expedição",
+  expedirColunaNestaExpedicao: "Nesta expedição",
+  expedirQuantidadeDe: "Quantidade de {nome} nesta expedição",
+  expedirCriar: "Criar a expedição",
+  expedirTudoSaiu: "Todos os artigos já estão numa expedição.",
+  expedirNadaEscolhido: "Escreva a quantidade de pelo menos um artigo.",
+  expedirQuantidadeErrada: "A quantidade é um número inteiro.",
+  expedirMaisDoQueFalta:
+    "A quantidade passa do que falta expedir deste artigo.",
+  expedirTalvezCriada:
+    "Não chegou resposta: a expedição pode ter ficado criada. Confira as expedições abaixo antes de criar outra; se a página não as mostrar, carregue em «Tentar outra vez».",
+  expedirExpedicoes: "Expedições",
+  expedirSemExpedicoes: "Ainda não há expedições desta encomenda.",
+  expedirExpedicaoNumero: "Expedição {n}",
+  expedirSaiuEm: "Saiu a {data}.",
+  expedicaoCriada: "Por sair",
+  expedicaoExpedida: "Expedida",
+  expedicaoEntregue: "Entregue",
+  expedicaoDevolvida: "Devolvida ao remetente",
+  expedicaoPerdida: "Perdida",
+  expedicaoCancelada: "Cancelada",
+  expedirTransportadora: "Transportadora (opcional)",
+  expedirSeguimento: "Número de seguimento (opcional)",
+  expedirMarcar: "Marcar como expedida",
+  expedirMarcarConfirmar:
+    "Marcar como expedida? O stock sai agora, com os lotes que expiram primeiro, e o ecrã não o desfaz.",
+  expedirMarcadaAgora: "A expedição saiu.",
+  expedirCancelar: "Cancelar a expedição",
+  expedirCancelarConfirmar:
+    "Cancelar esta expedição? Os artigos voltam a estar por expedir.",
+  expedirCanceladaAgora: "A expedição foi cancelada.",
+  expedirEntregue: "Marcar como entregue",
+  expedirEntregueAgora: "A expedição foi entregue.",
+  expedirDevolvida: "Devolvida ao remetente",
+  expedirDevolvidaConfirmar: "Marcar como devolvida ao remetente?",
+  expedirDevolvidaAgora: "A expedição ficou como devolvida ao remetente.",
+  expedirPerdida: "Marcar como perdida",
+  expedirPerdidaConfirmar: "Marcar como perdida?",
+  expedirPerdidaAgora: "A expedição ficou como perdida.",
+  expedirRecusada:
+    "O servidor recusou a expedição: confira as quantidades (não mais do que falta).",
+  expedirConflito:
+    "A expedição mudou entretanto. «Tentar outra vez» relê a página.",
+  expedirSemArmazem: "A loja desta encomenda não tem armazém: crie-o no stock.",
+  expedirSemLote:
+    "Uma das variantes exige lote e não há lote com stock dentro da validade. Registe a entrada com o lote.",
+  expedirSemStock: "Não há stock físico suficiente para esta saída.",
+  expedirNaoExiste:
+    "Esta encomenda ou expedição não existe, ou não é deste comerciante.",
+  expedirTransicaoImpossivel: "Esta mudança de estado não é possível agora.",
+  etiquetaTitulo: "Etiqueta:",
+  etiquetaPorPedir: "Por pedir",
+  etiquetaAPedir: "A pedir…",
+  etiquetaEmitida: "Emitida",
+  etiquetaIncerta: "Incerta",
+  etiquetaRecusada: "Recusada",
+  etiquetaAnulada: "Anulada",
+  etiquetaMotivo:
+    "A transportadora recusou: {motivo}. Corrija e peça outra vez.",
+  etiquetaIncertaExplicacao:
+    "Não se sabe se a transportadora criou a etiqueta. Não se pede outra: carregue em «Consultar a transportadora».",
+  etiquetaSeguimento: "Seguimento",
+  etiquetaPeso: "Peso da caixa",
+  etiquetaGramas: "{g} g",
+  etiquetaPedir: "Pedir a etiqueta",
+  etiquetaPedidaAgora: "A etiqueta foi emitida.",
+  etiquetaDescarregar: "Descarregar a etiqueta",
+  etiquetaFicheiroApaga:
+    "O ficheiro tem os dados de quem recebe e apaga-se 30 dias depois de a expedição acabar.",
+  etiquetaConsultar: "Consultar a transportadora",
+  etiquetaConsultadaAgora: "A transportadora foi consultada.",
+  etiquetaAnular: "Anular a etiqueta",
+  etiquetaAnularConfirmar:
+    "Anular a etiqueta? Só antes de marcar a expedição como expedida, e se a transportadora deixar.",
+  etiquetaAnuladaAgora: "A etiqueta foi anulada.",
+  etiquetaEventos: "Seguimento da transportadora",
+  etiquetaSemEventos: "Ainda sem eventos da transportadora.",
+  etiquetaJaExiste: "Já há uma etiqueta: anule-a antes de pedir outra.",
+  etiquetaIncertaConsultar:
+    "Não se sabe se a etiqueta existe: carregue em «Consultar a transportadora».",
+  etiquetaNaoAnula:
+    "A transportadora não deixa anular esta etiqueta (a caixa já foi recolhida, ou não há etiqueta emitida).",
+  etiquetaContaNaoPronta:
+    "A conta da transportadora deste método não está pronta: teste-a em «Envios», «Contas».",
+  etiquetaPedidoRecusado:
+    "O servidor recusou o pedido da etiqueta: confira o peso das variantes e a morada.",
+  etiquetaSemResposta:
+    "A transportadora não respondeu. Tente outra vez daqui a pouco.",
+  expedirLinhaNaoEDaEncomenda:
+    "Um dos artigos não é desta encomenda. Recarregue a página.",
+  expedirImutavel: "Esta expedição já não muda.",
+  expedirEncomendaNaoEstaParaExpedir:
+    "Esta encomenda já não está para expedir (por exemplo, foi cancelada ou já saiu toda).",
+  etiquetaTransicaoImpossivel:
+    "A etiqueta não pode mudar assim agora: depois de a expedição sair, já não se pede nem se anula.",
+  expedirPrimeiroAEtiqueta:
+    "Com este método, marca-se como expedida depois de a etiqueta estar emitida.",
+  expedirAnularParaCancelar:
+    "Para cancelar esta expedição, anule primeiro a etiqueta (ou consulte a transportadora, se estiver incerta).",
+  etiquetaFicheiroJaNao:
+    "O ficheiro da etiqueta já não existe: apaga-se 30 dias depois de a expedição acabar.",
 };
 
 export type Textos = typeof pt;

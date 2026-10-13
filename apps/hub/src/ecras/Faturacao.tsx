@@ -4,6 +4,7 @@ import { ACarregar, CaixaDeErro, LigacaoInterna, useHub } from "../contexto";
 import { falhaDeAccao, mensagemDeErro, semSessao } from "../erros";
 import {
   CHAVE_PEDIDO_MOLONI,
+  enderecoConfigurar,
   enderecoFaturacao,
   enderecoOss,
   estadoMostrado,
@@ -13,6 +14,7 @@ import {
   nomeDoPeriodo,
   regressoDe,
   resumoDoPeriodo,
+  resumoDoQueFalta,
   ultimoTrimestreAcabado,
   type EntidadeFaturacao,
   type Faturacao as DadosFaturacao,
@@ -29,8 +31,9 @@ import { Dialogo } from "./Dialogo";
 
 // O ecrã «Faturação» (docs/22 §30; Q1 em A): por entidade legal, a ligação
 // ao software de faturação (ligar, ligar outra vez e testar, só o dono) e a
-// entrada para o relatório OSS do último trimestre acabado. Criar a ligação
-// e os mapas fica pela integração. Quem pode o quê decide-o a API.
+// entrada para o relatório OSS do último trimestre acabado. O dono cria a
+// ligação ao Moloni e configura-a (docs/22 §32, Q1 em A). Quem pode o quê
+// decide-o a API.
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
 const EMPRESA = /^[0-9]{1,12}$/;
@@ -218,6 +221,25 @@ function Entidade({
         <Titulo id={`ligacao-${e.id}`}>{t.faturacaoLigacaoTitulo}</Titulo>
         {e.emissor === "sistema_proprio" ? (
           <p>{t.faturacaoSistemaProprio}</p>
+        ) : (l === null || !l.activa) &&
+          ambitos.includes("invoices:accounts") ? (
+          <>
+            {/* Uma desligada mostra-se, e pode criar-se outra (P3-7). */}
+            {l === null ? null : (
+              <Ligacao
+                ligacao={l}
+                podeMudar={false}
+                ligar={ligar}
+                comerciante={comerciante}
+                depoisDeTestar={depoisDeTestar}
+              />
+            )}
+            <CriarLigacao
+              entidade={e}
+              comerciante={comerciante}
+              depoisDeCriar={depoisDeTestar}
+            />
+          </>
         ) : e.emissor === "por_configurar" && l === null ? (
           <p>{t.faturacaoPorConfigurar}</p>
         ) : l === null ? (
@@ -349,8 +371,19 @@ function Ligacao({
           {preencher(t.faturacaoUltimoErro, { erro: l.erro })}
         </p>
       )}
+      {l.activa && l.faltam != null ? (
+        <p className="secundario">{resumoDoQueFalta(t, l.faltam)}</p>
+      ) : null}
       {podeMudar && l.activa ? (
         <div className="accoes-tarefa">
+          {l.adaptador === "moloni" && l.credenciais_em !== null ? (
+            <LigacaoInterna
+              href={enderecoConfigurar(comerciante, l.id)}
+              className="botao"
+            >
+              {t.faturacaoConfigurar}
+            </LigacaoInterna>
+          ) : null}
           {l.adaptador === "moloni" ? (
             <button
               type="button"
@@ -375,6 +408,65 @@ function Ligacao({
       {resultado === null ? null : (
         <p className={resultado.erro ? "erro" : "sucesso"} role="status">
           {resultado.texto}
+        </p>
+      )}
+    </>
+  );
+}
+
+/** O dono cria a ligação ao Moloni de uma entidade sem ligação (§32.4). */
+function CriarLigacao({
+  entidade: e,
+  comerciante,
+  depoisDeCriar,
+}: {
+  entidade: EntidadeFaturacao;
+  comerciante: string;
+  depoisDeCriar: () => Promise<void>;
+}) {
+  const { t, lingua, navegar } = useHub();
+  const [aCriar, setACriar] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  async function criar() {
+    setACriar(true);
+    setErro(null);
+    try {
+      await api.criarLigacao(comerciante, e.id);
+      await depoisDeCriar();
+    } catch (x) {
+      const f = await falhaDeAccao(x);
+      if (f === null) {
+        navegar("/entrar", { substituir: true });
+        return;
+      }
+      // Já há uma activa (outra pessoa criou-a): relê e mostra-a.
+      if (f instanceof ErroHub && f.codigo === "invoices.invalid_field") {
+        setErro(t.faturacaoJaExiste);
+        await depoisDeCriar();
+      } else {
+        setErro(mensagemDeErro(f, t, lingua).texto);
+      }
+    } finally {
+      setACriar(false);
+    }
+  }
+
+  return (
+    <>
+      <p>
+        {e.emissor === "por_configurar"
+          ? t.faturacaoPorConfigurar
+          : t.faturacaoSemLigacaoDono}
+      </p>
+      <div className="accoes-tarefa">
+        <button type="button" disabled={aCriar} onClick={() => void criar()}>
+          {aCriar ? t.faturacaoACriar : t.faturacaoCriarMoloni}
+        </button>
+      </div>
+      {erro === null ? null : (
+        <p className="erro" role="status">
+          {erro}
         </p>
       )}
     </>

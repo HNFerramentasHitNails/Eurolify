@@ -32,6 +32,41 @@ const PORTA_API = 8181;
 const ORIGEM = `https://localhost:${String(PORTA_HUB)}`;
 const SENHA = "so-para-testes";
 
+/** Uma ligação de exemplo para o ecrã «Configurar» (só nas capturas). */
+const LIGACAO_DAS_CAPTURAS = "isx_00000000-0000-7000-8000-000000000001";
+const OPCOES_DAS_CAPTURAS = {
+  listas: {
+    series: [{ id: "77", nome: "Loja online 2026" }],
+    taxas: [
+      { id: "11", nome: "Taxa Normal", valor: 2300, zona: "PT" },
+      { id: "14", nome: "Taxa Normal antiga", valor: 2300, zona: "PT" },
+      { id: "12", nome: "Taxa Reduzida", valor: 600, zona: "PT" },
+      { id: "13", nome: "IVA normal ES", valor: 2100, zona: "ES" },
+    ],
+    isencoes: [{ id: "M16", nome: "Artigo 14.º do RITI" }],
+    metodos_pagamento: [{ id: "31", nome: "MB WAY" }],
+    linguas: [{ id: "1", nome: "Português", codigo: "pt" }],
+    vencimentos: [{ id: "41", nome: "Pronto pagamento", dias: 0 }],
+    unidades: [{ id: "51", nome: "Unidade", abreviatura: "Un." }],
+    categorias: [],
+  },
+  necessario: {
+    taxas: [
+      { pais: "PT", taxa: 2300 },
+      { pais: "PT", taxa: 600 },
+    ],
+    isencoes: [{ pais: "PT", codigo: "M16" }],
+    meios: ["mb_way"],
+  },
+  ligacao: {
+    versao: 2,
+    serie: null,
+    taxas: [{ pais: "PT", taxa: 2300, emissor: "11" }],
+    isencoes: [],
+    config: {},
+  },
+};
+
 if (URL_BASE === undefined) {
   console.error("falta BASE_DADOS_URL (superutilizador da base de testes)");
   process.exit(1);
@@ -5124,6 +5159,7 @@ try {
       "equipa",
       "artigos",
       "a-decidir",
+      "expedir",
       "envios",
       "faturacao",
       "chaves",
@@ -5199,7 +5235,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os seis módulos do dono, com o comerciante no endereço`,
+          `${nome}: os sete módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5281,9 +5317,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 6 &&
+        (await p.locator(".atalho-modulo").count()) === 7 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos seis módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos sete módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5445,10 +5481,11 @@ try {
             "Equipa",
             "Artigos",
             "A decidir",
+            "Expedir",
             "Envios",
             "Faturação",
           ]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», os envios e a faturação, sem as chaves",
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», os envios e a faturação, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
@@ -5904,6 +5941,212 @@ try {
     await c.close();
   }
 
+  // «Expedir» (docs/22 §33): a lista vazia contra a API verdadeira; a
+  // encomenda e a expedição com respostas simuladas da API, porque o ensaio
+  // não tem uma encomenda paga (pedi-la passa pelo checkout e por um
+  // prestador de pagamentos). Os dados são fictícios.
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/expedir?comerciante=mer_${comerciante}`);
+    await p
+      .getByRole("heading", { name: /Expedir/ })
+      .first()
+      .waitFor();
+    await p.getByText("Não há encomendas por expedir.").waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "expedir-vazio-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+  const ENCOMENDA_SIMULADA = "ord_0199e000-0000-7000-8000-000000000001";
+  const EXPEDICAO_SIMULADA = "shp_0199e000-0000-7000-8000-000000000002";
+  const encomendaSimulada = {
+    id: ENCOMENDA_SIMULADA,
+    estado: "em_preparacao",
+    criada_em: "2026-10-12T15:42:00.000Z",
+    metodo_entrega: {
+      nome: { pt: "Correio registado" },
+      data_limite: "2026-10-17",
+      conta: "0199e000-0000-7000-8000-000000000003",
+      servico: "sendcloud:letter",
+    },
+    entrega: {
+      linha1: "Rua do Exemplo, 2, 3.º esq.",
+      codigo_postal: "1000-001",
+      localidade: "Lisboa",
+      pais: "PT",
+    },
+    destinatario: { nome: "Rui Exemplo", telefone: "+351912345678" },
+    linhas: [
+      {
+        id: "oli_0199e000-0000-7000-8000-000000000004",
+        posicao: 1,
+        variante: "var_0199e000-0000-7000-8000-000000000005",
+        sku: "VERNIZ-AZUL-1",
+        nome: "Verniz Azul 1",
+        quantidade: 2,
+        expedida: 2,
+      },
+      {
+        id: "oli_0199e000-0000-7000-8000-000000000006",
+        posicao: 2,
+        variante: "var_0199e000-0000-7000-8000-000000000007",
+        sku: "LIMA-180",
+        nome: "Lima 180",
+        quantidade: 1,
+        expedida: 0,
+      },
+    ],
+  };
+  const simular = async (contexto) => {
+    const json = (corpo) => ({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "private, no-store" },
+      body: JSON.stringify(corpo),
+    });
+    await contexto.route("**/hub/fulfilment/orders", (r) =>
+      r.fulfill(json({ dados: [encomendaSimulada] })),
+    );
+    await contexto.route(
+      `**/hub/fulfilment/orders/${ENCOMENDA_SIMULADA}`,
+      (r) =>
+        r.fulfill(
+          json({
+            ...encomendaSimulada,
+            expedicoes: [
+              {
+                id: EXPEDICAO_SIMULADA,
+                estado: "criada",
+                transportadora: "Sendcloud",
+                servico: "sendcloud:letter",
+                seguimento: "3SYZXG1234567",
+                expedida_em: null,
+                entregue_em: null,
+                versao: 3,
+              },
+            ],
+          }),
+        ),
+    );
+    await contexto.route(`**/hub/shipments/${EXPEDICAO_SIMULADA}/label`, (r) =>
+      r.fulfill(
+        json({
+          expedicao: EXPEDICAO_SIMULADA,
+          estado_expedicao: "criada",
+          etiqueta: "emitida",
+          tentativa: 1,
+          motivo: null,
+          em: "2026-10-13T09:10:00.000Z",
+          conta: "cac_0199e000-0000-7000-8000-000000000003",
+          transportadora: "Sendcloud",
+          servico: "sendcloud:letter",
+          seguimento: "3SYZXG1234567",
+          url_seguimento: "https://tracking.exemplo.test/3SYZXG1234567",
+          peso_g: 260,
+          ficheiro: "pdf",
+        }),
+      ),
+    );
+    await contexto.route(`**/hub/shipments/${EXPEDICAO_SIMULADA}/events`, (r) =>
+      r.fulfill(
+        json({
+          dados: [
+            {
+              origem: "consulta",
+              estado: "outro",
+              estado_transportadora: "Announced",
+              em: "2026-10-13T09:11:00.000Z",
+            },
+          ],
+        }),
+      ),
+    );
+  };
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    await simular(c);
+    const p = await c.newPage();
+    await p.goto(
+      `${ORIGEM}/expedir/${ENCOMENDA_SIMULADA}?comerciante=mer_${comerciante}`,
+    );
+    await p.getByRole("heading", { name: /Encomenda de/ }).waitFor();
+    await p.getByText("Emitida", { exact: true }).waitFor();
+    confere(
+      (await p.title()).includes("Rui") === false,
+      "expedir: o nome de quem recebe não vai para o título da janela",
+    );
+    confere(
+      (await p.getByRole("button", { name: "Pedir a etiqueta" }).count()) === 0,
+      "expedir: com a etiqueta emitida, não se pede outra",
+    );
+    // Sem pedir nada ao servidor: mais do que falta recusa-se no ecrã.
+    await p.getByLabel("Quantidade de Lima 180 nesta expedição").fill("2");
+    await p.getByRole("button", { name: "Criar a expedição" }).click();
+    await p
+      .getByText("A quantidade passa do que falta expedir deste artigo.")
+      .waitFor();
+    confere(
+      (await p
+        .getByLabel("Quantidade de Lima 180 nesta expedição")
+        .getAttribute("aria-invalid")) === "true",
+      "expedir: a quantidade a mais fica marcada (aria-invalid)",
+    );
+    await c.close();
+  }
+  for (const tema of ["light", "dark"]) {
+    for (const largura of [375, 768, 1280]) {
+      const c = await navegador.newContext({
+        ignoreHTTPSErrors: true,
+        colorScheme: tema,
+        viewport: { width: largura, height: 900 },
+        storageState: sessao,
+      });
+      await simular(c);
+      const p = await c.newPage();
+      for (const [nome, caminho, titulo] of [
+        ["expedir", `/expedir?comerciante=mer_${comerciante}`, "Expedir"],
+        [
+          "expedir-encomenda",
+          `/expedir/${ENCOMENDA_SIMULADA}?comerciante=mer_${comerciante}`,
+          "Encomenda de",
+        ],
+      ]) {
+        await p.goto(`${ORIGEM}${caminho}`);
+        await p
+          .getByRole("heading", { name: new RegExp(titulo) })
+          .first()
+          .waitFor();
+        await p.waitForLoadState("networkidle");
+        const largo = await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        );
+        confere(
+          !largo,
+          `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
+        );
+        await p.screenshot({
+          path: join(
+            SAIDA,
+            `${nome}-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+          ),
+          fullPage: true,
+        });
+      }
+      await c.close();
+    }
+  }
+
   // As capturas: os ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
@@ -5961,6 +6204,11 @@ try {
       "Embalagem",
     ],
     ["faturacao", `/faturacao?comerciante=mer_${comerciante}`, "Faturação"],
+    [
+      "faturacao-configurar",
+      `/faturacao/configurar?comerciante=mer_${comerciante}&ligacao=${LIGACAO_DAS_CAPTURAS}`,
+      "Configurar a ligação ao Moloni",
+    ],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {
@@ -5971,6 +6219,11 @@ try {
         viewport: { width: largura, height: 900 },
         storageState: sessao,
       });
+      // As capturas não têm Moloni: as listas do ecrã «Configurar» (docs/22
+      // §32) vêm de um exemplo, servido só neste navegador.
+      await c.route("**/hub/invoicing-connections/*/issuer-options", (r) =>
+        r.fulfill({ json: OPCOES_DAS_CAPTURAS }),
+      );
       const p = await c.newPage();
       for (const [nome, caminho, titulo] of ecras) {
         await p.goto(`${ORIGEM}${caminho}`);

@@ -106,6 +106,55 @@ export function moloniFalso() {
       [11, 23],
       [12, 6],
     ]),
+    /** As listas para configurar a ligação (docs/22 §31.1). */
+    listas: {
+      series: [
+        { document_set_id: 77, name: "Loja online 2026", active_by_default: 1 },
+      ] as Json[],
+      taxas: [
+        {
+          tax_id: 11,
+          name: "Taxa Normal",
+          value: 23,
+          saft_type: 1,
+          fiscal_zone: "PT",
+        },
+        {
+          tax_id: 12,
+          name: "Taxa Reduzida",
+          value: 6,
+          saft_type: 1,
+          fiscal_zone: "PT",
+        },
+        // Outro imposto (não IVA) com o mesmo valor: nunca se escolhe.
+        {
+          tax_id: 16,
+          name: "Imposto de selo",
+          value: 23,
+          saft_type: 2,
+          fiscal_zone: "PT",
+        },
+        {
+          tax_id: 13,
+          name: "IVA normal ES",
+          value: 21,
+          saft_type: 1,
+          fiscal_zone: "ES",
+        },
+      ] as Json[],
+      isencoes: [
+        { code: "M16", name: "Artigo 14.º do RITI", description: "" },
+      ] as Json[],
+      metodos: [{ payment_method_id: 31, name: "MB WAY" }] as Json[],
+      linguas: [{ language_id: 1, code: "pt", title: "Português" }] as Json[],
+      vencimentos: [
+        { maturity_date_id: 41, name: "Pronto pagamento", days: 0 },
+      ] as Json[],
+      unidades: [{ unit_id: 51, name: "Unidade", short_name: "Un." }] as Json[],
+      categorias: [
+        { category_id: 61, name: "Loja online", num_categories: 0 },
+      ] as Json[],
+    },
     paises: [
       { country_id: 1, iso_3166_1: "pt" },
       { country_id: 70, iso_3166_1: "es" },
@@ -240,6 +289,55 @@ export function moloniFalso() {
       };
       estado.clientes.push(x);
       return { valid: 1, customer_id: x.customer_id };
+    },
+    "documentSets/getAll": () => estado.listas.series,
+    "taxes/getAll": () => estado.listas.taxas,
+    "taxExemptions/getAll": () => estado.listas.isencoes,
+    "paymentMethods/getAll": () => estado.listas.metodos,
+    "languages/getAll": () => estado.listas.linguas,
+    "maturityDates/getAll": () => estado.listas.vencimentos,
+    "measurementUnits/getAll": () => estado.listas.unidades,
+    "productCategories/getAll": (c) =>
+      txt(c["parent_id"]) === "0" ? estado.listas.categorias : [],
+    // A pesquisa devolve o cliente inteiro (contribuinte e morada), como a
+    // página descreve: é o adaptador que os deixa de fora.
+    "customers/getBySearch": (c) =>
+      estado.clientes
+        .filter(
+          (x) =>
+            x.name.includes(txt(c["search"])) ||
+            x.number.includes(txt(c["search"])) ||
+            x.vat.includes(txt(c["search"])),
+        )
+        .slice(0, Number(c["qty"] ?? 50))
+        .map((x) => ({
+          customer_id: x.customer_id,
+          vat: x.vat,
+          name: x.name,
+          number: x.number,
+          address: "Rua de Teste, 1",
+        })),
+    "products/getBySearch": (c) =>
+      estado.artigos
+        .filter(
+          (a) =>
+            a.name.includes(txt(c["search"])) ||
+            a.reference.includes(txt(c["search"])),
+        )
+        .slice(0, Number(c["qty"] ?? 50))
+        .map((a) => ({
+          product_id: a.product_id,
+          name: a.name,
+          reference: a.reference,
+          price: 3.5,
+        })),
+    "products/getOne": (c) => {
+      const a = estado.artigos.find(
+        (x) => x.product_id === Number(c["product_id"]),
+      );
+      return a === undefined
+        ? {}
+        : { product_id: a.product_id, name: a.name, reference: a.reference };
     },
     "products/getByReference": (c) =>
       estado.artigos

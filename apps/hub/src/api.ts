@@ -5,7 +5,10 @@
 import type {
   DocumentoAClassificar,
   Faturacao,
+  OpcoesDoEmissor,
+  paraGravar,
   RelatorioOss,
+  ResultadoNoEmissor,
 } from "./faturacao";
 import type { OpcaoArtigo } from "./opcoes";
 import type { CorpoPreco, PrecoLido } from "./preco";
@@ -204,6 +207,92 @@ export interface ArmazemHub {
   estado: string;
   embalagem_g: number;
   versao: number;
+}
+
+/** O método copiado na encomenda (docs/36 §3.2): com conta, há etiqueta. */
+export interface MetodoDaEncomenda {
+  id?: string;
+  nome?: Record<string, string> | string;
+  data_limite?: string;
+  conta?: string;
+  servico?: string;
+}
+
+/** Uma linha na vista do armazém (docs/27 §6): sem preços. */
+export interface LinhaParaExpedir {
+  id: string;
+  posicao: number;
+  variante: string;
+  sku: string;
+  nome: string;
+  quantidade: number;
+  /** Já numa expedição (que não foi cancelada). */
+  expedida: number;
+}
+
+/** Uma encomenda na vista do armazém: sem NIF, e-mail nem preços. */
+export interface EncomendaParaExpedir {
+  id: string;
+  estado: string;
+  criada_em: string;
+  metodo_entrega: MetodoDaEncomenda;
+  entrega: {
+    linha1?: string;
+    linha2?: string;
+    codigo_postal?: string;
+    localidade?: string;
+    pais?: string;
+  } | null;
+  destinatario: { nome: string | null; telefone: string | null };
+  linhas: LinhaParaExpedir[];
+}
+
+export type EstadoExpedicao =
+  | "criada"
+  | "expedida"
+  | "entregue"
+  | "devolvida_ao_remetente"
+  | "perdida"
+  | "cancelada";
+
+export interface ExpedicaoResumo {
+  id: string;
+  estado: EstadoExpedicao;
+  transportadora: string | null;
+  servico: string | null;
+  seguimento: string | null;
+  expedida_em: string | null;
+  entregue_em: string | null;
+  versao: number;
+}
+
+export type EstadoEtiqueta =
+  "por_pedir" | "a_pedir" | "emitida" | "incerta" | "recusada" | "anulada";
+
+/** A etiqueta de uma expedição (docs/36 §4.1). */
+export interface EtiquetaExpedicao {
+  expedicao: string;
+  estado_expedicao: EstadoExpedicao;
+  etiqueta: EstadoEtiqueta;
+  tentativa: number;
+  motivo: string | null;
+  em: string | null;
+  conta: string | null;
+  transportadora: string | null;
+  servico: string | null;
+  seguimento: string | null;
+  url_seguimento: string | null;
+  peso_g: number | null;
+  /** «pdf», «zpl» ou null quando já não há ficheiro. */
+  ficheiro: string | null;
+}
+
+/** Um evento do seguimento, normalizado (docs/36 §3.4). */
+export interface EventoSeguimento {
+  origem: string;
+  estado: string;
+  estado_transportadora: string;
+  em: string;
 }
 
 /** Um serviço de uma conta (docs/36 §8). */
@@ -822,6 +911,39 @@ export const api = {
       `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/authorize/complete`,
       { comerciante, corpo: { codigo, estado } },
     ),
+  // Criar e configurar a ligação ao Moloni (docs/22 §32).
+  criarLigacao: (comerciante: string, entidade: string) =>
+    pedir<{ id: string }>("POST", "/hub/invoicing-connections", {
+      comerciante,
+      corpo: { entidade_legal: entidade },
+    }),
+  opcoesDoEmissor: (comerciante: string, ligacao: string) =>
+    pedir<OpcoesDoEmissor>(
+      "GET",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/issuer-options`,
+      { comerciante },
+    ),
+  pesquisarNoEmissor: (
+    comerciante: string,
+    ligacao: string,
+    tipo: "artigo" | "cliente",
+    q: string,
+  ) =>
+    pedir<{ dados: ResultadoNoEmissor[] }>(
+      "GET",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/issuer-search?${new URLSearchParams({ tipo, q }).toString()}`,
+      { comerciante },
+    ),
+  configurarLigacao: (
+    comerciante: string,
+    ligacao: string,
+    corpo: ReturnType<typeof paraGravar>,
+  ) =>
+    pedir<{ versao: number; estado: string }>(
+      "PATCH",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}`,
+      { comerciante, corpo },
+    ),
   testarLigacao: (comerciante: string, ligacao: string) =>
     pedir<{ estado: string; erro: string | null }>(
       "POST",
@@ -964,6 +1086,78 @@ export const api = {
       comerciante,
       corpo,
     }),
+  // Expedir (docs/22 §33): as mesmas rotas da chave.
+  paraExpedir: (comerciante: string) =>
+    pedir<{ dados: EncomendaParaExpedir[] }>("GET", "/hub/fulfilment/orders", {
+      comerciante,
+    }),
+  encomendaParaExpedir: (comerciante: string, id: string) =>
+    pedir<EncomendaParaExpedir & { expedicoes: ExpedicaoResumo[] }>(
+      "GET",
+      `/hub/fulfilment/orders/${encodeURIComponent(id)}`,
+      { comerciante },
+    ),
+  criarExpedicao: (
+    comerciante: string,
+    encomenda: string,
+    linhas: { linha: string; quantidade: number }[],
+  ) =>
+    pedir<{ id: string }>(
+      "POST",
+      `/hub/orders/${encodeURIComponent(encomenda)}/shipments`,
+      { comerciante, corpo: { linhas } },
+    ),
+  mudarExpedicao: (
+    comerciante: string,
+    id: string,
+    corpo: {
+      versao: number;
+      estado?: Exclude<EstadoExpedicao, "criada">;
+      transportadora?: string | null;
+      seguimento?: string | null;
+    },
+  ) =>
+    pedir<{ versao: number }>(
+      "PATCH",
+      `/hub/shipments/${encodeURIComponent(id)}`,
+      { comerciante, corpo },
+    ),
+  etiqueta: (comerciante: string, id: string) =>
+    pedir<EtiquetaExpedicao>(
+      "GET",
+      `/hub/shipments/${encodeURIComponent(id)}/label`,
+      { comerciante },
+    ),
+  pedirEtiqueta: (comerciante: string, id: string) =>
+    pedir<EtiquetaExpedicao>(
+      "POST",
+      `/hub/shipments/${encodeURIComponent(id)}/label`,
+      { comerciante },
+    ),
+  anularEtiqueta: (comerciante: string, id: string) =>
+    pedir<EtiquetaExpedicao>(
+      "POST",
+      `/hub/shipments/${encodeURIComponent(id)}/label/void`,
+      { comerciante },
+    ),
+  consultarTransportadora: (comerciante: string, id: string) =>
+    pedir<EtiquetaExpedicao>(
+      "POST",
+      `/hub/shipments/${encodeURIComponent(id)}/refresh`,
+      { comerciante },
+    ),
+  eventosSeguimento: (comerciante: string, id: string) =>
+    pedir<{ dados: EventoSeguimento[] }>(
+      "GET",
+      `/hub/shipments/${encodeURIComponent(id)}/events`,
+      { comerciante },
+    ),
+  /** O ficheiro da etiqueta (PDF ou ZPL), em bytes, para descarregar. */
+  ficheiroEtiqueta: (comerciante: string, id: string) =>
+    pedirBytes(
+      `/hub/shipments/${encodeURIComponent(id)}/label/file`,
+      comerciante,
+    ),
   sair: () => pedir<{ ok: true }>("POST", "/hub/session/end"),
   membros: (comerciante: string) =>
     pedir<Membros>("GET", "/hub/members", { comerciante }),
