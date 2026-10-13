@@ -4,6 +4,8 @@ import {
   adaptadorSendcloud,
   eventosDe,
   normalizar,
+  pontoDe,
+  servicoDe,
   SERVICO_DE_TESTE,
 } from "../src/envios/sendcloud.js";
 import { opcao, PUBLICA, SECRETA, sendcloudFalsa } from "./sendcloud-falsa.js";
@@ -50,7 +52,7 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     await expect(semRede.testar(CRED)).rejects.toBeInstanceOf(ErroDeRede);
   });
 
-  it("os serviços da conta: só o de teste (D2), por país, sem os que pedem ponto de recolha, medidas ou alfândega (D3)", async () => {
+  it("os serviços da conta: só o de teste (D2), por país, sem medidas nem alfândega (D3), e sem o país onde o mesmo código pede ponto (§21)", async () => {
     const f = sendcloudFalsa();
     f.estado.servicos.set("PT", [
       opcao(SERVICO_DE_TESTE, { fields: ["to_telephone"], maxKg: "2.000" }),
@@ -325,5 +327,98 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     expect(
       a.lerAviso({ "sendcloud-signature": "é".repeat(64) }, "{}", "segredo"),
     ).toEqual({ valido: false });
+  });
+
+  it("pontos de recolha (§21): o serviço que os exige fica marcado; a procura só leva o país e o código postal; pontos expirados ou de outro país ficam de fora", async () => {
+    expect(
+      servicoDe(opcao("postnl:ponto", { servicePoint: true }), "PT"),
+    ).toMatchObject({
+      codigo: "postnl:ponto",
+      ponto: true,
+    });
+    expect(servicoDe(opcao("postnl:casa"), "PT")?.ponto).toBeUndefined();
+    const semRequisito = opcao("postnl:x") as Record<string, unknown>;
+    delete (semRequisito["requirements"] as Record<string, unknown>)[
+      "is_service_point_required"
+    ];
+    expect(servicoDe(semRequisito, "PT")).toBeNull();
+
+    const f = sendcloudFalsa();
+    const ponto = (id: number, extra: Record<string, unknown> = {}) => ({
+      id,
+      name: `Papelaria ${String(id)}`,
+      address: {
+        street: "Rua Central",
+        house_number: "5",
+        postal_code: "4700-000",
+        city: "Braga",
+        country_code: "PT",
+      },
+      distance: 312.4,
+      ...extra,
+    });
+    f.estado.pontos = [
+      ponto(11),
+      ponto(12, { is_expired: true }),
+      ponto(13, {
+        address: {
+          street: "Calle",
+          postal_code: "28001",
+          city: "Madrid",
+          country_code: "ES",
+        },
+      }),
+      ponto(14, { address: { city: "Braga", country_code: "PT" } }),
+    ];
+    const a = adaptadorSendcloud(f.buscar);
+    const pontos = await a.procurarPontos?.(CRED, {
+      servico: "postnl:ponto",
+      pais: "PT",
+      codigoPostal: "4700-000",
+      limite: 10,
+    });
+    expect(pontos).toEqual([
+      {
+        id: "11",
+        nome: "Papelaria 11",
+        linha1: "Rua Central 5",
+        codigo_postal: "4700-000",
+        localidade: "Braga",
+        pais: "PT",
+        distanciaM: 312,
+      },
+    ]);
+    const url = new URL(`https://x${f.estado.pedidos.at(-1)?.url ?? ""}`);
+    expect([...url.searchParams.keys()].sort()).toEqual([
+      "address_postal_code",
+      "carrier_code",
+      "country_code",
+      "limit",
+    ]);
+    expect(url.searchParams.get("carrier_code")).toBe("postnl");
+
+    expect(pontoDe(ponto(15, { id: "../x" }))).toBeNull();
+  });
+
+  it("disponibilidade do ponto (§21): só um «sim» claro; 404 é «não»; 500 é rede; a etiqueta leva o ponto", async () => {
+    const f = sendcloudFalsa();
+    f.estado.disponivel.set("11", true);
+    f.estado.disponivel.set("12", false);
+    f.estado.disponivel.set("13", "erro_500");
+    const a = adaptadorSendcloud(f.buscar);
+    await expect(a.pontoDisponivel?.(CRED, "11")).resolves.toBe(true);
+    await expect(a.pontoDisponivel?.(CRED, "12")).resolves.toBe(false);
+    await expect(a.pontoDisponivel?.(CRED, "99")).resolves.toBe(false);
+    await expect(a.pontoDisponivel?.(CRED, "13")).rejects.toBeInstanceOf(
+      ErroDeRede,
+    );
+    await a.pedirEtiqueta(CRED, { ...pedido("exp-p"), ponto: "11" });
+    expect(f.estado.pedidos.at(-1)?.corpo).toMatchObject({
+      to_service_point: { id: 11 },
+    });
+    await a.pedirEtiqueta(CRED, pedido("exp-q"));
+    expect(f.estado.pedidos.at(-1)?.corpo).not.toHaveProperty(
+      "to_service_point",
+    );
   });
 });

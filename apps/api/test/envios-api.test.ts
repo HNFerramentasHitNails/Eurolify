@@ -741,6 +741,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
       aceita_onu: [],
       peso_max_g: 50,
       prazo_max_dias: 30,
+      entrega: "morada" as const,
     };
     expect(
       porQueNaoServe(regras, false, null, { pesoG: null, onu: new Set() }),

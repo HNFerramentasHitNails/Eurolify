@@ -22,6 +22,27 @@ export interface ServicoTransportadora {
   pedeEmail: boolean;
   /** Os números ONU que o serviço aceita; vazio = nenhum perigoso. */
   aceitaOnu: readonly string[];
+  /**
+   * Entrega num ponto de recolha ou cacifo (docs/36 §21): só serve um
+   * método `ponto`, e um método `ponto` só aceita um serviço destes.
+   */
+  ponto?: boolean;
+}
+
+/**
+ * Um ponto de recolha ou cacifo, como a transportadora o devolve (docs/36
+ * §21). Só a morada do ponto; nunca dados de quem procura.
+ */
+export interface PontoRecolha {
+  /** O identificador do ponto na transportadora (vai na etiqueta). */
+  id: string;
+  nome: string;
+  linha1: string;
+  codigo_postal: string;
+  localidade: string;
+  pais: string;
+  /** A distância ao código postal procurado, em metros, se vier. */
+  distanciaM: number | null;
 }
 
 /** Uma morada como vai na etiqueta (docs/36 §6: só o que a entrega precisa). */
@@ -45,6 +66,8 @@ export interface PedidoEtiqueta {
   remetente: MoradaEtiqueta;
   destinatario: MoradaEtiqueta;
   pesoG: number;
+  /** O ponto de recolha escolhido no checkout (docs/36 §21), se houver. */
+  ponto?: string;
   /** Para a chamada não pagar duas etiquetas (R2). */
   chaveIdempotencia: string;
 }
@@ -107,6 +130,28 @@ export interface AdaptadorTransportadora {
     credenciais: CredenciaisTransportadora,
     pedido: { origem: string; destinos: readonly string[]; modo: "teste" },
   ): Promise<ServicoTransportadora[]>;
+  /**
+   * Os pontos de recolha de um serviço perto de um código postal (docs/36
+   * §21). Só o país e o código postal saem para a transportadora. Lança
+   * `ErroDeRede` quando ela não responde.
+   */
+  procurarPontos?(
+    credenciais: CredenciaisTransportadora,
+    pedido: {
+      servico: string;
+      pais: string;
+      codigoPostal: string;
+      limite: number;
+    },
+  ): Promise<PontoRecolha[]>;
+  /**
+   * Se o ponto ainda recebe encomendas, antes do botão final (docs/36
+   * §21). Lança `ErroDeRede` quando a transportadora não responde.
+   */
+  pontoDisponivel?(
+    credenciais: CredenciaisTransportadora,
+    ponto: string,
+  ): Promise<boolean>;
   /**
    * Pede a etiqueta. Lança `ErroDeRede` quando não se sabe se ela existe
    * (tempo esgotado, resposta que não se lê): a etiqueta fica `incerta`.

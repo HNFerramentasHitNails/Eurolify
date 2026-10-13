@@ -1064,6 +1064,12 @@ export interface TabelaMetodoEntrega {
     number | null | undefined,
     number | null
   >;
+  /** Onde entrega: na morada ou num ponto de recolha (docs/36 §21; 0089). */
+  entrega: ColumnType<
+    "morada" | "ponto",
+    "morada" | "ponto" | undefined,
+    "morada" | "ponto"
+  >;
 }
 
 /** As transportadoras com adaptador (docs/36 §3.1; 0074). */
@@ -1148,6 +1154,8 @@ export interface TabelaSessaoCheckout {
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
   concluida_em: ColumnType<Date | null, never, Date | null>;
+  /** As procuras de pontos de recolha nesta sessão (docs/36 §21; 0089). */
+  procuras_pontos: ColumnType<number, never, number>;
   versao: ColumnType<number, never, never>;
 }
 

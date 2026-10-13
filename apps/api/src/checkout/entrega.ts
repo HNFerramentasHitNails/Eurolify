@@ -24,6 +24,8 @@ export interface RegrasDoMetodo {
   aceita_onu: string[];
   peso_max_g: number | null;
   prazo_max_dias: number;
+  /** Onde entrega: na morada ou num ponto de recolha (docs/36 §21). */
+  entrega: "morada" | "ponto";
 }
 
 /** O que vai na caixa: o peso das folhas (um kit pelos componentes) e os ONU. */
@@ -133,6 +135,7 @@ export async function regrasDosMetodos(
       "metodo_entrega.aceita_onu",
       "metodo_entrega.peso_max_g",
       "metodo_entrega.prazo_max_dias",
+      "metodo_entrega.entrega",
       "conta_transportadora.estado as estado_conta",
     ])
     .where("metodo_entrega.id", "in", [...ids])
@@ -146,6 +149,7 @@ export async function regrasDosMetodos(
         aceita_onu: l.aceita_onu,
         peso_max_g: l.peso_max_g,
         prazo_max_dias: l.prazo_max_dias,
+        entrega: l.entrega,
         contaPronta: l.estado_conta === "pronta",
       },
     ]),

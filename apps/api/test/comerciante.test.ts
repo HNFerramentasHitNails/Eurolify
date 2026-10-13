@@ -174,6 +174,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0085_envios_encomenda_parada",
         "0086_envios_correcoes_da_expedicao",
         "0087_envios_aviso_tentativa",
+        "0089_envios_pontos_de_recolha",
       ]);
     });
 

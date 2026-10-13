@@ -18,6 +18,8 @@ export const temTelefone = (t: unknown): t is string =>
 /** O que a expedição leva, para conferir um serviço. */
 interface Caixa {
   pais: string;
+  /** A encomenda entrega num ponto de recolha (docs/36 §21). */
+  ponto: boolean;
   temTelefone: boolean;
   pesoG: number | null;
   onu: ReadonlySet<string>;
@@ -29,6 +31,12 @@ export function porQueNaoServeACaixa(
   caixa: Caixa,
 ): string | null {
   if (!s.paises.includes(caixa.pais)) return "não entrega no país da morada";
+  // A entrega vendida (morada ou ponto) não muda com o serviço (§21).
+  if ((s.ponto === true) !== caixa.ponto) {
+    return caixa.ponto
+      ? "não entrega em pontos de recolha, e a encomenda é para um ponto"
+      : "entrega em pontos de recolha, e a encomenda é para uma morada";
+  }
   if (s.pesoMaxG !== null && caixa.pesoG !== null && caixa.pesoG > s.pesoMaxG) {
     return "a caixa pesa mais do que o serviço aceita";
   }
@@ -107,6 +115,7 @@ async function caixaDa(
         : { conta: metodo.conta, servico: metodo.servico },
     caixa: {
       pais: entrega.pais,
+      ponto: (entrega as { ponto?: unknown }).ponto !== undefined,
       temTelefone: temTelefone(contacto.telefone),
       pesoG: x.peso_corrigido_g ?? calculadoG,
       onu,
