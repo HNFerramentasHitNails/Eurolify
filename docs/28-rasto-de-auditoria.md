@@ -365,7 +365,9 @@ reposição são sempre **completas**: `pg_dump -Fc` e `pg_restore` sem
 
 **Porquê:** numa cópia completa, os dados vêm antes dos gatilhos, que só se
 criam no fim (secção *post-data* do `pg_dump`). Nenhum gatilho corre na
-reposição, nem os `ALWAYS`, e a base reposta fica igual à copiada.
+reposição, nem os `ALWAYS`, e cada tabela fica igual à copiada, linha a
+linha (contagem e resumo do conteúdo; sequências, permissões e estado dos
+gatilhos não foram comparados).
 - **Medido a 13/10/2026** no PostgreSQL 18 local: uma tabela com um
   `ALWAYS` `BEFORE` que mudava a data e um `ALWAYS` `AFTER` que escrevia
   noutra tabela. Depois da reposição, a data ficou a original e a outra
@@ -375,10 +377,17 @@ reposição, nem os `ALWAYS`, e a base reposta fica igual à copiada.
   gatilhos `ALWAYS` (a chave, a linha do tempo do catálogo). Depois confere,
   tabela a tabela, o número de linhas e um resumo do conteúdo, e que os
   gatilhos vêm depois dos dados na cópia.
+- **O mesmo teste mostra o caso contrário:** repõe os dados com o esquema já
+  criado e em modo `replica`, como numa replicação lógica. A reposição falha
+  no gatilho `ALWAYS` da linha do tempo do catálogo
+  (`catalog.change_without_who`).
+- **Não corrido na VPS:** o teste usa as opções dos scripts, mas a reposição
+  na VPS não foi corrida nesta sessão.
 
-**O que muda isto:** só uma reposição de dados (`--data-only`) ou uma
-replicação lógica fazem correr os gatilhos `ALWAYS`, porque correm em modo
-`replica`. Usar uma delas pede antes uma revisão dos gatilhos. A contagem de
+**O que muda isto:** uma reposição só de dados (`--data-only`), feita sobre
+um esquema que já tem os gatilhos, corre-os todos, não só os `ALWAYS`. Uma
+replicação lógica, que aplica as linhas em modo `replica`, corre os `ALWAYS`.
+Usar uma delas pede antes uma revisão dos gatilhos. A contagem de
 13/10/2026 está no #444:
 - 95 guardas, que ficam;
 - 31 `BEFORE` que mudam a própria linha (datas, estado, versão; um deles
