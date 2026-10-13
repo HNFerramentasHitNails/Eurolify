@@ -113,6 +113,8 @@ export const en: Textos = {
     "This invitation is not valid: it expired, was already used or was cancelled.",
   erroNome: "The name must have between 1 and 100 characters.",
   erroEmail: "Enter a valid email.",
+  erroEmailDeEnsaio:
+    "In the trial only test addresses (e.g. ana@loja.test) or company ones (@eurolify.eu) can be invited.",
   copiarFalhou: "Could not copy. Select the text and copy it by hand.",
   erroComercianteInactivo:
     "This merchant is suspended or closed: you cannot invite or change the team.",

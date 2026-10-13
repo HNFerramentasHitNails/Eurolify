@@ -113,6 +113,8 @@ export const es: Textos = {
     "Esta invitación no es válida: caducó, ya se usó o se canceló.",
   erroNome: "El nombre debe tener entre 1 y 100 caracteres.",
   erroEmail: "Escriba un correo válido.",
+  erroEmailDeEnsaio:
+    "En el ensayo solo se invitan direcciones de prueba (p. ej., ana@loja.test) o de la empresa (@eurolify.eu).",
   copiarFalhou: "No se pudo copiar. Seleccione el texto y cópielo a mano.",
   erroComercianteInactivo:
     "Este comerciante está suspendido o cerrado: no puede invitar ni cambiar el equipo.",

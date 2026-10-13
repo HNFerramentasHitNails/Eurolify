@@ -113,6 +113,8 @@ export const pt = {
     "Este convite não vale: expirou, já foi usado ou foi cancelado.",
   erroNome: "O nome tem de ter entre 1 e 100 caracteres.",
   erroEmail: "Escreva um e-mail válido.",
+  erroEmailDeEnsaio:
+    "No ensaio só se convidam endereços de teste (ex.: ana@loja.test) ou da empresa (@eurolify.eu).",
   copiarFalhou: "Não foi possível copiar. Seleccione o texto e copie à mão.",
   erroComercianteInactivo:
     "Este comerciante está suspenso ou fechado: não pode convidar nem mudar a equipa.",
