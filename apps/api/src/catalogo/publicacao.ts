@@ -460,6 +460,13 @@ export async function publicar(
   comercianteId: string,
   quem: string,
   pedido: PedidoDePublicacao,
+  /**
+   * A `versao` lida da publicação, nas escritas do Hub (docs/22 §27.2):
+   * `null` quando ainda não existia nesse par. Outra guardada dá
+   * `catalog.version_conflict`, sem escrever. Sem ela (a chave), não se
+   * confere.
+   */
+  versao?: number | null,
 ): Promise<ResultadoDaPublicacao> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
@@ -501,7 +508,7 @@ export async function publicar(
     // A linha da publicação: a que existe, ou uma nova em rascunho, tomada
     // antes de verificar (uma variante nova espera por ela, ou já entrou e
     // a verificação vê-a).
-    await trx
+    const nova = await trx
       .insertInto("publicacao")
       .values({
         comerciante_id: comercianteId,
@@ -514,15 +521,31 @@ export async function publicar(
       .onConflict((oc) =>
         oc.columns(["artigo_id", "canal_id", "mercado_id"]).doNothing(),
       )
-      .execute();
+      .returning("id")
+      .executeTakeFirst();
     const actual = await trx
       .selectFrom("publicacao")
-      .select(["id", "estado"])
+      .select(["id", "estado", "versao"])
       .where("artigo_id", "=", pedido.artigo_id)
       .where("canal_id", "=", pedido.canal_id)
       .where("mercado_id", "=", pedido.mercado_id)
       .forUpdate()
       .executeTakeFirstOrThrow();
+    // A versão lida (docs/22 §27.2), com a linha já tomada: `null` só vale
+    // se a publicação nasceu neste pedido; um número, só se é o guardado.
+    // A transacção desfaz o rascunho que nasceu aqui.
+    if (versao !== undefined) {
+      const conflito =
+        versao === null
+          ? nova === undefined
+          : nova !== undefined || versao !== actual.versao;
+      if (conflito) {
+        throw new ErroCatalogo(
+          "catalog.version_conflict",
+          "a publicação mudou depois de ser lida",
+        );
+      }
+    }
     const verificacao = await verificarNa(trx, comercianteId, pedido);
     const publicada = verificacao.impedimentos.length === 0;
     // Com impedimentos, só se guarda a verificação: o estado e as variantes
@@ -622,9 +645,25 @@ export async function retirarPublicacao(
   comercianteId: string,
   quem: string,
   publicacaoId: string,
+  /** A `versao` lida, nas escritas do Hub (docs/22 §27.2); sem ela, não se confere. */
+  versao?: number,
 ): Promise<Publicacao> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
+    if (versao !== undefined) {
+      const lida = await trx
+        .selectFrom("publicacao")
+        .select("versao")
+        .where("id", "=", publicacaoId)
+        .forUpdate()
+        .executeTakeFirst();
+      if (lida !== undefined && lida.versao !== versao) {
+        throw new ErroCatalogo(
+          "catalog.version_conflict",
+          "a publicação mudou depois de ser lida",
+        );
+      }
+    }
     const linha = await trx
       .updateTable("publicacao")
       .set({ estado: "arquivado" })

@@ -1200,6 +1200,35 @@ textarea {
   }
 }
 
+/* Publicar um artigo (docs/22 §27.3): as variantes à venda, uma caixa por
+   variante com a marca «fora» ao lado, e «Publicar noutra loja». */
+.variantes-a-venda {
+  border: 0;
+  padding: 0;
+  margin: var(--espaco-3) 0;
+}
+.variantes-a-venda legend {
+  font-weight: 600;
+  padding: 0;
+}
+.variante-escolha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+}
+.publicar-noutra-loja {
+  margin: var(--espaco-3) 0;
+}
+.publicar-noutra-loja summary {
+  cursor: pointer;
+  min-height: var(--alvo-minimo);
+  display: flex;
+  align-items: center;
+}
+.publicar-noutra-loja li {
+  margin-block: var(--espaco-2);
+}
 /* Expedir (docs/22 §33.3): um estado, uma cor, por token. */
 .estado-encomenda,
 .estado-expedicao,

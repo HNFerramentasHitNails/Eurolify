@@ -60,9 +60,20 @@ import {
   publicacoesDeArtigo,
   RespostaArtigos,
   PublicacaoEsquema,
+  ParametroPublicacao,
+  paraPublicacao,
+  PedidoPublicar,
+  PedidoVerificar,
+  RespostaPublicar,
   semPrefixo,
   VarianteCompleta,
+  Verificacao,
 } from "../catalogo/rotas.js";
+import {
+  publicar,
+  retirarPublicacao,
+  verificarPublicacao,
+} from "../catalogo/publicacao.js";
 import {
   Alteracao,
   ConsultaLinhaDoTempo,
@@ -73,6 +84,7 @@ import { comComerciante } from "../comerciante/repositorio.js";
 import {
   definirPreco,
   nomesDeCanaisEMercados,
+  paresDeVenda,
   tirarPreco,
 } from "../precos/repositorio.js";
 import {
@@ -170,6 +182,31 @@ const RespostaPublicacoesNoHub = Type.Object({
     }),
   ),
 });
+/** Os pares onde o Hub pode publicar (docs/22 §27.2). */
+const RespostaParesDeVenda = Type.Object({
+  dados: Type.Array(
+    Type.Object({
+      canal: Type.String({ description: "chn_…" }),
+      canal_nome: Type.String(),
+      canal_estado: Type.String({ description: "activo ou arquivado" }),
+      mercado: Type.String({ description: "mkt_…" }),
+      mercado_nome: Type.String(),
+      mercado_estado: Type.String(),
+      loja_nome: Type.String(),
+    }),
+  ),
+});
+/** O corpo de publicar pelo Hub: o da chave mais a `versao` lida (§27.2). */
+const PedidoPublicarNoHub = Type.Object(
+  {
+    ...PedidoPublicar.properties,
+    versao: Type.Union([Type.Integer({ minimum: 1 }), Type.Null()], {
+      description:
+        "A `versao` lida da publicação neste par; `null` se ainda não existe",
+    }),
+  },
+  { additionalProperties: false },
+);
 const RespostaOpcoesNoHub = Lista(
   Type.Object({
     ...OpcaoEsquema.properties,
@@ -374,6 +411,137 @@ export function rotasDoCatalogoNoHub(
         })),
       };
     },
+  );
+
+  // Publicar pelo Hub (docs/22 §27; issue #378): os pares onde se pode
+  // publicar, a verificação e as escritas, com as mesmas funções das rotas
+  // pela chave; as escritas levam a `versao` lida da publicação (§27.2).
+  rotas.get(
+    "/hub/sales-pairs",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Os pares canal × mercado do comerciante onde o canal vende, com o nome e o estado do canal, do mercado e da loja: onde o Hub pode publicar um artigo (docs/22 §27.2). Com a sessão de quem tem catalog:read.",
+        response: { 200: RespostaParesDeVenda, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const comercianteId = comercianteLeitor(pedido, resposta);
+      const pares = await emPrecos(resposta, () =>
+        paresDeVenda(base, comercianteId),
+      );
+      return {
+        dados: pares.map((p) => ({
+          canal: `chn_${p.canal_id}`,
+          canal_nome: p.canal_nome,
+          canal_estado: p.canal_estado,
+          mercado: `mkt_${p.mercado_id}`,
+          mercado_nome: p.mercado_nome,
+          mercado_estado: p.mercado_estado,
+          loja_nome: p.loja_nome,
+        })),
+      };
+    },
+  );
+
+  rotas.post(
+    "/hub/products/:id/publications/check",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "«Pode publicar?» pelo Hub: a mesma verificação (C2) do POST /products/{id}/publications/check, sem escrever, com a sessão de quem tem catalog:read (docs/22 §27.2).",
+        params: ParametroArtigo,
+        body: PedidoVerificar,
+        response: { 200: Verificacao, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      const comercianteId = comercianteLeitor(pedido, resposta);
+      const corpo = pedido.body;
+      return noCatalogoApi(resposta, () =>
+        verificarPublicacao(base, comercianteId, {
+          artigo_id: semPrefixo(pedido.params.id),
+          canal_id: semPrefixo(corpo.canal),
+          mercado_id: semPrefixo(corpo.mercado),
+          variantes_fora: (corpo.variantes_fora ?? []).map(semPrefixo),
+        }),
+      );
+    },
+  );
+
+  rotas.post(
+    "/hub/products/:id/publications",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Publica o artigo num canal × mercado pelo Hub: a mesma escrita do POST /products/{id}/publications (a verificação C2 e, sem impedimentos, à venda; com impedimentos 200 com `publicada: false`), com a sessão de quem tem catalog:publish e a `versao` lida da publicação (`null` se ainda não existe nesse par; outra dá 409 catalog.version_conflict; docs/22 §27.2). Ler sempre `publicada`.",
+        params: ParametroArtigo,
+        body: PedidoPublicarNoHub,
+        response: { 200: RespostaPublicar, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId, quem) => {
+          const corpo = pedido.body;
+          const r = await publicar(
+            trx,
+            comercianteId,
+            quem,
+            {
+              artigo_id: semPrefixo(pedido.params.id),
+              canal_id: semPrefixo(corpo.canal),
+              mercado_id: semPrefixo(corpo.mercado),
+              variantes_fora: (corpo.variantes_fora ?? []).map(semPrefixo),
+            },
+            corpo.versao,
+          );
+          return {
+            publicada: r.publicada,
+            verificacao: r.verificacao,
+            publicacao:
+              r.publicacao === null ? null : paraPublicacao(r.publicacao),
+          };
+        },
+        "catalog:publish",
+      ),
+  );
+
+  rotas.post(
+    "/hub/publications/:id/archive",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Retira uma publicação de venda pelo Hub (publicado → arquivado, motivo `retirada`): a mesma escrita do POST /publications/{id}/archive, com a sessão de quem tem catalog:publish e a `versao` lida no corpo (outra dá 409 catalog.version_conflict; docs/22 §27.2).",
+        params: ParametroPublicacao,
+        body: PedidoVersao,
+        response: { 200: PublicacaoEsquema, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      escreverNoHub(
+        base,
+        pedido,
+        resposta,
+        async (trx, comercianteId, quem) =>
+          paraPublicacao(
+            await retirarPublicacao(
+              trx,
+              comercianteId,
+              quem,
+              semPrefixo(pedido.params.id),
+              pedido.body.versao,
+            ),
+          ),
+        "catalog:publish",
+      ),
   );
 
   // As opções do artigo (docs/22 §20; issue #278): a mesma função do
@@ -1238,13 +1406,21 @@ async function escreverNoHub<T>(
   base: Kysely<BaseDados>,
   pedido: FastifyRequest,
   resposta: FastifyReply,
-  fn: (trx: Transaction<BaseDados>, comercianteId: string) => Promise<T>,
+  fn: (
+    trx: Transaction<BaseDados>,
+    comercianteId: string,
+    quem: string,
+  ) => Promise<T>,
+  /** Publicar e retirar pedem `catalog:publish` (docs/22 §27.2). */
+  ambito: "catalog:write" | "catalog:publish" = "catalog:write",
 ): Promise<T> {
   const sessao = sessaoDo(pedido);
-  if (!sessao.ambitos.includes("catalog:write")) {
+  if (!sessao.ambitos.includes(ambito)) {
     throw erroConta(
       "member.role_escalation",
-      "o papel não escreve no catálogo",
+      ambito === "catalog:publish"
+        ? "o papel não publica"
+        : "o papel não escreve no catálogo",
     );
   }
   const comercianteId = sessao.comercianteId;
@@ -1262,7 +1438,7 @@ async function escreverNoHub<T>(
       await sql`select set_config('lock_timeout', ${ESPERA_MAXIMA}, true)`.execute(
         trx,
       );
-      return fn(trx, comercianteId);
+      return fn(trx, comercianteId, quem);
     }),
   );
 }

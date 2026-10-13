@@ -1393,6 +1393,82 @@ export const es: Textos = {
   metodosMercadoNaoExiste:
     "Este mercado ya no existe. Recargue la página y elija otro.",
   embalagemNaoExiste: "Este almacén ya no existe o no es de este comerciante.",
+
+  // Publicar un artículo (docs/22 §27).
+  publicarTitulo: "Publicar el artículo",
+  publicarRever: "Revisar la publicación",
+  publicarReverAria: "Revisar la publicación de {canal} · {mercado}",
+  publicarRetirar: "Retirar",
+  publicarRetirarAria: "Retirar de {canal} · {mercado}",
+  publicarConfirmarRetirar:
+    "¿Retirar {artigo} de {canal} · {mercado}? Deja de estar a la venta en esta tienda.",
+  publicarRetirado: "Retirado de {canal} · {mercado}.",
+  publicarNoutraLoja: "Publicar en otra tienda",
+  publicarForaUma: "1 variante fuera",
+  publicarForaVarias: "{n} variantes fuera",
+  publicarPublicado: "Publicado en {canal} · {mercado}.",
+  publicarSemPublicacao: "Todavía sin publicación en este par.",
+  publicarVariantes: "Variantes a la venta",
+  publicarVariantesAjuda:
+    "Marque las variantes que quiere poner a la venta en esta tienda. Las que queden sin marcar no se venden aquí.",
+  publicarSemVariantes: "Este artículo no tiene variantes activas.",
+  publicarForaMarca: "fuera",
+  publicarVerificar: "Verificar",
+  publicarAVerificar: "Verificando…",
+  publicarPublicar: "Publicar",
+  publicarPublicarOutraVez: "Publicar otra vez",
+  publicarAPublicar: "Publicando…",
+  publicarResultado: "Resultado de la verificación",
+  publicarPodePublicar: "Se puede publicar",
+  publicarImpedimentos: "Todavía no se puede publicar:",
+  publicarPedirOutra:
+    "Ha cambiado las elecciones: verifique otra vez antes de publicar.",
+  publicarConformidade: "La conformidad del producto todavía no se verifica.",
+  publicarTraducaoMedia:
+    "La traducción del texto alternativo de las imágenes todavía no se verifica.",
+  publicarNovosImpedimentos:
+    "No hemos publicado: ha aparecido un impedimento y no ha cambiado nada.",
+  publicarConflito: "Otra persona cambió esta publicación mientras tanto.",
+  publicarConflitoActual:
+    "Debajo está el estado actual, con las variantes actuales; sus elecciones siguen marcadas. Verifique otra vez antes de publicar.",
+  publicarSemResposta:
+    "La conexión falló y no encontramos el cambio. Revise el estado de abajo e inténtelo de nuevo.",
+  publicarParNaoExiste:
+    "Esta tienda ya no vende en este mercado, o este par no existe.",
+  publicarIrFicha: "Abrir la ficha del artículo",
+  publicarIrEditarArtigo: "Editar el artículo",
+  publicarIrEditarVariante: "Editar {sku}",
+  publicarIrPreco: "Definir el precio de {sku}",
+  publicarIrImagens: "Ver las imágenes en la ficha",
+  impedimento_artigo_nao_activo: "El artículo no está activo.",
+  impedimento_canal_ou_mercado:
+    "El mercado (o el canal) no está activo, o el canal dejó de vender en este mercado.",
+  impedimento_sem_variantes_a_venda: "Elija al menos una variante.",
+  impedimento_categoria_fiscal_em_falta:
+    "Falta la categoría fiscal del artículo.",
+  impedimento_peso_em_falta: "Falta el peso de {sku}.",
+  impedimento_peso_em_falta_generico: "Falta el peso de una variante.",
+  impedimento_preco_em_falta_generico:
+    "Una variante no tiene precio en la lista base de {mercado}.",
+  publicarRetiradaSemResposta:
+    "La conexión falló y no encontramos el cambio. Revise el estado de las publicaciones e inténtelo de nuevo.",
+  impedimento_preco_em_falta:
+    "{sku} no tiene precio en la lista base de {mercado}.",
+  impedimento_traducao_em_falta: "Falta la traducción del nombre en {linguas}.",
+  impedimento_traducao_desactualizada:
+    "La traducción del nombre en {linguas} está desactualizada.",
+  impedimento_classificacao_em_falta:
+    "El artículo todavía no está clasificado.",
+  impedimento_natureza_incompativel:
+    "La naturaleza del artículo no sirve para el tipo de artículo.",
+  impedimento_familia_restrita:
+    "El artículo es de una familia restringida ({familias}).",
+  impedimento_data_ou_local_em_falta: "Falta en el artículo: {falta}.",
+  impedimento_falta_data: "la fecha",
+  impedimento_falta_local: "el lugar",
+  impedimento_falta_modo: "la modalidad",
+  impedimento_texto_alternativo_em_falta: "Hay imágenes sin texto alternativo.",
+  impedimento_desconhecido: "Impedimento: {codigo}.",
   // Expedir (docs/22 §33).
   modulo_expedir: "Expedir",
   termos_expedir: "pedidos envíos etiquetas almacén seguimiento enviar",
