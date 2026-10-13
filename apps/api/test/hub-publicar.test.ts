@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "kysely";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   criarEntidadeLegal,
@@ -416,6 +417,62 @@ describe.skipIf(URL_BASE === undefined)(
       // Prova pela falha: o mesmo pedido com o comerciante certo retira.
       const certo = await retirarNoHub(c, c.dono.sessao, pub.id, pub.versao);
       expect(certo.statusCode, certo.body).toBe(200);
+    });
+
+    /** Uma transacção aberta noutra ligação, no contexto do comerciante. */
+    async function transaccaoAberta(comercianteId: string) {
+      const cliente = new pg.Client({ connectionString: base.urlApi });
+      cliente.on("error", () => undefined);
+      await cliente.connect();
+      await cliente.query("begin");
+      await cliente.query(
+        "select set_config('eurolify.comerciante', $1, true)",
+        [comercianteId],
+      );
+      return cliente;
+    }
+
+    it("com a publicação presa por outro: a espera acaba em 503 catalog.retry ao fim de 5 s, e nada muda", async () => {
+      const c = await comerciante("Preso");
+      const p1 = await publicarNoHub(c, c.dono.sessao, null, [c.v2]);
+      const pub = p1.json<RespostaPublicar>().publicacao as Publicacao;
+      const cliente = await transaccaoAberta(c.id);
+      try {
+        await cliente.query(
+          "select id from publicacao where id = $1 for update",
+          [pub.id.slice("pub_".length)],
+        );
+        const inicio = Date.now();
+        const r = await retirarNoHub(c, c.dono.sessao, pub.id, pub.versao);
+        expect(r.statusCode, r.body).toBe(503);
+        expect(h.codigo(r)).toBe("catalog.retry");
+        expect(Date.now() - inicio).toBeLessThan(8000);
+      } finally {
+        await cliente.query("rollback").catch(() => undefined);
+        await cliente.end();
+      }
+      const lidas = await h.pedir(
+        "GET",
+        `/hub/products/${c.artigo}/publications`,
+        { sessao: c.dono.sessao, comerciante: c.id },
+      );
+      expect(lidas.json<{ dados: Publicacao[] }>().dados).toMatchObject([
+        { estado: "publicado", versao: pub.versao },
+      ]);
+    }, 20_000);
+
+    it("duas pessoas publicam ao mesmo tempo sobre a mesma versão: uma passa, a outra recebe 409", async () => {
+      const c = await comerciante("Ao mesmo tempo");
+      const p1 = await publicarNoHub(c, c.dono.sessao, null, [c.v2]);
+      const pub = p1.json<RespostaPublicar>().publicacao as Publicacao;
+      const gestor = await h.pessoaCom(c.id, "gestor");
+      const [a, b] = await Promise.all([
+        publicarNoHub(c, c.dono.sessao, pub.versao, []),
+        publicarNoHub(c, gestor.sessao, pub.versao, [c.v2]),
+      ]);
+      expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+      const perdeu = a.statusCode === 409 ? a : b;
+      expect(h.codigo(perdeu)).toBe("catalog.version_conflict");
     });
   },
 );
