@@ -16,16 +16,26 @@
 SET LOCAL lock_timeout = '10s';
 
 -- A encomenda da expedição já foi limpa pelo apagamento do titular: o
--- contacto tem o marcador (titular_limpar_encomenda, 0072).
+-- e-mail do contacto é o marcador (titular_limpar_encomenda, 0072). Só o
+-- e-mail: o nome é texto livre e um cliente podia escrever o marcador; o
+-- e-mail tem de ter «@» (revisão do #420, P2-2).
+--
+-- A leitura toma a encomenda (FOR KEY SHARE): um apagamento a meio tem-na
+-- FOR UPDATE (0072), e o evento ou o aviso esperam por ele e lêem-na já
+-- limpa; se chegaram primeiro, é o apagamento que espera e já os vê
+-- (revisão do #420, P2-1). Por isso VOLATILE (um FOR não corre em STABLE).
 CREATE FUNCTION envios_encomenda_limpa(p_expedicao uuid) RETURNS boolean
-  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT EXISTS (
-    SELECT FROM public.expedicao x
-    JOIN public.encomenda e ON e.comerciante_id = x.comerciante_id AND e.id = x.encomenda_id
-    WHERE x.id = p_expedicao
-      AND jsonb_typeof(e.contacto) = 'object'
-      AND EXISTS (SELECT FROM jsonb_each(e.contacto) c
-                  WHERE c.value = to_jsonb('(pseudonimizado)'::text)))
+  LANGUAGE plpgsql VOLATILE SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  email text;
+BEGIN
+  SELECT e.contacto ->> 'email' INTO email
+  FROM public.expedicao x
+  JOIN public.encomenda e ON e.comerciante_id = x.comerciante_id AND e.id = x.encomenda_id
+  WHERE x.id = p_expedicao
+  FOR KEY SHARE OF e;
+  RETURN email IS NOT DISTINCT FROM '(pseudonimizado)';
+END
 $$;
 
 CREATE FUNCTION evento_seguimento_ao_gravar() RETURNS trigger
