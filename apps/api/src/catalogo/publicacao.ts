@@ -467,6 +467,14 @@ export async function publicar(
    * confere.
    */
   versao?: number | null,
+  /**
+   * As variantes activas que o ecrã do Hub mostrou (docs/22 §27.2). Uma
+   * activa que não esteja aqui (criada com o ecrã aberto) dá
+   * `catalog.version_conflict`, sem escrever: entrava à venda sem a pessoa a
+   * ver, porque a escrita só leva as que ficam fora. Sem ela (a chave), não
+   * se confere.
+   */
+  vistas?: readonly string[],
 ): Promise<ResultadoDaPublicacao> {
   return noCatalogo(db, comercianteId, async (trx) => {
     await comQuem(trx, quem);
@@ -543,6 +551,23 @@ export async function publicar(
         throw new ErroCatalogo(
           "catalog.version_conflict",
           "a publicação mudou depois de ser lida",
+        );
+      }
+    }
+    // Depois da fila do artigo (`tomar`): quem cria uma variante entra nela,
+    // por isso a que está a nascer já acabou e vê-se aqui.
+    if (vistas !== undefined) {
+      const mostradas = new Set(vistas.map((v) => v.toLowerCase()));
+      const activas = await trx
+        .selectFrom("variante")
+        .select("id")
+        .where("artigo_id", "=", pedido.artigo_id)
+        .where("estado", "=", "activa")
+        .execute();
+      if (activas.some((v) => !mostradas.has(v.id.toLowerCase()))) {
+        throw new ErroCatalogo(
+          "catalog.version_conflict",
+          "o artigo tem uma variante activa que o ecrã não mostrou",
         );
       }
     }

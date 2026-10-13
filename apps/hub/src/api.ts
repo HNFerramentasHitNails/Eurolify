@@ -1397,7 +1397,14 @@ export const api = {
   publicar: (
     comerciante: string,
     artigo: string,
-    corpo: EscolhaDePublicacao & { versao: number | null },
+    /**
+     * `variantes_vistas`: as activas que o ecrã mostrou; uma nova dá 409
+     * catalog.version_conflict (docs/22 §27.2).
+     */
+    corpo: EscolhaDePublicacao & {
+      versao: number | null;
+      variantes_vistas: string[];
+    },
   ) =>
     pedir<RespostaPublicar>("POST", `/hub/products/${artigo}/publications`, {
       comerciante,

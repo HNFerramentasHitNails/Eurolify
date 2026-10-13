@@ -18,6 +18,7 @@ import {
   escolhaDepoisDeRecarregar,
   escolhaInicial,
   marcaDaVariante,
+  variantesQueApareceram,
   linhasDosImpedimentos,
   podePublicar,
   publicacaoConfere,
@@ -86,6 +87,8 @@ export function PublicarArtigo({
     precos: boolean;
   } | null>(null);
   const [marcadas, setMarcadas] = useState<string[] | null>(null);
+  // As que apareceram ao reler (criadas com o ecrã aberto): dizem «nova».
+  const [apareceram, setApareceram] = useState<string[]>([]);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [listaBase, setListaBase] = useState<string | null>(null);
   const [falha, setFalha] = useState<unknown>(null);
@@ -273,9 +276,24 @@ export function PublicarArtigo({
     }
   }
 
+  /** O estado relido, com as variantes que apareceram entretanto. */
+  function reler(agora: Lido) {
+    if (lido !== null) {
+      const antes = variantesActivas(lido.ficha.variantes);
+      setApareceram((a) =>
+        variantesQueApareceram(
+          a,
+          antes,
+          variantesActivas(agora.ficha.variantes),
+        ),
+      );
+    }
+    setLido(agora);
+  }
+
   /** As escolhas da pessoa, sobre o estado de agora. */
   function aceitarEstado(agora: Lido) {
-    setLido(agora);
+    reler(agora);
     setMarcadas((m) =>
       escolhaDepoisDeRecarregar(
         m ?? [],
@@ -363,6 +381,9 @@ export function PublicarArtigo({
         mercado,
         variantes_fora: pedidas,
         versao: versaoLida,
+        // As que o ecrã mostrou: uma criada entretanto dá conflito e o ecrã
+        // relê (§27.2).
+        variantes_vistas: activas,
       });
       if (!aindaAqui()) return;
       // Lê-se sempre `publicada`, nunca só o estado HTTP (§27.2).
@@ -393,7 +414,7 @@ export function PublicarArtigo({
       // próxima tentativa não receber um conflito sem motivo.
       try {
         const agora = await ler();
-        if (aindaAqui() && agora !== null) setLido(agora);
+        if (aindaAqui() && agora !== null) reler(agora);
       } catch {
         // Fica o que se leu: o conflito, se vier, diz-o.
       }
@@ -514,7 +535,9 @@ export function PublicarArtigo({
                 lido.ficha.variantes
                   .filter((v) => v.estado === "activa")
                   .map((v) => {
-                    const marca = marcaDaVariante(v, publicacao);
+                    const marca = apareceram.includes(v.id)
+                      ? "nova"
+                      : marcaDaVariante(v, publicacao);
                     const estaFora = marca !== null;
                     return (
                       <div className="variante-escolha" key={v.id}>

@@ -1426,7 +1426,8 @@ export const pt = {
     "A tradução do texto alternativo das imagens ainda não é verificada.",
   publicarNovosImpedimentos:
     "Não publicámos: entretanto apareceu um impedimento e nada mudou.",
-  publicarConflito: "Outra pessoa mudou esta publicação entretanto.",
+  publicarConflito:
+    "Outra pessoa mudou esta publicação ou as variantes do artigo entretanto.",
   publicarConflitoActual:
     "Por baixo está o estado de agora, com as variantes de agora; as suas escolhas ficaram marcadas. Verifique outra vez antes de publicar.",
   publicarSemResposta:

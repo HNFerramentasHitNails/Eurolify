@@ -40,6 +40,10 @@ que já estava previsto no §3.3 (issue #393).
 - **Revisão do #429** (Sonnet 5.5, 0 P0, 2 P1): os P1, os P2-1 a P2-6 e os
   P3-1, P3-3 e P3-4 corrigidos; a razão dos outros está no `docs/36` §19.6.
 
+- **O aspecto** do «Corrigir o peso» e do «Mudar o serviço» foi aprovado pelo
+  Diogo a 13/10/2026, com as capturas (*«aprovo; junta quando ficar
+  verde»*); entrou no `main` pelo #429.
+
 ## O que ficou por verificar
 
 - **O motivo é texto livre** e pode trazer dados de clientes. O ecrã diz

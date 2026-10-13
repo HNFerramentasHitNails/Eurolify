@@ -53,9 +53,25 @@ export interface DadosDaLigacao {
   fuso: string | null;
 }
 
+/**
+ * O aviso a quem expede: «tentativa falhada» ou «para levantar» (docs/36 §20;
+ * migração 0087). Nunca o nome, a morada nem o texto da transportadora.
+ */
+export interface DadosDoEnvio {
+  loja?: string;
+  expedicao: string;
+  /** `tentativa_falhada` ou `disponivel_para_levantar`. */
+  estado: string;
+  transportadora: string | null;
+  seguimento: string | null;
+  /** AAAA-MM-DD HH:MI, no fuso do comerciante. */
+  em: string | null;
+  fuso: string | null;
+}
+
 type TipoDoReembolso = Exclude<
   TipoNotificacao,
-  "task.overdue" | "invoicing.connection_error"
+  "task.overdue" | "invoicing.connection_error" | "shipment.needs_attention"
 >;
 
 const data = (iso: string | null, l: Lingua) => {
@@ -383,14 +399,104 @@ function textoDaLigacao(
   return { assunto: t.assunto, texto: t.texto.join("\n") };
 }
 
+/** Um número de seguimento: uma linha, curta. */
+const curto = (t: string | null) => {
+  const x = linha(t ?? undefined).slice(0, 60);
+  return x === "" ? "?" : x;
+};
+
+const NOMES_DAS_TRANSPORTADORAS: Record<string, string> = {
+  ctt: "CTT",
+  sendcloud: "Sendcloud",
+};
+
+function textoDoEnvio(
+  d: DadosDoEnvio,
+  l: Lingua,
+  loja: string,
+): Omit<Mensagem, "para"> {
+  const shp = `shp_${d.expedicao}`;
+  const seguimento = curto(d.seguimento);
+  const transportadora =
+    NOMES_DAS_TRANSPORTADORAS[d.transportadora ?? ""] ?? "?";
+  const quando = `${dataHora(d.em, l)} (${linha(d.fuso ?? undefined) || "?"})`;
+  const levantar = d.estado === "disponivel_para_levantar";
+  if (!levantar && d.estado !== "tentativa_falhada") {
+    throw new Error("estado desconhecido no aviso do envio");
+  }
+  const t = {
+    pt: {
+      assunto: levantar
+        ? `Envios: a expedição ${shp} está à espera de ser levantada`
+        : `Envios: a transportadora não conseguiu entregar a expedição ${shp}`,
+      texto: [
+        "Olá,",
+        "",
+        levantar
+          ? `Na loja «${loja}», a transportadora (${transportadora}) diz que a expedição ${shp} (seguimento ${seguimento}) está disponível para levantar desde ${quando}.`
+          : `Na loja «${loja}», a transportadora (${transportadora}) diz que não conseguiu entregar a expedição ${shp} (seguimento ${seguimento}) em ${quando}.`,
+        "Pode ser preciso falar com o cliente ou com a transportadora.",
+        "",
+        "Veja o seguimento no Hub, em «Expedir». Pela API: GET /shipments/{id}/events.",
+        "",
+        "Este aviso vai para quem expede (o dono, o gestor e o armazém), uma vez por expedição e por situação. Não leva o nome nem a morada de quem recebe.",
+        "Eurolify",
+      ],
+    },
+    es: {
+      assunto: levantar
+        ? `Envíos: el envío ${shp} está esperando a ser recogido`
+        : `Envíos: la transportista no pudo entregar el envío ${shp}`,
+      texto: [
+        "Hola:",
+        "",
+        levantar
+          ? `En la tienda «${loja}», la transportista (${transportadora}) dice que el envío ${shp} (seguimiento ${seguimento}) está disponible para recoger desde el ${quando}.`
+          : `En la tienda «${loja}», la transportista (${transportadora}) dice que no pudo entregar el envío ${shp} (seguimiento ${seguimento}) el ${quando}.`,
+        "Puede ser necesario hablar con el cliente o con la transportista.",
+        "",
+        "Vea el seguimiento en el Hub, en «Expedir». Por la API: GET /shipments/{id}/events.",
+        "",
+        "Este aviso se envía a quien expide (el propietario, el gestor y el almacén), una vez por envío y por situación. No incluye el nombre ni la dirección del destinatario.",
+        "Eurolify",
+      ],
+    },
+    en: {
+      assunto: levantar
+        ? `Shipping: shipment ${shp} is waiting to be collected`
+        : `Shipping: the carrier could not deliver shipment ${shp}`,
+      texto: [
+        "Hello,",
+        "",
+        levantar
+          ? `In the shop "${loja}", the carrier (${transportadora}) says shipment ${shp} (tracking ${seguimento}) has been available for collection since ${quando}.`
+          : `In the shop "${loja}", the carrier (${transportadora}) says it could not deliver shipment ${shp} (tracking ${seguimento}) on ${quando}.`,
+        "You may need to contact the customer or the carrier.",
+        "",
+        "See the tracking in the Hub, under «Expedir». Through the API: GET /shipments/{id}/events.",
+        "",
+        "This notice goes to those who ship (the owner, the manager and the warehouse), once per shipment and per situation. It does not carry the recipient's name or address.",
+        "Eurolify",
+      ],
+    },
+  }[l];
+  return { assunto: t.assunto, texto: t.texto.join("\n") };
+}
+
 /** O e-mail de uma notificação, para uma pessoa. */
 export function mensagemDe(
   tipo: TipoNotificacao,
   lingua: Lingua,
-  dados: DadosDoAviso | DadosDaTarefa | DadosDaLigacao,
+  dados: DadosDoAviso | DadosDaTarefa | DadosDaLigacao | DadosDoEnvio,
   para: { email: string },
 ): Mensagem {
   const loja = linha(dados.loja) || "?";
+  if (tipo === "shipment.needs_attention") {
+    return {
+      ...textoDoEnvio(dados as DadosDoEnvio, lingua, loja),
+      para: para.email,
+    };
+  }
   if (tipo === "invoicing.connection_error") {
     return {
       ...textoDaLigacao(dados as DadosDaLigacao, lingua, loja),
