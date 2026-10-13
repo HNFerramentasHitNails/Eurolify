@@ -66,7 +66,7 @@ export async function emEnvios<T>(
 }
 
 export const IdConta = idCom("cac", "cac_…");
-const IdExpedicao = idCom("shp", "shp_…");
+export const IdExpedicao = idCom("shp", "shp_…");
 const IdArmazem = idCom("whs", "whs_…");
 export const Versao = Type.Integer({ minimum: 1 });
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
@@ -155,6 +155,38 @@ export function contaParaApi(cfg: ConfigEnvios | undefined) {
     versao: c.versao,
   });
 }
+
+/** A etiqueta como a API a mostra, pela chave e pelo Hub (docs/22 §32). */
+export const paraEtiqueta = (e: Awaited<ReturnType<typeof lerEtiqueta>>) => ({
+  expedicao: `shp_${e.id}`,
+  estado_expedicao: e.estado,
+  etiqueta: e.etiqueta,
+  tentativa: e.etiqueta_tentativa,
+  motivo: e.etiqueta_motivo,
+  em: iso(e.etiqueta_em),
+  conta:
+    e.conta_transportadora_id === null
+      ? null
+      : `cac_${e.conta_transportadora_id}`,
+  transportadora: e.transportadora,
+  servico: e.servico,
+  seguimento: e.seguimento,
+  url_seguimento: e.url_seguimento,
+  peso_g: e.peso_g,
+  ficheiro: e.ficheiro,
+});
+
+/** Um evento de seguimento, pela chave e pelo Hub. */
+export const paraEvento = (
+  e: Awaited<ReturnType<typeof listarEventos>>[number],
+) => ({
+  origem: e.origem,
+  id_externo: e.id_externo,
+  estado_transportadora: e.estado_transportadora,
+  estado: e.estado_normalizado,
+  em: e.em.toISOString(),
+  recebido_em: e.recebido_em.toISOString(),
+});
 
 export function rotasDosEnvios(
   instancia: FastifyInstance,
@@ -326,24 +358,6 @@ export function rotasDosEnvios(
 
   // ------------------------------------------- A etiqueta (parte B, 0079)
 
-  const paraEtiqueta = (e: Awaited<ReturnType<typeof lerEtiqueta>>) => ({
-    expedicao: `shp_${e.id}`,
-    estado_expedicao: e.estado,
-    etiqueta: e.etiqueta,
-    tentativa: e.etiqueta_tentativa,
-    motivo: e.etiqueta_motivo,
-    em: iso(e.etiqueta_em),
-    conta:
-      e.conta_transportadora_id === null
-        ? null
-        : `cac_${e.conta_transportadora_id}`,
-    transportadora: e.transportadora,
-    servico: e.servico,
-    seguimento: e.seguimento,
-    url_seguimento: e.url_seguimento,
-    peso_g: e.peso_g,
-    ficheiro: e.ficheiro,
-  });
   const quemDo = (pedido: Parameters<typeof chaveDo>[0]) =>
     `chave:key_${chaveDo(pedido).chaveId}`;
   const Expedicao = Type.Object({ id: IdExpedicao });
@@ -484,14 +498,7 @@ export function rotasDosEnvios(
             chaveDo(pedido).comercianteId,
             semPrefixo(pedido.params.id),
           )
-        ).map((e) => ({
-          origem: e.origem,
-          id_externo: e.id_externo,
-          estado_transportadora: e.estado_transportadora,
-          estado: e.estado_normalizado,
-          em: e.em.toISOString(),
-          recebido_em: e.recebido_em.toISOString(),
-        })),
+        ).map(paraEvento),
       })),
   );
 

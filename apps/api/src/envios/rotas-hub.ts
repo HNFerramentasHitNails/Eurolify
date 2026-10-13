@@ -57,7 +57,9 @@ type Ambito =
   | "shipping:accounts"
   | "shipping:write"
   | "prices:read"
-  | "inventory:read";
+  | "inventory:read"
+  | "fulfilment:read"
+  | "fulfilment:write";
 
 const RECUSA: Record<Ambito, string> = {
   "shipping:read": "o papel não vê os envios",
@@ -65,17 +67,17 @@ const RECUSA: Record<Ambito, string> = {
   "shipping:write": "o papel não muda os métodos de entrega nem a embalagem",
   "prices:read": "o papel não vê os mercados",
   "inventory:read": "o papel não vê os armazéns",
+  "fulfilment:read": "o papel não vê as expedições",
+  "fulfilment:write": "o papel não expede",
 };
 
-export function rotasDosEnviosNoHub(
-  instancia: FastifyInstance,
-  base: Kysely<BaseDados>,
-  cfg: ConfigEnvios | undefined,
-) {
-  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
-  const paraConta = contaParaApi(cfg);
-
-  /** A sessão, com o âmbito pedido, e as respostas fora de qualquer cache. */
+/**
+ * O que todas as rotas dos envios no Hub partilham (docs/22 §29.2): a
+ * sessão com o âmbito pedido e as respostas fora de qualquer cache (também
+ * um 403), e uma escrita na transacção do comerciante com a pessoa como
+ * «quem».
+ */
+export function ferramentasDoHub(base: Kysely<BaseDados>) {
   const daSessao = (
     pedido: FastifyRequest,
     resposta: FastifyReply,
@@ -93,7 +95,6 @@ export function rotasDosEnviosNoHub(
     return { ...sessao, comercianteId: sessao.comercianteId };
   };
 
-  /** Uma escrita na transacção do comerciante, com a pessoa como «quem». */
   const escreverNoHub = <T>(
     comercianteId: string,
     pessoaId: string,
@@ -109,6 +110,19 @@ export function rotasDosEnviosNoHub(
   const Lista = Type.Object({
     dados: Type.Array(Type.Record(Type.String(), Type.Unknown())),
   });
+
+  return { daSessao, escreverNoHub, Lista };
+}
+
+export function rotasDosEnviosNoHub(
+  instancia: FastifyInstance,
+  base: Kysely<BaseDados>,
+  cfg: ConfigEnvios | undefined,
+) {
+  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+  const paraConta = contaParaApi(cfg);
+
+  const { daSessao, escreverNoHub, Lista } = ferramentasDoHub(base);
 
   rotas.get(
     "/hub/carrier-accounts",
