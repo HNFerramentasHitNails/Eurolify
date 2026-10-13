@@ -996,9 +996,9 @@ pedido):
   - **P3-4:** numa recusa, o formulário fica aberto com o que se escreveu,
     e ao abrir o foco vai para o título dele.
 - ficam, com a razão:
-  - **P2-7** (o motivo fora do apagamento do titular): vai à decisão do
-    Diogo ou do Bruno. Até lá, o ecrã avisa para não escrever dados de
-    clientes;
+  - **P2-7** (o motivo fora do apagamento do titular): decidido pelo
+    Diogo a 13/10/2026, *«fica só o aviso»*: o ecrã avisa para não escrever
+    dados de clientes, e o apagamento do titular não limpa o motivo;
   - **P3-2:** um 200 vazio na lista de outra expedição não mostra nada
     (RLS);
   - **P3-5:** o `quem` é um identificador (`pessoa:per_…`) que não diz nada

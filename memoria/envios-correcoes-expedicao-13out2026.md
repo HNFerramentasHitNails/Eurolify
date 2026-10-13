@@ -44,7 +44,8 @@ que já estava previsto no §3.3 (issue #393).
 
 - **O motivo é texto livre** e pode trazer dados de clientes. O ecrã diz
   para não os escrever, mas o apagamento do titular não limpa o rasto.
-  **Decisão pedida ao Diogo** (revisão do #429, P2-7).
+  Decisão do Diogo, 13/10/2026 (revisão do #429, P2-7): *«fica só o
+  aviso»*.
 - **Um serviço mais lento** pode falhar a data-limite: os serviços não
   declaram prazos, e o Eurolify não o confere. O ecrã avisa.
 - **Um método manual** só passa a ter etiqueta pela API. O ecrã não o
