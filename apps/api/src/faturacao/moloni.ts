@@ -118,7 +118,7 @@ function errosDe(r: unknown): string[] | null {
     // Com `human_errors`, `{code: "1 name", description}` (página
     // «Controlo de erros», lida a 13/10/2026): o código começa pelo número
     // do erro e não há outros campos. Uma isenção do taxExemptions/getAll
-    // também tem `code` («M16»), mas com `name` — não é um erro (§31).
+    // também tem `code` («M16»), mas com `name` — não é um erro (§32).
     if (e !== null && typeof e === "object") {
       const o = e as { code?: unknown; description?: unknown };
       const soErro = Object.keys(o).every(
@@ -301,7 +301,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
         (t) => agora - t < 60_000,
       );
       // As leituras do Hub (listas, pesquisa) só usam dois terços do limite
-      // e nunca esperam: o resto fica para as emissões (docs/22 §31;
+      // e nunca esperam: o resto fica para as emissões (docs/22 §32;
       // revisão do #412, P2-4).
       const teto = doHub
         ? Math.max(1, Math.floor((this.porMinuto * 2) / 3))
@@ -492,10 +492,10 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     };
   }
 
-  // ------------------------------- As listas para configurar (docs/22 §31)
+  // ------------------------------- As listas para configurar (docs/22 §32)
 
   /**
-   * As listas de onde o dono escolhe (§31.1, páginas lidas a 12/10 e
+   * As listas de onde o dono escolhe (§32.1, páginas lidas a 12/10 e
    * 13/10/2026; os campos exactos **por medir** na conta trial). Uma a uma,
    * pelo limite por empresa; nada fica guardado.
    */
@@ -576,7 +576,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       }));
     }
     // Do cliente só o id, o número e o nome: o contribuinte e a morada
-    // nunca saem daqui (§31.3).
+    // nunca saem daqui (§32.3).
     return r.filter(temId("customer_id")).map((c) => ({
       tipo: "cliente" as const,
       id: txt(c["customer_id"]),

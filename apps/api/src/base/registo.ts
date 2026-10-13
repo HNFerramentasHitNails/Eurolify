@@ -14,7 +14,7 @@ export const urlSemSegredos = (url: string) =>
     // do #407, P1-1): trocam-se por tokens enquanto valem.
     .replace(/([?&](?:code|state)=)[^&#]*/gi, "$1[tapado]")
     // O que se pesquisa no emissor pode ser o NIF ou o nome de um cliente
-    // (docs/22 §31; revisão do #412, P1-1): dado pessoal, não vai.
+    // (docs/22 §32; revisão do #412, P1-1): dado pessoal, não vai.
     .replace(/(\/issuer-search\?(?:[^#]*&)?q=)[^&#]*/gi, "$1[tapado]");
 
 export const serializadores = {

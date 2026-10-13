@@ -35,6 +35,7 @@ import {
 import { entradaDe } from "../modulos";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 import { Copiar } from "./Copiar";
+import { SeparadoresEnvios } from "./EnviosMetodos";
 
 // Os envios no Hub (docs/22 §29; Diogo, 12/10/2026: «sim, aprovo; avança
 // com o código»): as contas do comerciante nas transportadoras. Só o dono
@@ -133,6 +134,9 @@ export function Envios({ comerciante }: { comerciante: string | null }) {
         {t.enviosTitulo}
         {meu === undefined ? "" : ` — ${meu.nome}`}
       </h1>
+      {valido ? (
+        <SeparadoresEnvios comerciante={comerciante} actual="contas" />
+      ) : null}
       {!valido ? (
         <CaixaDeErro erro={{ texto: t.erroSemPermissao }} />
       ) : erro !== null && dados === null ? (

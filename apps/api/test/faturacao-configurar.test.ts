@@ -23,7 +23,7 @@ import {
 import { hubDeTeste } from "./hub-de-teste.js";
 import { moloniFalso } from "./moloni-falso.js";
 
-// Criar a ligação ao Moloni e configurá-la pelo Hub (docs/22 §31; docs/06,
+// Criar a ligação ao Moloni e configurá-la pelo Hub (docs/22 §32; docs/06,
 // EH): só o dono; as listas lidas do Moloni (simulado) com o que o Eurolify
 // precisa de mapear; a pesquisa de clientes sem contribuinte nem morada; ao
 // gravar, o servidor relê as listas e recusa um id que lá não exista.
@@ -612,7 +612,7 @@ describe.skipIf(URL_BASE === undefined)(
   },
 );
 
-// «O que falta» e a retenção usam a mesma chave (§31.7): um par que falta
+// «O que falta» e a retenção usam a mesma chave (§32.7): um par que falta
 // retém a fatura (`taxa_sem_mapa`); um par mapeado não.
 describe("o que falta bate com a retenção", () => {
   const linha = (o: Partial<LinhaDoConteudo>): LinhaDoConteudo => ({

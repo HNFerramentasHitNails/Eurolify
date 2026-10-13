@@ -36,8 +36,8 @@
 ## 13/10/2026 — criar e configurar a ligação pelo Hub (#412)
 
 ### O que se fez
-- Desenho no `docs/22` §31, aprovado pelo Diogo com a Q1 em A (`docs/06`,
-  EH); código no pedido #412 (`docs/22` §31.8).
+- Desenho no `docs/22` §32, aprovado pelo Diogo com a Q1 em A (`docs/06`,
+  EH); código no pedido #412 (`docs/22` §32.8).
 - O Moloni simulado mostrou que as isenções do Moloni (`{code, name,
   description}`) eram lidas como erro: agora um erro é só `{code,
   description}` com o código a começar por um número (página «Controlo de

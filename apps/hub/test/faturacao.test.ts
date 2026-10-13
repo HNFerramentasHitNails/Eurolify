@@ -400,7 +400,7 @@ describe("o regresso do Moloni", () => {
   });
 });
 
-// Configurar a ligação ao Moloni (docs/22 §31; Q1 em A).
+// Configurar a ligação ao Moloni (docs/22 §32; Q1 em A).
 describe("configurar a ligação", () => {
   const ligacao = {
     versao: 3,

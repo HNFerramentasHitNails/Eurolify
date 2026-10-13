@@ -19,7 +19,7 @@ import {
 } from "../faturacao";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
-// «Configurar» a ligação ao Moloni (docs/22 §31.4; Q1 em A): cada escolha
+// «Configurar» a ligação ao Moloni (docs/22 §32.4; Q1 em A): cada escolha
 // vem de uma lista lida do Moloni, com o nome e o id lado a lado, e **nada
 // vem escolhido** — as taxas de mesmo valor e zona ficam só no topo. O
 // servidor relê as listas ao gravar e recusa um id que lá já não esteja.
@@ -112,7 +112,7 @@ export function ConfigurarFaturacao({
     void carregar("abrir");
   }, [carregar]);
 
-  // Depois de gravar, o foco vai para «Testar», o passo seguinte (§31.7).
+  // Depois de gravar, o foco vai para «Testar», o passo seguinte (§32.7).
   useEffect(() => {
     if (gravado) testarRef.current?.focus();
   }, [gravado]);

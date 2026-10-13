@@ -121,13 +121,13 @@ export class ErroDoEmissor extends Error {
   }
 }
 
-/** Uma escolha lida do emissor (docs/22 §31): o id e o nome dele. */
+/** Uma escolha lida do emissor (docs/22 §32): o id e o nome dele. */
 export interface OpcaoDoEmissor {
   id: string;
   nome: string;
 }
 
-/** As listas de onde o dono escolhe os mapas e a configuração (docs/22 §31.1). */
+/** As listas de onde o dono escolhe os mapas e a configuração (docs/22 §32.1). */
 export interface ListasDoEmissor {
   series: OpcaoDoEmissor[];
   /** `valor` em centésimas de ponto (2300 = 23 %); `zona` como o emissor a tem. */
@@ -143,7 +143,7 @@ export interface ListasDoEmissor {
 
 /**
  * Um resultado da pesquisa no emissor. De um cliente, só o id, o número e o
- * nome — nunca o contribuinte nem a morada (docs/22 §31.3).
+ * nome — nunca o contribuinte nem a morada (docs/22 §32.3).
  */
 export type ResultadoNoEmissor =
   | {
@@ -195,7 +195,7 @@ export interface AdaptadorFaturacao {
     nifSemPrefixo: string,
   ): Promise<EntidadeNoEmissor | null>;
   /**
-   * As listas do emissor para configurar a ligação (docs/22 §31): só um
+   * As listas do emissor para configurar a ligação (docs/22 §32): só um
    * emissor que as tem (o Moloni). Só leitura; lança o erro do emissor.
    */
   listas?(credenciais: CredenciaisEmissor): Promise<ListasDoEmissor>;

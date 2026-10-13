@@ -32,7 +32,7 @@ import { Dialogo } from "./Dialogo";
 // O ecrã «Faturação» (docs/22 §30; Q1 em A): por entidade legal, a ligação
 // ao software de faturação (ligar, ligar outra vez e testar, só o dono) e a
 // entrada para o relatório OSS do último trimestre acabado. O dono cria a
-// ligação ao Moloni e configura-a (docs/22 §31, Q1 em A). Quem pode o quê
+// ligação ao Moloni e configura-a (docs/22 §32, Q1 em A). Quem pode o quê
 // decide-o a API.
 
 const FORMATO_COMERCIANTE = /^mer_[0-9a-f-]{36}$/;
@@ -414,7 +414,7 @@ function Ligacao({
   );
 }
 
-/** O dono cria a ligação ao Moloni de uma entidade sem ligação (§31.4). */
+/** O dono cria a ligação ao Moloni de uma entidade sem ligação (§32.4). */
 function CriarLigacao({
   entidade: e,
   comerciante,

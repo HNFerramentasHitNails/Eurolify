@@ -477,9 +477,9 @@ export async function testarLigacao(
   return { estado: erro === null ? "pronta" : "com_erro", erro };
 }
 
-// ------------------------------- Configurar no Hub (docs/22 §31)
+// ------------------------------- Configurar no Hub (docs/22 §32)
 
-/** O que o Eurolify precisa de ver mapeado numa ligação (§31.3). */
+/** O que o Eurolify precisa de ver mapeado numa ligação (§32.3). */
 export interface Necessario {
   /** Os pares (país, taxa em centésimas) vigentes hoje. */
   taxas: { pais: string; taxa: number }[];
@@ -748,7 +748,7 @@ async function paraLerNoEmissor(
 }
 
 /**
- * As listas do emissor e o que o Eurolify precisa de mapear (§31.3). Lê do
+ * As listas do emissor e o que o Eurolify precisa de mapear (§32.3). Lê do
  * emissor de cada vez; nada fica guardado.
  */
 export async function opcoesDoEmissor(
@@ -799,7 +799,7 @@ export async function pesquisarNoEmissor(
 }
 
 /**
- * O Hub grava a série, os mapas e a configuração (§31.3): **antes**, relê as
+ * O Hub grava a série, os mapas e a configuração (§32.3): **antes**, relê as
  * listas do emissor e confere que cada id escolhido existe lá, e que a taxa
  * do emissor tem o valor do par que mapeia. Depois, a mesma `mudarLigacao`
  * (fica por testar; com documentos a meio, a base recusa — R15).

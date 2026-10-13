@@ -587,7 +587,7 @@ export function rotasDosDocumentos(
             pais: e.pais,
             emissor: e.emissor_fiscal,
           })),
-          // O que falta mapear (docs/22 §31.4), sem ler o emissor.
+          // O que falta mapear (docs/22 §32.4), sem ler o emissor.
           ligacoes: ligacoes.map((l) => ({
             ...paraLigacao(l),
             faltam: l.activa ? (faltas.get(l.id) ?? null) : null,
@@ -602,7 +602,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §31): cria a ligação ao Moloni de uma entidade legal, sem série nem mapas, «por testar». Uma ligação activa por entidade. Com `invoices:accounts` (o dono).",
+          "Pelo Hub (docs/22 §32): cria a ligação ao Moloni de uma entidade legal, sem série nem mapas, «por testar». Uma ligação activa por entidade. Com `invoices:accounts` (o dono).",
         body: Type.Object(
           { entidade_legal: IdEntidade },
           { additionalProperties: false },
@@ -644,7 +644,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §31): lê do software de faturação as listas para configurar a ligação (séries, taxas com o valor e a zona fiscal, isenções, métodos de pagamento, línguas, vencimentos, unidades e categorias de topo) e junta o que o Eurolify precisa de mapear: os pares (país, taxa) do Motor de IVA vigentes hoje nos países dos mercados activos e no da entidade, os códigos de motivo de isenção desses países e os meios de pagamento activos. Não escolhe nada e não guarda nada. Com `invoices:accounts`.",
+          "Pelo Hub (docs/22 §32): lê do software de faturação as listas para configurar a ligação (séries, taxas com o valor e a zona fiscal, isenções, métodos de pagamento, línguas, vencimentos, unidades e categorias de topo) e junta o que o Eurolify precisa de mapear: os pares (país, taxa) do Motor de IVA vigentes hoje nos países dos mercados activos e no da entidade, os códigos de motivo de isenção desses países e os meios de pagamento activos. Não escolhe nada e não guarda nada. Com `invoices:accounts`.",
         params: Type.Object({ id: IdLigacao }),
         response: {
           200: Type.Object({
@@ -685,7 +685,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §31): pesquisa um artigo (o dos portes) ou um cliente (o «Consumidor final») no software de faturação, até 50. De um cliente só sai o id, o número e o nome, nunca o contribuinte nem a morada. Com `invoices:accounts`.",
+          "Pelo Hub (docs/22 §32): pesquisa um artigo (o dos portes) ou um cliente (o «Consumidor final») no software de faturação, até 50. De um cliente só sai o id, o número e o nome, nunca o contribuinte nem a morada. Com `invoices:accounts`.",
         params: Type.Object({ id: IdLigacao }),
         querystring: Type.Object(
           {
@@ -723,7 +723,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §31): grava a série, os mapas e a configuração no emissor, como PATCH /invoicing-connections/{id}. Antes, relê as listas do software de faturação e recusa (`invoices.invalid_field`) um id que lá não exista ou uma taxa do emissor com outro valor que o do par. Confere só o que muda. Uma ligação pronta fica por testar (devolve o estado em que ficou); com documentos a meio no emissor, recusa (R15). Com `invoices:accounts`.",
+          "Pelo Hub (docs/22 §32): grava a série, os mapas e a configuração no emissor, como PATCH /invoicing-connections/{id}. Antes, relê as listas do software de faturação e recusa (`invoices.invalid_field`) um id que lá não exista ou uma taxa do emissor com outro valor que o do par. Confere só o que muda. Uma ligação pronta fica por testar (devolve o estado em que ficou); com documentos a meio no emissor, recusa (R15). Com `invoices:accounts`.",
         params: Type.Object({ id: IdLigacao }),
         body: Type.Object(
           {

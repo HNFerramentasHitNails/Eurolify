@@ -33,7 +33,7 @@ export interface LigacaoFaturacao {
   testada_em: string | null;
   erro: string | null;
   versao: number;
-  /** O que falta mapear (docs/22 §31.4); null numa ligação desligada. */
+  /** O que falta mapear (docs/22 §32.4); null numa ligação desligada. */
   faltam?: Necessario | null;
 }
 
@@ -260,7 +260,7 @@ export function nomeDoPeriodo(t: Textos, p: string): string {
   return preencher(t.faturacaoTrimestre, { n: m[2] ?? "", ano: m[1] ?? "" });
 }
 
-// ------------------------------------------- Configurar (docs/22 §31)
+// ------------------------------------------- Configurar (docs/22 §32)
 
 /** O que o Eurolify precisa de ver mapeado (a mesma chave da retenção). */
 export interface Necessario {

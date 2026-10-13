@@ -2000,7 +2000,7 @@ assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
 
 | Fica de fora, e porquê |
 |---|
-| **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§30, a desenhar). Precisam das listas dos mercados e dos armazéns no Hub. |
+| **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§31). Precisam das listas dos mercados e dos armazéns no Hub. |
 | **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Desenha-se com eles (`docs/27`). |
 | **O modo real**: é uma migração com decisão escrita (`docs/36` §16.2). O ecrã diz «Teste» e não oferece outro. |
 | **Os CTT**: a conta cria-se, vê-se e arquiva-se, mas sem credenciais nem teste: o adaptador não declara campos, e o ecrã diz «Esta transportadora ainda não está ligada ao Eurolify», até haver o adaptador (V1). |
@@ -2286,7 +2286,183 @@ nunca o NIF nem o nome do cliente.
   da entidade.
 - **A passagem com uma passkey real e no Safari de um iPhone.**
 
-## 31. Faturação: criar a ligação ao Moloni e os mapas no Hub (issue #310)
+## 31. Envios: os métodos de entrega e o peso da embalagem (issue #393)
+
+Pedido do Diogo, 12/10/2026: *«depois avança com os métodos de entrega»*. A
+13/10/2026 aprovou o aspecto dos ecrãs do §29 (*«aprovo; avança com os
+métodos de entrega»*). Desenho aprovado pelo Diogo a 13/10/2026 (*«sim, aprovo; avança com o
+código»*).
+
+A API já tem quase tudo:
+- os métodos (`docs/25` §3.6, Q2; `docs/36` §3.2);
+- o peso da embalagem por armazém (`docs/36` Q6, `PUT /warehouses/{id}/packaging`);
+- as regras do checkout (`docs/36` R4).
+
+O Hub dá-lhes ecrãs. Só falta na API ler o peso da embalagem, que hoje só se
+escreve.
+
+Skills: `eurolify-design`, `eurolify-hub-modular`, `consumer-rights-eu`,
+`order-fulfilment`, `eu-localization`, `eurolify-transport-logistics-eu`,
+`observability-security`.
+
+Ex.: o gestor abre «Envios» → «Métodos de entrega» e escolhe «Criar um
+método». Escolhe o mercado «Portugal» e escreve o nome «Correio registado».
+Põe a tarifa de 4,99 €, grátis a partir de 50,00 €, e entrega até 5 dias.
+Escolhe a conta «Sendcloud (teste)» e o serviço «Unstamped letter»; o peso
+máximo vem do serviço (2 kg) e o gestor confirma-o. Em «Códigos postais»
+escreve `1`, `2`, `3`, `4`, `5`, `6`, `7` e `8`: só o continente (os Açores
+começam por `9`). No armazém de Lisboa põe a embalagem a 200 g.
+
+### 31.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **A lista dos métodos**, por mercado: o nome, a tarifa (na moeda do mercado, com ou sem IVA como o mercado), «grátis a partir de», o prazo máximo, a transportadora e o serviço (ou «Manual»), e o estado («Activo» ou «Arquivado»). |
+| **Criar um método** (dono e gestor, `shipping:write`): os campos de §31.3. |
+| **Mudar um método**, com a versão (409 num conflito), e **arquivar e reactivar**. Arquivar tira-o do checkout. O mercado não muda depois de criado: a API não o deixa. |
+| **O peso da embalagem por armazém**, em gramas, somado ao das variantes na etiqueta (`docs/36` Q6). |
+| **As restrições que o cliente vê.** O ecrã diz ao comerciante que o prazo máximo e as regiões servidas aparecem ao cliente antes da compra. Fontes: L1 e L3 do `docs/36` §5 (Dir. 2011/83/UE, art. 6.º, n.º 1, al. g); DL 24/2014, art. 7.º). Relidas no `eur-lex` a 13/10/2026: `corpus/consumidores-e-vendas/32011L0083-direitos-dos-consumidores.md` e `legislacao-pt/decreto-lei-24-2014.md`, este consolidado até 03/03/2023, obtido a 10/10/2026. |
+
+| Fica de fora, e porquê |
+|---|
+| **Aceitar mercadorias perigosas (números ONU) pelo Hub.** A classificação é de um profissional, nunca do nome (L9, `eurolify-transport-logistics-eu`). O ecrã mostra a lista e diz que está vazia por omissão, mas não a muda. Quem precisar muda-a pela API, com a classificação feita. |
+| **Opções de entrega respeitadoras do ambiente (L8).** A transposição portuguesa não está no `eur-lex` (Q8 do `docs/36`): **C**. |
+| **O IVA dos portes com categorias misturadas (V12):** é o contabilista que decide. O ecrã não promete nada sobre ele. |
+| **Criar e mudar mercados e armazéns:** são de outros domínios (`docs/20`, `docs/24`). O ecrã só os lê para escolher. |
+| **A etiqueta numa expedição**, que precisa dos ecrãs das encomendas (`docs/27`). |
+
+### 31.2 Como o Hub lê e escreve
+
+Segue o padrão do §29.2:
+- a sessão da pessoa e o cabeçalho `Eurolify-Comerciante`;
+- **sem `Idempotency-Key`** (`docs/21` §11): a `versao` recusa a repetição;
+- `cache-control: private, no-store`, também nos 403;
+- a escrita corre com `eurolify.quem = pessoa:per_…`. Hoje o método e a
+  embalagem não têm rasto de auditoria (procurei `metodo_entrega` com
+  «rasto» nas migrações, a 13/10/2026). Fica assim: um rasto é outro pedido.
+
+| Caminho do Hub | Âmbito | A rota da chave |
+|---|---|---|
+| `GET /hub/shipping-methods?mercado=` | `shipping:read` | `GET /shipping-methods` |
+| `POST /hub/shipping-methods` | `shipping:write` | `POST /shipping-methods` |
+| `PATCH /hub/shipping-methods/{id}` | `shipping:write` | `PATCH /shipping-methods/{id}` |
+| `GET /hub/markets` | `prices:read` | `GET /markets` |
+| `GET /hub/warehouses` | `inventory:read` | `GET /warehouses` (passa a dizer `embalagem_g`) |
+| `PUT /hub/warehouses/{id}/packaging` | `shipping:write` | `PUT /warehouses/{id}/packaging` |
+
+- **Os papéis** não mudam: o dono e o gestor têm `shipping:write` (migração
+  0074). O armazém e o apoio só vêem, sem botões. Todos os papéis com
+  `shipping:read` têm também `prices:read` e `inventory:read`, por isso vêem
+  os nomes dos mercados e dos armazéns.
+- **O que muda na API:** a lista dos armazéns passa a dizer `embalagem_g`,
+  pela chave e pelo Hub. Hoje escreve-se e não se lê.
+- **A embalagem não tem versão** (`PUT` sem `versao`): ganha a última
+  escrita, como já acontece pela chave. Depois de guardar, o ecrã relê e
+  mostra o valor que ficou.
+- **A conta e o serviço** escolhem-se das contas `pronta`. Os serviços de
+  cada conta vêm de `GET /hub/carrier-accounts/{id}/services` (§29.2), só
+  os que servem os países do mercado. **Quem confere é o servidor**: conta
+  pronta, serviço declarado, país, peso, telefone e ONU (`docs/36` §3.2).
+  O ecrã só sugere.
+- **Os montantes** escrevem-se na moeda do mercado e vão em cêntimos, com o
+  mesmo apoio dos preços (`preco.ts`, §25).
+
+### 31.3 O ecrã
+
+Dentro do módulo «Envios», três separadores: «Contas» (o que já existe,
+§29), «Métodos de entrega» e «Embalagem».
+
+| Ecrã | O que mostra | Estados além do normal |
+|---|---|---|
+| **Métodos de entrega** (`/envios/metodos`) | Um filtro por mercado. Uma linha por método (cartões no telemóvel): o nome, o mercado, a tarifa, «grátis a partir de», «até N dias», a transportadora e o serviço (ou «Manual»), e o estado. Para o dono e o gestor, «Criar um método». As arquivadas ficam escondidas, com «Mostrar os arquivados». A contagem à vista. | sem mercados (diz que primeiro se cria um mercado, sem botão para isso); sem métodos; a carregar; erro; sem permissão |
+| **Criar um método** (`/envios/metodos/novo`) | O mercado. O nome, em cada língua do mercado (a principal é obrigatória). O prazo em texto por língua (opcional, ex.: «2 a 3 dias úteis»). A tarifa e «grátis a partir de», com a moeda e «com IVA» ou «sem IVA», como o mercado. «Pede telefone». A transportadora: «Manual (sem etiquetas)» ou uma conta pronta, e o serviço dela. O prazo máximo, de 1 a 30 dias, com a nota de que o cliente vê «entrega até {data}». Os códigos postais servidos (prefixos; vazio é o país todo), com a nota de que o cliente vê a restrição antes de encomendar. O peso máximo, sugerido pelo serviço. A lista ONU, só a ler. | campos em falta junto ao campo; a recusa do servidor (conta não pronta, serviço desconhecido, país não servido, telefone ou peso) sai com o texto do código; sem contas prontas (só «Manual», com ligação a «Contas»); resposta perdida (o ecrã não repete: diz que o método pode ter ficado criado e manda conferir a lista) |
+| **O método** (`/envios/metodos/{shm_…}`) | Os mesmos campos, com «Guardar», e «Arquivar» ou «Reactivar», com confirmação. | conflito (409, com «Recarregar»); arquivado (só leitura, com «Reactivar»); a conta do método arquivada ou por testar (aviso: o checkout não o oferece, `docs/36` R4); sem permissão para mudar |
+| **Embalagem** (`/envios/embalagem`) | Uma linha por armazém: o nome, a loja e o peso da embalagem em gramas, com «Guardar» em cada linha. A nota: «Soma-se ao peso das variantes na etiqueta». | sem armazéns (diz que se criam em «Stock»); valor fora de 0 a 100 000 g; a carregar; erro; sem permissão para mudar |
+
+**Os textos** estão em PT, ES e EN. «Manual» quer dizer «sem etiquetas pelo
+Eurolify», e o ecrã di-lo.
+
+### 31.4 Por onde é que isto ainda pode sair errado
+
+- **Uma tarifa escrita na moeda errada.** O campo mostra a moeda do
+  mercado, e a lista mostra o valor formatado na moeda do mercado.
+- **Um prefixo de código postal mal escrito deixa clientes sem entrega**, ou
+  entrega onde não se queria. O ecrã mostra os prefixos e um exemplo do
+  formato do país, mas não confere a lista contra uma tabela de regiões:
+  essa tabela é o `zonas` do `docs/36` §3.2, que ainda não existe.
+- **Uma conta arquivada ou que deixou de passar o teste** tira o método do
+  checkout sem aviso ao cliente. O ecrã do método di-lo ao comerciante.
+- **A embalagem sem versão:** duas pessoas a mudar ao mesmo tempo, ganha a
+  última. O ecrã relê depois de guardar.
+
+### 31.5 Antes de dizer que está feito (o pedido do código)
+
+- **API:**
+  - as rotas do Hub fazem o mesmo que as da chave;
+  - o armazém e o apoio levam 403 nas escritas;
+  - o método de outro comerciante dá 404;
+  - `no-store`, também nos 403;
+  - `embalagem_g` na lista dos armazéns.
+- **Hub:**
+  - a passagem do exemplo só com o teclado;
+  - o conflito, a recusa do servidor (serviço que não serve o país), sem
+    contas prontas e sem mercados;
+  - o armazém só a ver;
+  - capturas a 375, 768 e 1280 px, em claro e escuro, para o OK do aspecto
+    (`eurolify-hub-quality-gate`).
+
+### 31.6 Em código (13/10/2026; pedido #413)
+
+- **API:**
+  - as seis rotas do §31.2 estão em `src/envios/rotas-hub.ts`;
+  - os esquemas e a forma do método (`CorpoNovoMetodo`, `CorpoMudarMetodo`,
+    `paraMetodo`) passam a viver ao nível do módulo em
+    `src/checkout/rotas.ts`, para a chave e o Hub usarem os mesmos;
+  - a lista dos armazéns diz `embalagem_g` (`paraArmazem`);
+  - sem migração.
+- **Hub:**
+  - os separadores «Contas», «Métodos de entrega» e «Embalagem»;
+  - `src/ecras/EnviosMetodos.tsx` e o apoio em `src/envios-metodos.ts`;
+  - no `PATCH` só vão os campos que mudaram. Assim, um método cuja conta
+    deixou de estar pronta ainda pode mudar de tarifa: o servidor só confere
+    a conta quando se lhe toca;
+  - os códigos dos envios têm, neste ecrã, um texto próprio. Exemplo:
+    `shipping.account_not_ready` quer dizer «a conta escolhida não está
+    pronta», e não «as credenciais».
+- **Testes:**
+  - `test/envios-hub-metodos.test.ts` (API, 6);
+  - `test/envios-metodos.test.ts` (Hub, 5);
+  - as capturas criam um método «Manual» e põem a embalagem.
+
+**Revisão do agente** (Claude Sonnet 5.5, publicada no #413): 0 P0, 0 P1 e
+4 P2, todos corrigidos.
+- **P2-1:** um método arquivado também se muda. Se a conta dele deixou de
+  estar pronta, escolhe-se outra, ou «Manual», antes de reactivar. Há um
+  teste da API para isto.
+- **P2-2:** num conflito, o que a pessoa escreveu fica no formulário; só
+  «Tentar outra vez» o substitui pela versão actual.
+- **P2-3:** a embalagem soma-se ao peso na etiqueta. O texto já não diz que
+  conta para o peso máximo dos métodos: o checkout só soma as variantes.
+- **P2-4:** o texto de «não encontrado» depende do ecrã (o mercado ao criar,
+  o método ao mudar, o armazém na embalagem).
+- Também corrigidos:
+  - a ajuda dos campos continua ligada quando o campo está errado;
+  - o campo corrigido deixa de estar marcado;
+  - os mercados arquivados não se oferecem num método novo.
+
+**Desvios do §31, declarados:**
+- **Os números ONU:** a rota do Hub aceita `aceita_onu`, como a da chave,
+  porque o corpo é o mesmo. O ecrã nunca o envia.
+- **A embalagem:** a lista mostra o armazém sem o nome da loja.
+- **Os prefixos:** não há um exemplo por país, só o exemplo geral da ajuda.
+- **Os estados do §31.5 sem prova** nas capturas nem em testes do ecrã:
+  - o conflito, a recusa do servidor e o armazém só a ver;
+  - a passagem só com o teclado.
+
+  As capturas fazem o caminho normal: vazio, criar «Manual», sem contas
+  prontas e a embalagem.
+
+## 32. Faturação: criar a ligação ao Moloni e os mapas no Hub (issue #310)
 
 Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho da ligação ao
 Moloni no Hub»*). É a parte que a Q1 do §30 deixou para depois: «entram numa
@@ -2312,7 +2488,7 @@ Ex.: a dona da «Loja Exemplo»:
    o cliente.
 4. Grava. A ligação fica «por testar», testa outra vez e fica «Pronta».
 
-### 31.1 O que diz o Moloni (páginas lidas a 12/10 e 13/10/2026, **M**; nenhuma lida pela API: as credenciais da conta de teste não estão no ambiente)
+### 32.1 O que diz o Moloni (páginas lidas a 12/10 e 13/10/2026, **M**; nenhuma lida pela API: as credenciais da conta de teste não estão no ambiente)
 
 | O que se escolhe | Método do Moloni | O que devolve |
 |---|---|---|
@@ -2330,7 +2506,7 @@ Ex.: a dona da «Loja Exemplo»:
 **Por medir na conta de teste:** os campos exactos de cada resposta e se
 estas leituras contam para o limite de pedidos (§13.5).
 
-### 31.2 O que entra e o que fica de fora
+### 32.2 O que entra e o que fica de fora
 
 | Entra |
 |---|
@@ -2345,7 +2521,7 @@ estas leituras contam para o limite de pedidos (§13.5).
 | **O adaptador de ensaio**: não lê listas; continua só pela integração |
 | **Desligar a ligação**: fica pela integração, porque desligar com documentos a meio tem regras próprias (R15) |
 
-### 31.3 Como o Hub lê e escreve
+### 32.3 Como o Hub lê e escreve
 
 | Caminho | Quem | O que faz |
 |---|---|---|
@@ -2361,7 +2537,7 @@ estas leituras contam para o limite de pedidos (§13.5).
 - **Sem cópia das listas na base.** Lêem-se quando se abre «Configurar» e
   quando se grava. Nada do Moloni fica guardado além dos ids escolhidos.
 
-### 31.4 O ecrã
+### 32.4 O ecrã
 
 | Onde | O que muda | Estados além do normal |
 |---|---|---|
@@ -2369,7 +2545,7 @@ estas leituras contam para o limite de pedidos (§13.5).
 | **Faturação**, uma entidade com ligação Moloni ligada | «Configurar», e por baixo do estado «Faltam 2 taxas e 1 método de pagamento» (do `issuer-options`), ou nada quando nada falta | — |
 | **Configurar** (`/faturacao/configurar?comerciante=…&ligacao=isx_…`) | Uma secção por grupo, cada uma com listas de escolha preenchidas pelo Moloni, sempre com o nome e o id do Moloni lado a lado (`Taxa Normal 23 % · PT (id 11)`): **Série**; **Taxas** (uma linha por par do Eurolify, «IVA 23 % · Portugal», e a taxa do Moloni a escolher); **Isenções** (uma linha por código); **Métodos de pagamento** (uma linha por meio); **Para os clientes criados** (língua, vencimento); **Para os artigos criados** (unidade, categoria); **Portes** e **Consumidor final** (um campo de pesquisa que mostra até 50 resultados). Por baixo, «Faltam: …» actualizado à medida que se escolhe. «Gravar» grava tudo de uma vez, com a versão lida. Depois de gravar, «A ligação ficou por testar.» e o botão «Testar» | a ler o Moloni; o Moloni recusou ou não respondeu (a frase, tapada, e «Tentar outra vez»); lista vazia no Moloni («O Moloni não tem nenhuma série; crie-a no Moloni e volte.»); conflito (409: «Outra pessoa mudou esta ligação entretanto.», com as escolhas da pessoa guardadas no ecrã); um id que deixou de existir (`invoices.invalid_field`: a frase da API e a lista relida); documentos a meio (`invoices.issuer_busy`); sem permissão |
 
-### 31.5 Por onde é que isto ainda pode sair errado
+### 32.5 Por onde é que isto ainda pode sair errado
 
 | Risco | O que o evita |
 |---|---|
@@ -2379,7 +2555,7 @@ estas leituras contam para o limite de pedidos (§13.5).
 | Dados pessoais dos clientes do Moloni no Hub | a pesquisa de clientes só devolve o id, o número e o nome; o contribuinte e a morada não saem |
 | A leitura gastar o limite do Moloni | o limite próprio por empresa (§13.5); as listas lêem-se só ao abrir e ao gravar |
 
-### 31.6 Decidido
+### 32.6 Decidido
 
 ✅ **Q1: A** (Diogo, 13/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
 
@@ -2394,7 +2570,7 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
 - **B:** vem pré-escolhida quando só há uma que bate; a pessoa confirma. Poupa
   cliques, mas um «Gravar» distraído grava uma escolha que ninguém fez.
 
-### 31.7 Antes de dizer que está feito (o pedido do código)
+### 32.7 Antes de dizer que está feito (o pedido do código)
 
 - **API**:
   - as quatro rotas pelo papel: só o dono; o gestor, o apoio e o armazém
@@ -2412,7 +2588,7 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
 - **Na conta de teste do Moloni** (com as credenciais no ambiente e o OK de
   cada escrita): ler as listas a sério antes de abrir isto a um comerciante.
 
-### 31.8 Em código (13/10/2026; pedido #412)
+### 32.8 Em código (13/10/2026; pedido #412)
 
 | O quê | Onde |
 |---|---|
@@ -2429,7 +2605,7 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
 - **Ao gravar, uma taxa do Moloni com outro valor que o do par é recusada**
   (ex.: a «Taxa Reduzida» de 6 % para «IVA 23 % · Portugal»). O desenho só
   pedia conferir que o id existe; um valor diferente é sempre um erro, e o
-  teste da ligação não o apanha (§31.5). A zona fiscal não se confere: as
+  teste da ligação não o apanha (§32.5). A zona fiscal não se confere: as
   regiões (Açores, Madeira) podem ter zonas próprias no Moloni, por medir.
 - **O artigo e o cliente conferem-se por id** com `products/getOne` e
   `customers/getOne` (páginas do Moloni lidas a 13/10/2026), em vez de uma

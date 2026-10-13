@@ -16,6 +16,11 @@ import { VarianteEditar } from "./ecras/VarianteEditar";
 import { VarianteNova } from "./ecras/VarianteNova";
 import { Chaves } from "./ecras/Chaves";
 import { EnvioConta, EnvioNova, Envios } from "./ecras/Envios";
+import {
+  Embalagem,
+  MetodoEntregaFormulario,
+  MetodosEntrega,
+} from "./ecras/EnviosMetodos";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
 import { Entrar } from "./ecras/Entrar";
@@ -60,6 +65,7 @@ const CAMINHO_OPCOES = /^\/artigos\/([^/]+)\/opcoes$/;
 const CAMINHO_VARIANTE = /^\/artigos\/([^/]+)\/variantes\/([^/]+)$/;
 const CAMINHO_PRECO = /^\/artigos\/([^/]+)\/precos\/([^/]+)\/([^/]+)$/;
 const CAMINHO_CONTA_ENVIOS = /^\/envios\/(cac_[^/]+)$/;
+const CAMINHO_METODO_ENVIOS = /^\/envios\/metodos\/(shm_[^/]+)$/;
 
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
@@ -168,6 +174,7 @@ export function App() {
   const daVariante = CAMINHO_VARIANTE.exec(local.caminho);
   const doPreco = CAMINHO_PRECO.exec(local.caminho);
   const contaDeEnvios = CAMINHO_CONTA_ENVIOS.exec(local.caminho)?.[1] ?? null;
+  const metodoDeEnvios = CAMINHO_METODO_ENVIOS.exec(local.caminho)?.[1] ?? null;
   const comSessao =
     novo ||
     artigo !== null ||
@@ -186,6 +193,10 @@ export function App() {
     local.caminho === "/envios" ||
     local.caminho === "/envios/nova" ||
     contaDeEnvios !== null ||
+    local.caminho === "/envios/metodos" ||
+    local.caminho === "/envios/metodos/novo" ||
+    metodoDeEnvios !== null ||
+    local.caminho === "/envios/embalagem" ||
     local.caminho === "/chaves" ||
     local.caminho === "/conta";
 
@@ -231,11 +242,21 @@ export function App() {
                                         ? t.enviosNovaTitulo
                                         : contaDeEnvios !== null
                                           ? t.enviosContaTitulo
-                                          : local.caminho === "/chaves"
-                                            ? t.chavesTitulo
-                                            : local.caminho === "/conta"
-                                              ? t.contaTitulo
-                                              : t.inicioTitulo;
+                                          : local.caminho === "/envios/metodos"
+                                            ? t.metodosTitulo
+                                            : local.caminho ===
+                                                "/envios/metodos/novo"
+                                              ? t.metodosNovoTitulo
+                                              : metodoDeEnvios !== null
+                                                ? t.metodosMetodoTitulo
+                                                : local.caminho ===
+                                                    "/envios/embalagem"
+                                                  ? t.embalagemTitulo
+                                                  : local.caminho === "/chaves"
+                                                    ? t.chavesTitulo
+                                                    : local.caminho === "/conta"
+                                                      ? t.contaTitulo
+                                                      : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -394,6 +415,29 @@ export function App() {
         key={`${contaDeEnvios} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
         conta={contaDeEnvios}
+      />
+    );
+  else if (local.caminho === "/envios/metodos")
+    ecra = (
+      <MetodosEntrega
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (local.caminho === "/envios/metodos/novo" || metodoDeEnvios !== null)
+    ecra = (
+      <MetodoEntregaFormulario
+        // Outro método ou comerciante, outro formulário: nada do anterior fica.
+        key={`${metodoDeEnvios ?? "novo"} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        metodo={metodoDeEnvios}
+      />
+    );
+  else if (local.caminho === "/envios/embalagem")
+    ecra = (
+      <Embalagem
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
       />
     );
   else if (local.caminho === "/chaves")

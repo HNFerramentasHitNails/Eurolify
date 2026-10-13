@@ -144,6 +144,7 @@ const { registarFicheiro, criarMedia } = await import(
 const { ArmazenamentoEmDisco } = await import(
   join(API, "dist/catalogo/armazenamento.js")
 );
+const { criarArmazem } = await import(join(API, "dist/stock/repositorio.js"));
 // As imagens dos artigos (docs/22 §12): uma pasta temporária, como a da VPS.
 const PASTA_MEDIA = join(
   tmpdir(),
@@ -590,6 +591,14 @@ let listaDaFicha;
   canalDaFicha = canal;
   mercadoDaFicha = mercado;
   listaDaFicha = lista;
+  // Um armazém, para a embalagem (docs/22 §31).
+  await comComerciante(baseArtigos, comerciante, (trx) =>
+    criarArmazem(trx, comerciante, {
+      loja,
+      nome: "Armazém de Lisboa",
+      morada: {},
+    }),
+  );
   await baseArtigos.destroy();
 }
 
@@ -5856,6 +5865,80 @@ try {
     await c.close();
   }
 
+  // Os métodos de entrega e a embalagem (docs/22 §31.5): o dono cria um
+  // método «Manual» (a conta da Sendcloud está por testar, por isso não é
+  // oferecida) e põe a embalagem do armazém.
+  let metodoDeEnvios = "";
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/envios/metodos?comerciante=mer_${comerciante}`);
+    await p.getByRole("heading", { name: /Métodos de entrega/ }).waitFor();
+    await p.getByText("Ainda não há métodos de entrega.").waitFor();
+    confere(
+      (await p
+        .getByRole("link", { name: "Métodos de entrega" })
+        .getAttribute("aria-current")) === "page",
+      "métodos: o separador actual diz-se (aria-current)",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "metodos-vazio-1280-claro.png"),
+      fullPage: true,
+    });
+    await p.getByRole("link", { name: "Criar um método" }).click();
+    await p
+      .getByRole("heading", { name: /Criar um método de entrega/ })
+      .waitFor();
+    // Sem o nome, o ecrã diz o que falta antes de enviar.
+    await p.getByRole("button", { name: "Criar", exact: true }).click();
+    await p
+      .getByText("Escreva o nome na língua principal do mercado.")
+      .waitFor();
+    const nome = p.getByLabel(/Em pt \(a língua principal/);
+    confere(
+      (await nome.getAttribute("aria-invalid")) === "true",
+      "métodos: o nome em falta fica marcado (aria-invalid)",
+    );
+    confere(
+      (await p.getByText("Não há contas prontas", { exact: false }).count()) >
+        0,
+      "métodos: sem contas prontas, só «Manual», com o caminho para as contas",
+    );
+    await nome.fill("Correio registado");
+    await p.getByLabel(/Tarifa por encomenda/).fill("4,99");
+    await p.getByLabel(/Grátis a partir de/).fill("50");
+    await p.getByLabel(/Prazo máximo de entrega/).fill("5");
+    await p.getByLabel(/Códigos postais servidos/).fill("1, 2, 3");
+    await p.getByRole("button", { name: "Criar", exact: true }).click();
+    await p.getByRole("heading", { name: "Correio registado" }).waitFor();
+    metodoDeEnvios = new URL(p.url()).pathname.split("/").pop() ?? "";
+    confere(
+      /^shm_[0-9a-f-]{36}$/.test(metodoDeEnvios),
+      "métodos: criar o método abre a página dele",
+    );
+    confere(
+      (await p.getByLabel(/Tarifa por encomenda/).inputValue()) === "4,99",
+      "métodos: a tarifa volta como foi escrita (499 cêntimos)",
+    );
+    await p.goto(`${ORIGEM}/envios/embalagem?comerciante=mer_${comerciante}`);
+    await p
+      .getByRole("heading", { name: /Embalagem/ })
+      .first()
+      .waitFor();
+    await p.getByLabel(/Peso da embalagem/).fill("200");
+    await p.getByRole("button", { name: "Guardar" }).click();
+    await p.getByText("Guardado: 200 g.").waitFor();
+    confere(
+      (await p.getByLabel(/Peso da embalagem/).inputValue()) === "200",
+      "embalagem: depois de guardar, relê o valor do servidor",
+    );
+    await c.close();
+  }
+
   // As capturas: os ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],
@@ -5892,6 +5975,26 @@ try {
       `/envios/${contaDeEnvios}?comerciante=mer_${comerciante}`,
       "Sendcloud",
     ],
+    [
+      "metodos",
+      `/envios/metodos?comerciante=mer_${comerciante}`,
+      "Métodos de entrega",
+    ],
+    [
+      "metodos-novo",
+      `/envios/metodos/novo?comerciante=mer_${comerciante}`,
+      "Criar um método de entrega",
+    ],
+    [
+      "metodo",
+      `/envios/metodos/${metodoDeEnvios}?comerciante=mer_${comerciante}`,
+      "Correio registado",
+    ],
+    [
+      "embalagem",
+      `/envios/embalagem?comerciante=mer_${comerciante}`,
+      "Embalagem",
+    ],
     ["faturacao", `/faturacao?comerciante=mer_${comerciante}`, "Faturação"],
     [
       "faturacao-configurar",
@@ -5909,7 +6012,7 @@ try {
         storageState: sessao,
       });
       // As capturas não têm Moloni: as listas do ecrã «Configurar» (docs/22
-      // §31) vêm de um exemplo, servido só neste navegador.
+      // §32) vêm de um exemplo, servido só neste navegador.
       await c.route("**/hub/invoicing-connections/*/issuer-options", (r) =>
         r.fulfill({ json: OPCOES_DAS_CAPTURAS }),
       );
