@@ -323,6 +323,8 @@ export function cenariosDeEnvios(
     quantidade = 2,
     /** false: a encomenda paga fica por expedir (o ecrã «Expedir» cria-a). */
     comExpedicao = true,
+    /** O nome do contacto (texto livre do cliente). */
+    nome = "Rui",
   ) {
     const loja = { authorization: `Bearer ${s.publica}` };
     const carrinho = await ok(
@@ -359,7 +361,7 @@ export function cenariosDeEnvios(
     await ok(
       pedir("PUT", `/checkout/${token}/contact`, {
         email: "rui@exemplo.pt",
-        nome: "Rui",
+        nome,
         telefone: "+351912345678",
       }),
     );

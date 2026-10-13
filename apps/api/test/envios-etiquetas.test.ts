@@ -423,6 +423,212 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte B)", () => {
     ).toEqual([404, "shipping.not_found"]);
   });
 
+  it("depois do apagamento do titular, um aviso atrasado da transportadora entra sem o nome: o evento com o marcador e o aviso em resumo (revisão do #414, P3-1)", async () => {
+    const s = await cenario();
+    ctt.estado.pedir = "emitir";
+    const a = await expedicaoPaga(s, s.metodoCtt, 1);
+    await ok(s.adm("POST", `/shipments/${a.expedicao}/label`));
+    const referencia = `${a.expedicao.slice(4)}-1`;
+    const entregue = (id: string, estado: string) => ({
+      referencia,
+      eventos: [
+        { id, estado, normalizado: "entregue", em: "2026-10-14T10:00:00Z" },
+      ],
+    });
+    expect(
+      (await avisoCtt(s, entregue("av-1", "Entregue a Rui Costa"))).statusCode,
+    ).toBe(200);
+    const id = a.encomenda.slice(4);
+    const ficheiros = async () =>
+      (
+        await sql<{
+          n: number;
+        }>`select count(*)::int as n from etiqueta_ficheiro
+          where expedicao_id = ${a.expedicao.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0]?.n;
+    expect(await ficheiros()).toBe(1);
+    // Concluída (a tarefa fá-lo 14 dias depois de entregue) e o titular
+    // apagado: a encomenda acabada fica limpa (0072, 0079).
+    const cliente = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
+        trx,
+      );
+      await sql`update encomenda set estado = 'concluida'
+        where id = ${id}::uuid`.execute(trx);
+      return (
+        await sql<{ c: string }>`select cliente_id as c from encomenda
+          where id = ${id}::uuid`.execute(trx)
+      ).rows[0]?.c;
+    });
+    const r = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{ r: Json }>`select cliente_pseudonimizar(${cliente}::uuid,
+          ${`pseudonimizar cus_${String(cliente)}`}, 'teste') as r`.execute(trx)
+      ).rows[0]?.r;
+    });
+    expect(r).toMatchObject({ encomendas_limpas: 1 });
+    // O ficheiro da etiqueta (nome, morada) saiu logo (0079).
+    expect(await ficheiros()).toBe(0);
+    // Dias depois, a transportadora reenvia com o nome.
+    expect(
+      (await avisoCtt(s, entregue("av-9", "Entregue a Rui Costa (reenvio)")))
+        .statusCode,
+    ).toBe(200);
+    const eventos = (
+      await sql<{ id_externo: string; t: string; n: string }>`
+        select id_externo, estado_transportadora as t, estado_normalizado as n
+        from evento_seguimento
+        where expedicao_id = ${a.expedicao.slice(4)}::uuid order by id_externo`.execute(
+        base.dono,
+      )
+    ).rows;
+    expect(eventos).toEqual([
+      { id_externo: "av-1", t: "(pseudonimizado)", n: "entregue" },
+      { id_externo: "av-9", t: "(pseudonimizado)", n: "entregue" },
+    ]);
+    const avisos = (
+      await sql<{ corpo: string }>`select corpo from aviso_transportadora
+        where expedicao_id = ${a.expedicao.slice(4)}::uuid order by id`.execute(
+        base.dono,
+      )
+    ).rows.map((x) => x.corpo);
+    expect(avisos).toEqual(["(pseudonimizado)", "(pseudonimizado)"]);
+    // Numa encomenda que não foi limpa, o texto e o aviso ficam como vêm,
+    // mesmo com o marcador escrito pelo cliente no nome (revisão do #420,
+    // P2-2).
+    const b = await expedicaoPaga(s, s.metodoCtt, 1, true, "(pseudonimizado)");
+    await ok(s.adm("POST", `/shipments/${b.expedicao}/label`));
+    expect(
+      (
+        await avisoCtt(s, {
+          referencia: `${b.expedicao.slice(4)}-1`,
+          eventos: [
+            {
+              id: "bv-1",
+              estado: "Entregue a Ana Silva",
+              normalizado: "entregue",
+              em: "2026-10-14T10:00:00Z",
+            },
+          ],
+        })
+      ).statusCode,
+    ).toBe(200);
+    expect(
+      (
+        await sql<{ t: string }>`select estado_transportadora as t
+          from evento_seguimento
+          where expedicao_id = ${b.expedicao.slice(4)}::uuid`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ t: "Entregue a Ana Silva" }]);
+    expect(
+      (
+        await sql<{ corpo: string }>`select corpo from aviso_transportadora
+          where expedicao_id = ${b.expedicao.slice(4)}::uuid`.execute(base.dono)
+      ).rows[0]?.corpo,
+    ).toContain("Entregue a Ana Silva");
+  });
+
+  it("um aviso que chega durante o apagamento espera por ele e entra sem o nome (revisão do #420, P2-1)", async () => {
+    const s = await cenario();
+    ctt.estado.pedir = "emitir";
+    const a = await expedicaoPaga(s, s.metodoCtt, 1);
+    await ok(s.adm("POST", `/shipments/${a.expedicao}/label`));
+    const aviso = (id: string, estado: string) => ({
+      referencia: `${a.expedicao.slice(4)}-1`,
+      eventos: [
+        { id, estado, normalizado: "entregue", em: "2026-10-14T10:00:00Z" },
+      ],
+    });
+    expect((await avisoCtt(s, aviso("av-1", "Entregue"))).statusCode).toBe(200);
+    const id = a.encomenda.slice(4);
+    const cliente = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
+        trx,
+      );
+      await sql`update encomenda set estado = 'concluida'
+        where id = ${id}::uuid`.execute(trx);
+      return (
+        await sql<{ c: string }>`select cliente_id as c from encomenda
+          where id = ${id}::uuid`.execute(trx)
+      ).rows[0]?.c;
+    });
+    // O apagamento aberto, ainda por confirmar; o aviso chega a meio.
+    let chegou = false;
+    let pedido: Promise<{ statusCode: number }> | undefined;
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      await sql`select cliente_pseudonimizar(${cliente}::uuid,
+        ${`pseudonimizar cus_${String(cliente)}`}, 'teste')`.execute(trx);
+      pedido = avisoCtt(s, aviso("av-7", "Entregue a Rui Costa")).then((r) => {
+        chegou = true;
+        return r;
+      });
+      await new Promise((r) => setTimeout(r, 800));
+      // Espera pelo apagamento (o bloqueio da encomenda).
+      expect(chegou).toBe(false);
+    });
+    expect((await pedido)?.statusCode).toBe(200);
+    expect(
+      (
+        await sql<{ t: string }>`select estado_transportadora as t
+          from evento_seguimento
+          where expedicao_id = ${a.expedicao.slice(4)}::uuid
+            and id_externo = 'av-7'`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ t: "(pseudonimizado)" }]);
+    const corpos = (
+      await sql<{ corpo: string }>`select corpo from aviso_transportadora
+        where expedicao_id = ${a.expedicao.slice(4)}::uuid`.execute(base.dono)
+    ).rows.map((x) => x.corpo);
+    expect(corpos).toHaveLength(2);
+    expect(corpos.every((c) => c === "(pseudonimizado)")).toBe(true);
+  });
+
+  it("o aviso em bruto não muda nem se apaga fora do apagamento, e um tratado não muda (0079, reescrito na 0083; revisão do #420, P3-2)", async () => {
+    const s = await cenario();
+    ctt.estado.pedir = "emitir";
+    const a = await expedicaoPaga(s, s.metodoCtt, 1);
+    await ok(s.adm("POST", `/shipments/${a.expedicao}/label`));
+    expect(
+      (
+        await avisoCtt(s, {
+          referencia: `${a.expedicao.slice(4)}-1`,
+          eventos: [
+            {
+              id: "av-1",
+              estado: "EM_TRANSITO",
+              normalizado: "em_transito",
+              em: "2026-10-12T10:00:00Z",
+            },
+          ],
+        })
+      ).statusCode,
+    ).toBe(200);
+    const aviso = (
+      await sql<{ id: string }>`select id from aviso_transportadora
+        where expedicao_id = ${a.expedicao.slice(4)}::uuid`.execute(base.dono)
+    ).rows[0]?.id;
+    // Mesmo o dono da base, sem a marca do apagamento, é recusado.
+    const comoDono = (q: ReturnType<typeof sql>) =>
+      comComerciante(base.dono, s.c, (trx) => q.execute(trx));
+    await expect(
+      comoDono(sql`update aviso_transportadora set corpo = 'outro'
+        where id = ${aviso}::uuid`),
+    ).rejects.toThrow(/shipping\.immutable/);
+    await expect(
+      comoDono(sql`delete from aviso_transportadora where id = ${aviso}::uuid`),
+    ).rejects.toThrow(/shipping\.immutable/);
+    await expect(
+      comoDono(sql`update aviso_transportadora set resultado = 'erro'
+        where id = ${aviso}::uuid`),
+    ).rejects.toThrow(/shipping\.immutable: um aviso tratado não muda/);
+  });
+
   it("duas pessoas a pedir a etiqueta ao mesmo tempo: a transportadora recebe um pedido só", async () => {
     const s = await cenario();
     ctt.estado.pedir = "emitir";
