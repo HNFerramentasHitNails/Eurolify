@@ -4748,7 +4748,13 @@ try {
     await caixaB.focus();
     await rp.keyboard.press("Space");
     await rp.getByRole("button", { name: "Verificar" }).focus();
-    await rp.keyboard.press("Enter");
+    // A verificação leva o foco para o resultado quando volta: só depois se
+    // passa ao botão de publicar.
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.keyboard.press("Enter"),
+    ]);
+    await rp.getByText("Pode publicar", { exact: true }).waitFor();
     await rp.getByRole("button", { name: "Publicar outra vez" }).focus();
     await rp.keyboard.press("Enter");
     await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
@@ -4776,7 +4782,10 @@ try {
       .click();
     await caixaB.waitFor();
     await caixaB.uncheck();
-    await rp.getByRole("button", { name: "Verificar" }).click();
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
     await rp.getByText("Pode publicar", { exact: true }).waitFor();
     {
       const base = abrirBase(urlDaPreparacaoTexto);
@@ -4808,7 +4817,10 @@ try {
 
     // A resposta perdida: a publicação grava-se e chega um 502 sem corpo; o
     // ecrã relê e dá-a por feita (§27.2).
-    await rp.getByRole("button", { name: "Verificar" }).click();
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
     await rp.getByText("Pode publicar", { exact: true }).waitFor();
     await rp.route("**/hub/products/*/publications", async (r) => {
       if (r.request().method() !== "POST") return r.continue();
@@ -4848,7 +4860,10 @@ try {
         }),
       }),
     );
-    await rp.getByRole("button", { name: "Verificar" }).click();
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
     await rp.getByText("Ainda não pode publicar:").waitFor();
     await rp.unroute("**/hub/products/*/publications/check");
     confere(
@@ -4896,7 +4911,10 @@ try {
         (await rp.getByLabel("ENS-041-B", { exact: true }).isChecked()),
       "publicar: num par sem publicação, as variantes activas vêm todas marcadas",
     );
-    await rp.getByRole("button", { name: "Verificar" }).click();
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
     await rp.getByRole("button", { name: "Publicar", exact: true }).click();
     await rp
       .getByText("Publicado em Revenda · Portugal.", { exact: true })
