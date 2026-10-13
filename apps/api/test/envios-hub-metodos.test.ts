@@ -332,5 +332,89 @@ describe.skipIf(URL_BASE === undefined)(
         ),
       ).toEqual([404, "checkout.not_found"]);
     });
+    it("uma conta por testar recusa-se; um método arquivado cuja conta deixou de estar pronta reactiva-se com «Manual» (revisão do #413, P2-1)", async () => {
+      const { id: rascunho } = (await ok(
+        como("dono", "POST", "/hub/carrier-accounts", {
+          transportadora: "sendcloud",
+          nome: "Por testar",
+          remetente: {
+            nome: "Armazém",
+            linha1: "Rua 1",
+            codigo_postal: "1000-001",
+            localidade: "Lisboa",
+            pais: "PT",
+          },
+        }),
+        201,
+      )) as { id: string };
+      expect(
+        await codigo(
+          como("gestor", "POST", "/hub/shipping-methods", {
+            mercado,
+            nome: { pt: "x" },
+            tarifa: 1,
+            conta: rascunho,
+            servico: SERVICO_DE_TESTE,
+          }),
+        ),
+      ).toEqual([422, "shipping.account_not_ready"]);
+      // O método da conta pronta: arquiva-se, e depois arquiva-se a conta.
+      const m = (await metodos()).find((x) => x["conta"] !== null) ?? {};
+      const id = String(m["id"]);
+      const conta = String(m["conta"]);
+      let versao = Number(m["versao"]);
+      await ok(
+        como("gestor", "PATCH", `/hub/shipping-methods/${id}`, {
+          versao,
+          estado: "arquivado",
+        }),
+        204,
+      );
+      versao += 1;
+      const lida = (
+        (await ok(como("dono", "GET", "/hub/carrier-accounts")))[
+          "dados"
+        ] as Json[]
+      ).find((x) => x["id"] === conta);
+      await ok(
+        como("dono", "PATCH", `/hub/carrier-accounts/${conta}`, {
+          versao: Number(lida?.["versao"]),
+          arquivar: true,
+        }),
+      );
+      expect(
+        await codigo(
+          como("gestor", "PATCH", `/hub/shipping-methods/${id}`, {
+            versao,
+            estado: "activo",
+          }),
+        ),
+      ).toEqual([422, "shipping.account_not_ready"]);
+      // «Manual» e reactivar no mesmo pedido: passa.
+      await ok(
+        como("gestor", "PATCH", `/hub/shipping-methods/${id}`, {
+          versao,
+          conta: null,
+          servico: null,
+          estado: "activo",
+        }),
+        204,
+      );
+      expect((await metodos()).find((x) => x["id"] === id)).toMatchObject({
+        conta: null,
+        servico: null,
+        estado: "activo",
+      });
+    });
+
+    it("as leituras não ficam em cache e sem sessão não se chega", async () => {
+      const r = await como("apoio", "GET", "/hub/shipping-methods");
+      expect(r.statusCode).toBe(200);
+      expect(r.headers["cache-control"]).toBe("private, no-store");
+      const sem = await h.pedir("GET", "/hub/shipping-methods", {
+        comerciante: a,
+      });
+      expect(sem.statusCode).toBe(401);
+    });
   },
 );

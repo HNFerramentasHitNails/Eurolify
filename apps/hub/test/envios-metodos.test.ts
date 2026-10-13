@@ -3,6 +3,7 @@ import { ErroHub, type MetodoEntrega, type ServicoConta } from "../src/api";
 import {
   camposMudados,
   conferirMetodo,
+  erroDaEmbalagem,
   erroDoMetodo,
   metodosAMostrar,
   nomeNaLingua,
@@ -197,5 +198,19 @@ describe("métodos de entrega no Hub", () => {
       "metodosConflito",
     );
     expect(erro("outro.codigo")).toBeInstanceOf(ErroHub);
+    // O que não se encontra depende do ecrã (revisão do #413, P2-4).
+    const naoEncontrado = (codigo: string) =>
+      new ErroHub(404, codigo, {}, undefined, undefined);
+    expect(
+      (erroDoMetodo(naoEncontrado("checkout.not_found"), true) as ErroDoEcra)
+        .chave,
+    ).toBe("metodosMercadoNaoExiste");
+    expect(
+      (erroDoMetodo(naoEncontrado("checkout.not_found")) as ErroDoEcra).chave,
+    ).toBe("metodosNaoExiste");
+    expect(
+      (erroDaEmbalagem(naoEncontrado("shipping.not_found")) as ErroDoEcra)
+        .chave,
+    ).toBe("embalagemNaoExiste");
   });
 });

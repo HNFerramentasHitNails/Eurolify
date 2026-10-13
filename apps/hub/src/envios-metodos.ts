@@ -207,17 +207,32 @@ const TEXTO_DO_CODIGO: Record<string, keyof Textos> = {
   "shipping.account_not_ready": "metodosContaNaoPronta",
   "shipping.service_unknown": "metodosServicoDesconhecido",
   "shipping.invalid_field": "metodosServicoNaoServe",
+  // Num método, o que os envios não encontram é a conta.
   "shipping.not_found": "metodosContaNaoExiste",
   "checkout.version_conflict": "metodosConflito",
-  "checkout.not_found": "metodosNaoExiste",
+};
+
+const mapear = (e: unknown, mapa: Record<string, keyof Textos>) => {
+  if (!(e instanceof ErroHub) || e.codigo === undefined) return e;
+  const chave = mapa[e.codigo];
+  return chave === undefined ? e : new ErroDoEcra(chave);
 };
 
 /**
  * Um erro do servidor ao gravar um método, no texto deste ecrã: os códigos
- * dos envios querem dizer outra coisa aqui do que no ecrã da conta.
+ * dos envios querem dizer outra coisa aqui do que no ecrã da conta. Ao
+ * criar, o que o checkout não encontra é o mercado; ao mudar, o método.
  */
-export function erroDoMetodo(e: unknown): unknown {
-  if (!(e instanceof ErroHub) || e.codigo === undefined) return e;
-  const chave = TEXTO_DO_CODIGO[e.codigo];
-  return chave === undefined ? e : new ErroDoEcra(chave);
+export function erroDoMetodo(e: unknown, criar = false): unknown {
+  return mapear(e, {
+    ...TEXTO_DO_CODIGO,
+    "checkout.not_found": criar
+      ? "metodosMercadoNaoExiste"
+      : "metodosNaoExiste",
+  });
+}
+
+/** Um erro ao guardar a embalagem: o que não se encontra é o armazém. */
+export function erroDaEmbalagem(e: unknown): unknown {
+  return mapear(e, { "shipping.not_found": "embalagemNaoExiste" });
 }

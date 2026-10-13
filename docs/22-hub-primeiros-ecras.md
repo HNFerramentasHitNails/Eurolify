@@ -2428,6 +2428,34 @@ Eurolify», e o ecrã di-lo.
     `shipping.account_not_ready` quer dizer «a conta escolhida não está
     pronta», e não «as credenciais».
 - **Testes:**
-  - `test/envios-hub-metodos.test.ts` (API, 4);
+  - `test/envios-hub-metodos.test.ts` (API, 6);
   - `test/envios-metodos.test.ts` (Hub, 5);
   - as capturas criam um método «Manual» e põem a embalagem.
+
+**Revisão do agente** (Claude Sonnet 5.5, publicada no #413): 0 P0, 0 P1 e
+4 P2, todos corrigidos.
+- **P2-1:** um método arquivado também se muda. Se a conta dele deixou de
+  estar pronta, escolhe-se outra, ou «Manual», antes de reactivar. Há um
+  teste da API para isto.
+- **P2-2:** num conflito, o que a pessoa escreveu fica no formulário; só
+  «Tentar outra vez» o substitui pela versão actual.
+- **P2-3:** a embalagem soma-se ao peso na etiqueta. O texto já não diz que
+  conta para o peso máximo dos métodos: o checkout só soma as variantes.
+- **P2-4:** o texto de «não encontrado» depende do ecrã (o mercado ao criar,
+  o método ao mudar, o armazém na embalagem).
+- Também corrigidos:
+  - a ajuda dos campos continua ligada quando o campo está errado;
+  - o campo corrigido deixa de estar marcado;
+  - os mercados arquivados não se oferecem num método novo.
+
+**Desvios do §31, declarados:**
+- **Os números ONU:** a rota do Hub aceita `aceita_onu`, como a da chave,
+  porque o corpo é o mesmo. O ecrã nunca o envia.
+- **A embalagem:** a lista mostra o armazém sem o nome da loja.
+- **Os prefixos:** não há um exemplo por país, só o exemplo geral da ajuda.
+- **Os estados do §31.5 sem prova** nas capturas nem em testes do ecrã:
+  - o conflito, a recusa do servidor e o armazém só a ver;
+  - a passagem só com o teclado.
+
+  As capturas fazem o caminho normal: vazio, criar «Manual», sem contas
+  prontas e a embalagem.

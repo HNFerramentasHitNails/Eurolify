@@ -1246,7 +1246,7 @@ export const es: Textos = {
   metodosMetodoTitulo: "Método de entrega",
   metodosNaoExiste: "Este método no existe o no es de este comerciante.",
   metodosArquivado:
-    "El método está archivado: el checkout no lo ofrece. Reactívelo para cambiarlo.",
+    "El método está archivado: el checkout no lo ofrece. Puede cambiarlo y reactivarlo. Si su cuenta ya no está lista, elija otra (o «Manual») y guarde antes de reactivar.",
   metodosContaIndisponivel:
     "La cuenta de este método no está lista (por probar o archivada): el checkout no ofrece el método hasta que la cuenta vuelva a pasar la prueba, o hasta elegir otra.",
   metodosSoVer: "Su rol solo ve los envíos: los campos no se cambian.",
@@ -1314,10 +1314,10 @@ export const es: Textos = {
   metodosServicoNaoServe:
     "El servicio no sirve para este método: compruebe si entrega en todos los países del mercado, el peso máximo y si pide teléfono.",
   metodosConflito:
-    "El método cambió mientras tanto. Recargue para ver la versión actual.",
+    "El método cambió mientras tanto. Lo que escribió sigue en el formulario; «Intentar de nuevo» carga la versión actual y lo sustituye.",
   embalagemTitulo: "Embalaje",
   embalagemExplicacao:
-    "El peso del embalaje de cada almacén, en gramos. Se suma al peso de las variantes en la etiqueta y cuenta para el peso máximo de los métodos.",
+    "El peso del embalaje de cada almacén, en gramos. Se suma al peso de las variantes en la etiqueta.",
   embalagemSemArmazens:
     "Aún no hay almacenes. Los almacenes se crean en el stock.",
   embalagemArquivado: "Almacén archivado.",
@@ -1325,4 +1325,7 @@ export const es: Textos = {
   embalagemErrada:
     "El peso del embalaje es un número de gramos de 0 a 100 000.",
   embalagemGuardada: "Guardado: {g} g.",
+  metodosMercadoNaoExiste:
+    "Este mercado ya no existe. Recargue la página y elija otro.",
+  embalagemNaoExiste: "Este almacén ya no existe o no es de este comerciante.",
 };

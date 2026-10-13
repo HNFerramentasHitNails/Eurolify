@@ -1231,7 +1231,7 @@ export const en: Textos = {
   metodosNaoExiste:
     "This method does not exist or does not belong to this merchant.",
   metodosArquivado:
-    "The method is archived: the checkout does not offer it. Reactivate it to change it.",
+    "The method is archived: the checkout does not offer it. You can change and reactivate it. If its account is no longer ready, choose another (or «Manual») and save before reactivating.",
   metodosContaIndisponivel:
     "This method's account is not ready (not tested or archived): the checkout does not offer the method until the account passes the test again, or another is chosen.",
   metodosSoVer:
@@ -1298,10 +1298,10 @@ export const en: Textos = {
   metodosServicoNaoServe:
     "The service does not fit this method: check that it delivers to every country of the market, the maximum weight and whether it needs a phone.",
   metodosConflito:
-    "The method changed in the meantime. Reload to see the current version.",
+    "The method changed in the meantime. What you wrote is still in the form; «Try again» loads the current version and replaces it.",
   embalagemTitulo: "Packaging",
   embalagemExplicacao:
-    "The packaging weight of each warehouse, in grams. It is added to the variants' weight on the label, and counts towards the methods' maximum weight.",
+    "The packaging weight of each warehouse, in grams. It is added to the variants' weight on the label.",
   embalagemSemArmazens:
     "There are no warehouses yet. Warehouses are created in stock.",
   embalagemArquivado: "Archived warehouse.",
@@ -1309,4 +1309,8 @@ export const en: Textos = {
   embalagemErrada:
     "The packaging weight is a number of grams from 0 to 100,000.",
   embalagemGuardada: "Saved: {g} g.",
+  metodosMercadoNaoExiste:
+    "This market no longer exists. Reload the page and choose another.",
+  embalagemNaoExiste:
+    "This warehouse no longer exists or does not belong to this merchant.",
 };

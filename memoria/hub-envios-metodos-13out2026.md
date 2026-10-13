@@ -17,11 +17,17 @@ desenho do `docs/22` §31 (issue #393, pedido #413).
   reactivar. A embalagem tem uma linha por armazém.
 - **Os números ONU não se mudam pelo Hub:** a classificação é de um
   profissional (L9).
+- **Revisão do agente** (Sonnet 5.5, no #413): 4 P2, todos corrigidos. São
+  estes:
+  - a reactivação com a conta indisponível;
+  - o conflito que apagava o que a pessoa escreveu;
+  - um texto que prometia demais sobre a embalagem;
+  - o texto de «não encontrado».
 
 ## Números (com data e como se contaram)
 
 - 13/10/2026, local:
-  - 4 testes da API (`test/envios-hub-metodos.test.ts`), verdes;
+  - 6 testes da API (`test/envios-hub-metodos.test.ts`), verdes;
   - 230 testes do Hub, verdes.
 
 ## O que ficou por verificar

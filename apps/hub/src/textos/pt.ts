@@ -1232,7 +1232,7 @@ export const pt = {
   metodosMetodoTitulo: "Método de entrega",
   metodosNaoExiste: "Este método não existe ou não é deste comerciante.",
   metodosArquivado:
-    "O método está arquivado: o checkout não o oferece. Reactive-o para o mudar.",
+    "O método está arquivado: o checkout não o oferece. Pode mudá-lo e reactivá-lo. Se a conta dele já não estiver pronta, escolha outra (ou «Manual») e guarde antes de reactivar.",
   metodosContaIndisponivel:
     "A conta deste método não está pronta (por testar ou arquivada): o checkout não oferece o método até a conta voltar a passar o teste, ou até escolher outra.",
   metodosSoVer: "O seu papel só vê os envios: os campos não se mudam.",
@@ -1299,15 +1299,18 @@ export const pt = {
   metodosServicoNaoServe:
     "O serviço não serve este método: confira se entrega em todos os países do mercado, o peso máximo e se pede telefone.",
   metodosConflito:
-    "O método mudou entretanto. Recarregue para ver a versão actual.",
+    "O método mudou entretanto. O que escreveu continua no formulário; «Tentar outra vez» carrega a versão actual e substitui-o.",
   embalagemTitulo: "Embalagem",
   embalagemExplicacao:
-    "O peso da embalagem de cada armazém, em gramas. Soma-se ao peso das variantes na etiqueta, e conta para o peso máximo dos métodos.",
+    "O peso da embalagem de cada armazém, em gramas. Soma-se ao peso das variantes na etiqueta.",
   embalagemSemArmazens: "Ainda não há armazéns. Os armazéns criam-se no stock.",
   embalagemArquivado: "Armazém arquivado.",
   embalagemGramas: "Peso da embalagem, em gramas (0 a 100 000)",
   embalagemErrada: "O peso da embalagem é um número de gramas de 0 a 100 000.",
   embalagemGuardada: "Guardado: {g} g.",
+  metodosMercadoNaoExiste:
+    "Este mercado já não existe. Recarregue a página e escolha outro.",
+  embalagemNaoExiste: "Este armazém já não existe ou não é deste comerciante.",
 };
 
 export type Textos = typeof pt;

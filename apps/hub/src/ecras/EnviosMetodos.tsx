@@ -20,6 +20,7 @@ import {
   camposMudados,
   conferirMetodo,
   EMBALAGEM_MAXIMA_G,
+  erroDaEmbalagem,
   erroDoMetodo,
   metodosAMostrar,
   nomeNaLingua,
@@ -468,7 +469,9 @@ export function MetodoEntregaFormulario({
 
   const gere = ambitoDe(dados?.eu, c, "shipping:write");
   const arquivado = metodo?.estado === "arquivado";
-  const soLeitura = !gere || arquivado;
+  // Um método arquivado também se muda: a conta dele pode ter deixado de
+  // estar pronta, e só se reactiva com outra (revisão do #413, P2-1).
+  const soLeitura = !gere;
   const prontas = (dados?.contas ?? []).filter(
     (x) => x.estado === "pronta" || x.id === metodo?.conta,
   );
@@ -491,11 +494,20 @@ export function MetodoEntregaFormulario({
     falhaAccao === null ? null : mensagemDeErro(falhaAccao, t, lingua);
   const mudar = (parte: Partial<FormularioMetodo>) => {
     setF((x) => ({ ...x, ...parte }));
+    // O campo corrigido deixa de estar marcado.
+    if (invalido !== null && invalido in parte) setInvalido(null);
   };
-  const invalidoEm = (campo: CampoMetodo) =>
-    invalido === campo
-      ? { "aria-invalid": true as const, "aria-describedby": "erro-metodo" }
-      : {};
+  /** O campo errado aponta para o erro, sem perder a ajuda dele. */
+  const descrito = (campo: CampoMetodo, ajuda?: string) => {
+    const ids = [
+      ...(invalido === campo ? ["erro-metodo"] : []),
+      ...(ajuda === undefined ? [] : [ajuda]),
+    ];
+    return {
+      ...(invalido === campo ? { "aria-invalid": true as const } : {}),
+      ...(ids.length === 0 ? {} : { "aria-describedby": ids.join(" ") }),
+    };
+  };
 
   /** Uma escrita: o erro fica junto, e o método relê-se no fim. */
   const correr = async (
@@ -506,6 +518,7 @@ export function MetodoEntregaFormulario({
     setSucesso(null);
     setFalhaAccao(null);
     setConflito(false);
+    let houveConflito = false;
     try {
       const texto = await fn();
       setSucesso(texto);
@@ -515,10 +528,10 @@ export function MetodoEntregaFormulario({
         navegar("/entrar", { substituir: true });
         return;
       }
-      setConflito(
+      houveConflito =
         mostrar instanceof ErroHub &&
-          mostrar.codigo === "checkout.version_conflict",
-      );
+        mostrar.codigo === "checkout.version_conflict";
+      setConflito(houveConflito);
       // Sem resposta, o método pode ter ficado criado: o Hub não repete
       // sozinho (docs/22 §31.3).
       setFalhaAccao(
@@ -526,11 +539,13 @@ export function MetodoEntregaFormulario({
           mostrar instanceof ErroHub &&
           (mostrar.estado === 0 || mostrar.estado >= 500)
           ? new ErroDoEcra("metodosTalvezCriado")
-          : erroDoMetodo(mostrar),
+          : erroDoMetodo(mostrar, novo),
       );
     } finally {
       setOcupado(false);
-      if (!novo) await carregar();
+      // Num conflito, o que a pessoa escreveu fica à vista; só «Tentar outra
+      // vez» relê a versão actual e o substitui (revisão do #413, P2-2).
+      if (!novo && !houveConflito) await carregar();
     }
   };
 
@@ -540,6 +555,7 @@ export function MetodoEntregaFormulario({
     const r = conferirMetodo(f, mk.lingua_principal, casas);
     if (r.campos === null) {
       setInvalido(r.falta.campo);
+      setConflito(false);
       setSucesso(null);
       setFalhaAccao(new ErroDoEcra(r.falta.texto));
       return;
@@ -686,11 +702,16 @@ export function MetodoEntregaFormulario({
                     mudar({ servico: "" });
                   }}
                 >
-                  {mercados.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {`${m.nome} (${m.paises.join(", ")} · ${m.moeda})`}
-                    </option>
-                  ))}
+                  {mercados
+                    .filter(
+                      (m) =>
+                        m.estado !== "arquivado" || m.id === metodo?.mercado,
+                    )
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {`${m.nome} (${m.paises.join(", ")} · ${m.moeda})`}
+                      </option>
+                    ))}
                 </select>
                 <p className="secundario" id="metodo-mercado-ajuda">
                   {metodo === null
@@ -717,9 +738,7 @@ export function MetodoEntregaFormulario({
                       maxLength={200}
                       value={f.nome[l] ?? ""}
                       required={l === mk?.lingua_principal}
-                      {...(l === mk?.lingua_principal
-                        ? invalidoEm("nome")
-                        : {})}
+                      {...(l === mk?.lingua_principal ? descrito("nome") : {})}
                       onChange={(e) => {
                         mudar({ nome: { ...f.nome, [l]: e.target.value } });
                       }}
@@ -761,7 +780,7 @@ export function MetodoEntregaFormulario({
                   autoComplete="off"
                   value={f.tarifa}
                   required
-                  {...invalidoEm("tarifa")}
+                  {...descrito("tarifa")}
                   onChange={(e) => {
                     mudar({ tarifa: e.target.value });
                   }}
@@ -776,8 +795,7 @@ export function MetodoEntregaFormulario({
                   inputMode="decimal"
                   autoComplete="off"
                   value={f.gratis}
-                  aria-describedby="metodo-gratis-ajuda"
-                  {...invalidoEm("gratis")}
+                  {...descrito("gratis", "metodo-gratis-ajuda")}
                   onChange={(e) => {
                     mudar({ gratis: e.target.value });
                   }}
@@ -843,8 +861,7 @@ export function MetodoEntregaFormulario({
                         id="metodo-servico"
                         value={f.servico}
                         required
-                        aria-describedby="metodo-servico-ajuda"
-                        {...invalidoEm("servico")}
+                        {...descrito("servico", "metodo-servico-ajuda")}
                         onChange={(e) => {
                           const s = doMercado.find(
                             (x) => x.codigo === e.target.value,
@@ -891,8 +908,7 @@ export function MetodoEntregaFormulario({
                   max={30}
                   value={f.prazoMaxDias}
                   required
-                  aria-describedby="metodo-prazo-max-ajuda"
-                  {...invalidoEm("prazoMaxDias")}
+                  {...descrito("prazoMaxDias", "metodo-prazo-max-ajuda")}
                   onChange={(e) => {
                     mudar({ prazoMaxDias: e.target.value });
                   }}
@@ -909,8 +925,7 @@ export function MetodoEntregaFormulario({
                   autoComplete="off"
                   spellCheck={false}
                   value={f.prefixos}
-                  aria-describedby="metodo-prefixos-ajuda"
-                  {...invalidoEm("prefixos")}
+                  {...descrito("prefixos", "metodo-prefixos-ajuda")}
                   onChange={(e) => {
                     mudar({ prefixos: e.target.value });
                   }}
@@ -927,8 +942,7 @@ export function MetodoEntregaFormulario({
                   inputMode="numeric"
                   min={1}
                   value={f.pesoMaxG}
-                  aria-describedby="metodo-peso-ajuda"
-                  {...invalidoEm("pesoMaxG")}
+                  {...descrito("pesoMaxG", "metodo-peso-ajuda")}
                   onChange={(e) => {
                     mudar({ pesoMaxG: e.target.value });
                   }}
@@ -1028,7 +1042,7 @@ function LinhaEmbalagem({
           navegar("/entrar", { substituir: true });
           return;
         }
-        setFalha(erroDoMetodo(mostrar));
+        setFalha(erroDaEmbalagem(mostrar));
       } finally {
         setOcupado(false);
         await depois();
