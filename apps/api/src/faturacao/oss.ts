@@ -272,6 +272,11 @@ export interface DocumentoLido {
 export interface Classificacao {
   linhas: { balde: Balde; pais: string }[];
   data: string | null;
+  /**
+   * Uma prova sem linhas declarada à parte (docs/37 §11; P3-7): sai dos
+   * baldes e o valor declara-se à mão a partir do documento.
+   */
+  a_parte?: boolean;
   /** Quem decidiu e quando (dia, Lisboa): só nos registos (P3-6). */
   decidido_por?: string;
   decidido_em?: string;
@@ -339,6 +344,12 @@ export interface Relatorio {
       total: number;
     }[];
     por_emitir: { documento: string; encomenda: string; estado: string }[];
+    /**
+     * As provas sem linhas que o dono declarou à parte (docs/37 §11): fora
+     * dos baldes; o valor declara-se à mão a partir do documento. Ausente
+     * nas fotografias de antes da migração 0089.
+     */
+    declarados?: DeclaradoAParte[];
   };
   limiar: {
     ano: string;
@@ -382,7 +393,7 @@ async function lerDocumentos(
       p.linhas, ${CONTEUDO_RESUMIDO} as conteudo,
       case when k.documento_id is null then null else jsonb_build_object(
         'linhas', k.linhas, 'data', to_char(k.data, 'YYYY-MM-DD'),
-        'decidido_por', k.decidido_por,
+        'a_parte', k.a_parte, 'decidido_por', k.decidido_por,
         'decidido_em', to_char((k.decidido_em at time zone 'Europe/Lisbon')::date, 'YYYY-MM-DD'))
         end as classificacao
     from documento_fiscal d
@@ -500,6 +511,17 @@ function somar<T extends LinhaRelatorio>(
 }
 
 /** O que entrou num fecho por documento (P4; os registos, P2-2). */
+export interface DeclaradoAParte {
+  documento: string;
+  tipo: string;
+  numero: string;
+  data: string;
+  /** O período fechado a que pertencia, se chegou depois (P1-B). */
+  alteracao_de: string | null;
+  decidido_por: string;
+  decidido_em: string;
+}
+
 export interface Incluido {
   id: string;
   periodo_original: string;
@@ -552,6 +574,7 @@ export function agregar(
   const alteracoes = new Map<string, Alteracao>();
   const vistos = new Map<string, Set<string>>();
   const incluidos: Incluido[] = [];
+  const declarados: DeclaradoAParte[] = [];
   for (const d of docs) {
     if (d.data === null) {
       impedir("sem_data", d.id);
@@ -565,6 +588,21 @@ export function agregar(
     }
     if (d.estado === "divergente") {
       impedir("divergente", d.id);
+      continue;
+    }
+    // Declarado à parte pelo dono (docs/37 §11): fora dos baldes, uma vez
+    // só, e como alteração se o período dele já fechou.
+    if (d.classificacao?.a_parte === true) {
+      declarados.push({
+        documento: `inv_${d.id}`,
+        tipo: d.tipo,
+        numero: d.numero,
+        data: d.data,
+        alteracao_de: noPeriodo ? null : original,
+        decidido_por: d.classificacao.decidido_por ?? "",
+        decidido_em: d.classificacao.decidido_em ?? "",
+      });
+      incluidos.push({ id: d.id, periodo_original: original, linhas: [] });
       continue;
     }
     const { linhas, impedimento } = linhasDe(d, paisEntidade);
@@ -610,7 +648,7 @@ export function agregar(
       linhas,
     };
   });
-  return { baldes, alteracoes, impedimentos, impedir, incluidos };
+  return { baldes, alteracoes, impedimentos, impedir, incluidos, declarados };
 }
 
 /** O limiar (§2.3): as vendas à distância que o Eurolify vê num ano civil. */
@@ -629,7 +667,12 @@ export function vendasADistancia(
       continue;
     }
     const { linhas, impedimento } = linhasDe(d, paisEntidade);
-    if (d.estado === "divergente" || impedimento !== null) {
+    // Declarado à parte (docs/37 §11): o valor não se conhece.
+    if (
+      d.estado === "divergente" ||
+      impedimento !== null ||
+      d.classificacao?.a_parte === true
+    ) {
       excluidos += 1;
       continue;
     }
@@ -707,12 +750,8 @@ async function calcular(
     ate: p.fim,
     naoDeclaradosEm: p.granularidade,
   });
-  const { baldes, alteracoes, impedimentos, impedir, incluidos } = agregar(
-    docs,
-    paisEntidade,
-    p,
-    fechados,
-  );
+  const { baldes, alteracoes, impedimentos, impedir, incluidos, declarados } =
+    agregar(docs, paisEntidade, p, fechados);
 
   // Um documento já declarado que passou depois a divergente (revisão do
   // #392, P2-8): alguém tem de o ver antes de fechar outro período.
@@ -838,6 +877,7 @@ async function calcular(
           encomenda: `ord_${x.encomenda_id}`,
           estado: x.estado,
         })),
+        declarados,
       },
       limiar: {
         ano,
@@ -1084,7 +1124,9 @@ export async function registosOss(
         }));
       }
       const porId = new Map(incluidos.map((x) => [x.id, x]));
-      const ids = incluidos.filter((x) => x.linhas.length > 0).map((x) => x.id);
+      // Os que têm prova: os com linhas e os declarados à parte (docs/37
+      // §11); as emitidas fora não têm prova e `lerDocumentos` não as lê.
+      const ids = incluidos.map((x) => x.id);
       const docs =
         ids.length === 0 ? [] : await lerDocumentos(trx, entidade, { ids });
       // Os dados da encomenda de todos os documentos numa consulta (P2-5);
@@ -1124,7 +1166,11 @@ export async function registosOss(
         const x = extraDe.get(d.id);
         const gravadas = porId.get(d.id)?.linhas ?? [];
         const sinal = d.tipo === "nota_credito" ? -1 : 1;
-        d.linhas.forEach((lp, i) => {
+        // Uma prova sem linhas declarada à parte: uma linha do documento,
+        // com as colunas da linha vazias (docs/37 §11).
+        const daProva: (LinhaDaProva | null)[] =
+          d.classificacao?.a_parte === true ? [null] : d.linhas;
+        daProva.forEach((lp, i) => {
           const lb = gravadas[i];
           const expedida = x?.data_expedicao != null;
           linhas.push(
@@ -1141,11 +1187,11 @@ export async function registosOss(
               celula(d.nome),
               celula(lb?.pais ?? null),
               celula(lb?.balde ?? null),
-              celula(lp.descricao),
-              celula(lp.quantidade, "numero"),
-              celula(euros(sinal * lp.base), "numero"),
-              celula(taxaEmTexto(lp.taxa), "numero"),
-              celula(euros(sinal * lp.iva), "numero"),
+              celula(lp?.descricao ?? null),
+              celula(lp?.quantidade ?? null, "numero"),
+              celula(lp === null ? null : euros(sinal * lp.base), "numero"),
+              celula(lp === null ? null : taxaEmTexto(lp.taxa), "numero"),
+              celula(lp === null ? null : euros(sinal * lp.iva), "numero"),
               celula(d.conteudo.moeda),
               celula(x?.data_pagamento ?? null),
               celula(
@@ -1160,7 +1206,13 @@ export async function registosOss(
               celula(x?.entrega_pais ?? null),
               celula(x?.entrega_cp ?? null),
               celula(x?.devolucao == null ? null : `rma_${x.devolucao}`),
-              celula(d.classificacao == null ? "nao" : "sim"),
+              celula(
+                d.classificacao == null
+                  ? "nao"
+                  : d.classificacao.a_parte === true
+                    ? "a_parte"
+                    : "sim",
+              ),
               celula(d.classificacao?.data ?? null),
               celula(d.classificacao?.decidido_por ?? null),
               celula(d.classificacao?.decidido_em ?? null),
@@ -1295,12 +1347,21 @@ export async function classificarOss(
   c: string,
   documento: string,
   dados: {
-    linhas: { balde: Balde; pais: string }[];
+    /** Uma por linha da prova; ou `a_parte`, numa prova sem linhas. */
+    linhas?: { balde: Balde; pais: string }[];
+    a_parte?: boolean;
     data?: string;
     motivo: string;
   },
   quem: string,
 ): Promise<{ documento: string; classificacao: Classificacao }> {
+  const aParte = dados.a_parte === true;
+  if (aParte === (dados.linhas !== undefined)) {
+    throw new ErroRelatorio(
+      "tax_reports.invalid",
+      "indicar as linhas, ou declarar à parte (uma prova sem linhas)",
+    );
+  }
   return noRelatorio(db, c, async (trx) => {
     const doc = await trx
       .selectFrom("documento_fiscal")
@@ -1361,10 +1422,22 @@ export async function classificarOss(
         "este documento já entrou num período fechado",
       );
     }
-    if (dados.linhas.length !== d.linhas.length) {
+    // À parte só uma prova sem linhas, depois de aceite a divergência
+    // (docs/37 §11; P3-7): nada se classifica linha a linha, e o valor
+    // declara-se à mão a partir do documento.
+    if (aParte && (d.linhas.length > 0 || d.estado !== "resolvido")) {
+      throw new ErroRelatorio(
+        "tax_reports.not_classifiable",
+        "só uma prova sem linhas, com a divergência resolvida, se declara à parte",
+      );
+    }
+    const pedidas = dados.linhas ?? [];
+    if (!aParte && pedidas.length !== d.linhas.length) {
       throw new ErroRelatorio(
         "tax_reports.invalid",
-        `a prova tem ${String(d.linhas.length)} linhas: uma classificação por linha`,
+        d.linhas.length === 0
+          ? "a prova não tem linhas: declarar à parte"
+          : `a prova tem ${String(d.linhas.length)} linhas: uma classificação por linha`,
       );
     }
     const semData = d.data_prova == null;
@@ -1393,7 +1466,7 @@ export async function classificarOss(
     // O par balde/país tem de ser coerente com o balde (docs/37 §2.1; P2-A):
     // o nacional é o país da entidade; o OSS e as intracomunitárias, outro
     // Estado-membro; a exportação, fora da UE.
-    for (const [i, l] of dados.linhas.entries()) {
+    for (const [i, l] of pedidas.entries()) {
       const naUe = PAISES_UE.has(l.pais);
       const coerente =
         l.balde === "nacional"
@@ -1410,13 +1483,14 @@ export async function classificarOss(
         );
       }
     }
-    const linhas = dados.linhas.map((l) => ({ balde: l.balde, pais: l.pais }));
+    const linhas = pedidas.map((l) => ({ balde: l.balde, pais: l.pais }));
     await trx
       .insertInto("relatorio_oss_classificacao")
       .values({
         comerciante_id: c,
         documento_id: documento,
         linhas: JSON.stringify(linhas),
+        a_parte: aParte,
         data: dados.data ?? null,
         motivo: dados.motivo,
         decidido_por: quem,
@@ -1424,7 +1498,11 @@ export async function classificarOss(
       .execute();
     return {
       documento: `inv_${documento}`,
-      classificacao: { linhas, data: dados.data ?? null },
+      classificacao: {
+        linhas,
+        data: dados.data ?? null,
+        ...(aParte ? { a_parte: true } : {}),
+      },
     };
   });
 }

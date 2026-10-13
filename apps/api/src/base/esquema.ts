@@ -2140,6 +2140,8 @@ export interface TabelaRelatorioOssClassificacao {
   motivo: ColumnType<string, string, never>;
   decidido_por: ColumnType<string, string, never>;
   decidido_em: ColumnType<Date, never, never>;
+  /** Uma prova sem linhas declarada à parte (docs/37 §11; 0089). */
+  a_parte: ColumnType<boolean, boolean | undefined, never>;
 }
 
 export interface TabelaRelatorioOssDocumento {

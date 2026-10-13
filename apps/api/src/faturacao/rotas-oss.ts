@@ -80,13 +80,17 @@ const CorpoFecho = Type.Object(
 const CorpoClassificacao = Type.Object(
   {
     documento: IdDocumento,
-    linhas: Type.Array(
-      Type.Object(
-        { balde: Balde, pais: Type.String({ pattern: "^[A-Z]{2}$" }) },
-        { additionalProperties: false },
+    linhas: Type.Optional(
+      Type.Array(
+        Type.Object(
+          { balde: Balde, pais: Type.String({ pattern: "^[A-Z]{2}$" }) },
+          { additionalProperties: false },
+        ),
+        { minItems: 1, maxItems: 500 },
       ),
-      { minItems: 1, maxItems: 500 },
     ),
+    // Uma prova sem linhas declarada à parte, em vez das linhas (docs/37 §11).
+    a_parte: Type.Optional(Type.Literal(true)),
     data: Type.Optional(Type.String({ format: "date" })),
     motivo: Type.String({ minLength: 1, maxLength: 500 }),
   },
@@ -168,7 +172,7 @@ export function rotasDoRelatorioOss(
       config: { ambito: "tax:write" },
       schema: {
         description:
-          "O dono classifica um documento que o relatório não classifica sozinho (uma fatura resolvida com as linhas da prova diferentes das do pedido, uma linha sem balde, uma prova sem data): o balde e o país de cada linha da prova, pela ordem dela; a taxa e os valores vêm sempre da prova. A data só quando a prova não a tem. Uma vez por documento; não muda.",
+          "O dono classifica um documento que o relatório não classifica sozinho (uma fatura resolvida com as linhas da prova diferentes das do pedido, uma linha sem balde, uma prova sem data): o balde e o país de cada linha da prova, pela ordem dela; a taxa e os valores vêm sempre da prova. Uma prova sem linhas, já resolvida, declara-se à parte (`a_parte: true` em vez das linhas): sai dos baldes e o valor declara-se à mão a partir do documento (docs/37 §11). A data só quando a prova não a tem. Uma vez por documento; não muda.",
         body: CorpoClassificacao,
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -176,12 +180,12 @@ export function rotasDoRelatorioOss(
     async (pedido, resposta) =>
       emRelatorio(resposta, async () => {
         const chave = chaveDo(pedido);
-        const { documento, linhas, data, motivo } = pedido.body;
+        const { documento, ...dados } = pedido.body;
         return classificarOss(
           base,
           chave.comercianteId,
           semPrefixo(documento),
-          data === undefined ? { linhas, motivo } : { linhas, data, motivo },
+          dados,
           `chave:key_${chave.chaveId}`,
         );
       }),
@@ -317,12 +321,12 @@ export function rotasDoRelatorioOss(
     async (pedido, resposta) =>
       emRelatorio(resposta, async () => {
         const s = daSessao(pedido, "tax:write");
-        const { documento, linhas, data, motivo } = pedido.body;
+        const { documento, ...dados } = pedido.body;
         return classificarOss(
           base,
           s.comercianteId,
           semPrefixo(documento),
-          data === undefined ? { linhas, motivo } : { linhas, data, motivo },
+          dados,
           s.quem,
         );
       }),
