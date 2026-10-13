@@ -31,7 +31,9 @@ Pedido do Diogo, 12/10/2026: *«depois avança com a parte B dos envios»*
 
 - A API dos CTT (V1 a V5 do `docs/36`).
 - Sem teste:
-  - o apagamento do titular a levar a etiqueta e a limpar avisos e eventos;
+  - ~~o apagamento do titular a levar a etiqueta e a limpar avisos e
+    eventos~~ — testado a 13/10/2026 (0083), com o que chega depois do
+    apagamento a entrar sem o nome (`docs/36`, «Testado depois»);
   - o problema da incerta sem resposta há um dia;
   - um evento que o armazém recuse (o ponto de retorno);
   - o resumo dos avisos aos 30 dias.
