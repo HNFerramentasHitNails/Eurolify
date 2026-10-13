@@ -24,15 +24,18 @@ export function variantesActivas(variantes: readonly VarianteArtigo[]) {
 
 /**
  * As variantes que vêm marcadas ao abrir (Q1, §27.5): num par sem publicação,
- * todas as activas; numa publicação que existe, só as que não estão em
- * `variantes_fora` — a que nasceu fora ou que alguém tirou não entra numa
- * loja sem alguém a escolher.
+ * todas as activas; numa publicada, só as que não estão em `variantes_fora`
+ * — a que nasceu fora ou que alguém tirou não entra numa loja sem alguém a
+ * escolher. Numa que não está à venda (arquivada ou em rascunho), nenhuma: a
+ * base não marca como fora a variante acrescentada entretanto, e escolhe-se
+ * uma a uma o que volta à venda (Diogo, 13/10/2026: «A»; docs/22 §27.5).
  */
 export function escolhaInicial(
   activas: readonly string[],
-  publicacao: Pick<PublicacaoArtigo, "variantes_fora"> | null,
+  publicacao: Pick<PublicacaoArtigo, "variantes_fora" | "estado"> | null,
 ): string[] {
   if (publicacao === null) return [...activas];
+  if (publicacao.estado !== "publicado") return [];
   return activas.filter((v) => !publicacao.variantes_fora.includes(v));
 }
 

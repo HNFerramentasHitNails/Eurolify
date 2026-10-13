@@ -4966,6 +4966,17 @@ try {
       "publicar: retirar pergunta antes e a publicação fica arquivada",
     );
 
+    // Numa publicação que já não está à venda, nenhuma variante vem
+    // marcada (Diogo, 13/10/2026: «A»; docs/22 §27.5).
+    await rp
+      .getByRole("link", { name: "Rever a publicação de Revenda · Portugal" })
+      .click();
+    await rp.getByLabel("ENS-041-B", { exact: true }).waitFor();
+    confere(
+      !(await rp.getByLabel("ENS-041", { exact: true }).isChecked()) &&
+        !(await rp.getByLabel("ENS-041-B", { exact: true }).isChecked()),
+      "publicar: numa publicação retirada, nenhuma variante vem marcada",
+    );
     // Sem catalog:publish: nem as acções na ficha nem a página.
     await rp.route("**/hub/me", async (r) => {
       const resposta = await r.fetch();

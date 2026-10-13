@@ -32,11 +32,26 @@ describe("as variantes que vêm marcadas", () => {
   });
 
   it("numa publicação que existe, as que estão fora não vêm marcadas (Q1)", () => {
-    expect(escolhaInicial([A, B], { variantes_fora: [B] })).toEqual([A]);
+    expect(
+      escolhaInicial([A, B], { variantes_fora: [B], estado: "publicado" }),
+    ).toEqual([A]);
+  });
+
+  it("numa que não está à venda (arquivada ou em rascunho), nenhuma vem marcada (Diogo, 13/10/2026: «A»)", () => {
+    for (const estado of ["arquivado", "rascunho"] as const) {
+      expect(escolhaInicial([A, B], { variantes_fora: [], estado })).toEqual(
+        [],
+      );
+      expect(escolhaInicial([A, B], { variantes_fora: [B], estado })).toEqual(
+        [],
+      );
+    }
   });
 
   it("uma variante fora que já não é activa não conta", () => {
-    expect(escolhaInicial([A], { variantes_fora: [B] })).toEqual([A]);
+    expect(
+      escolhaInicial([A], { variantes_fora: [B], estado: "publicado" }),
+    ).toEqual([A]);
   });
 
   it("as que ficam por marcar vão em variantes_fora, pela ordem da ficha", () => {
