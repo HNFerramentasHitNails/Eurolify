@@ -728,8 +728,10 @@ else
     # Os prazos das contas de pessoas (migração 0026; docs/21 §13): só o
     # EXECUTE das duas funções, nenhuma tabela das contas. A contagem dos
     # ficheiros de imagem sem uso (0035), para a verificação diária (revisão
-    # do #215, P2-3).
-    for f in 'contas_aplicar_prazos()' 'contas_prazos_em_atraso()' 'ficheiros_sem_uso_em_atraso()'; do
+    # do #215, P2-3). As contagens da fila do titular e das sessões de
+    # checkout (0088; docs/23 §15.11; revisão do #433, P2-2).
+    for f in 'contas_aplicar_prazos()' 'contas_prazos_em_atraso()' 'ficheiros_sem_uso_em_atraso()' \
+      'titular_pendentes_em_atraso()' 'checkout_sessoes_em_atraso()'; do
       if [[ "$(pg_valor "SELECT to_regprocedure('public.$f') IS NOT NULL")" == t ]]; then
         if [[ "$(pg_valor "SELECT has_function_privilege('eurolify_limpeza', 'public.$f', 'EXECUTE')")" == t ]]; then
           ok "eurolify_limpeza chama $f"

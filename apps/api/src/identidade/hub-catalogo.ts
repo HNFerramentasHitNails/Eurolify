@@ -59,6 +59,7 @@ import {
   PedidoVersao,
   publicacoesDeArtigo,
   RespostaArtigos,
+  idCom,
   PublicacaoEsquema,
   ParametroPublicacao,
   paraPublicacao,
@@ -203,6 +204,14 @@ const PedidoPublicarNoHub = Type.Object(
     versao: Type.Union([Type.Integer({ minimum: 1 }), Type.Null()], {
       description:
         "A `versao` lida da publicação neste par; `null` se ainda não existe",
+    }),
+    // O tecto da importação (MAX_VARIANTES): um artigo não tem mais activas
+    // do que isso, e a lista não pode recusar um ecrã que as mostrou todas
+    // (revisão do #436, P3).
+    variantes_vistas: Type.Array(idCom("var", "var_…"), {
+      maxItems: 5000,
+      description:
+        "As variantes activas que o ecrã mostrou. Uma activa que não esteja aqui (criada com o ecrã aberto) dá 409 catalog.version_conflict, sem escrever (§27.2)",
     }),
   },
   { additionalProperties: false },
@@ -501,6 +510,7 @@ export function rotasDoCatalogoNoHub(
               variantes_fora: (corpo.variantes_fora ?? []).map(semPrefixo),
             },
             corpo.versao,
+            corpo.variantes_vistas.map(semPrefixo),
           );
           return {
             publicada: r.publicada,

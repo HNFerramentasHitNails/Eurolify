@@ -1729,7 +1729,7 @@ volta com «Publicado em Loja online · Portugal.» e a `ENS-041-B` à venda.
 |---|---|---|
 | `GET /hub/sales-pairs` | a sessão com `catalog:read` (os quatro papéis) | os pares canal × mercado do comerciante onde o canal vende, com o nome e o estado do canal, do mercado e da loja (a mesma leitura dos nomes da §18.1 e §19.1) |
 | `POST /hub/products/{id}/publications/check` | a mesma | a mesma função do `POST /products/{id}/publications/check` pela chave: a verificação (C2) com as variantes escolhidas, sem escrever |
-| `POST /hub/products/{id}/publications` | a sessão com `catalog:publish` (o dono e o gestor) | a mesma função do `POST /products/{id}/publications` (`publicar`), com o `eurolify.quem` da pessoa; o corpo é o da chave (canal, mercado, `variantes_fora`) mais a **`versao` lida** da publicação (`null` quando ainda não existe nesse par) |
+| `POST /hub/products/{id}/publications` | a sessão com `catalog:publish` (o dono e o gestor) | a mesma função do `POST /products/{id}/publications` (`publicar`), com o `eurolify.quem` da pessoa; o corpo é o da chave (canal, mercado, `variantes_fora`) mais a **`versao` lida** da publicação (`null` quando ainda não existe nesse par) e as **`variantes_vistas`** (as activas que o ecrã mostrou) |
 | `POST /hub/publications/{id}/archive` | a mesma | a mesma função do `POST /publications/{id}/archive` (`retirarPublicacao`), com a `versao` lida no corpo |
 
 - **A versão.** A publicação já tem `versao` na base (0019) e a API já a
@@ -1739,6 +1739,15 @@ volta com «Publicado em Loja online · Portugal.» e a `ENS-041-B` à venda.
   **dentro de `publicar`**, depois de a linha da publicação estar tomada
   (a ordem dos bloqueios de hoje não muda, `docs/14` §3.9). As rotas pela
   chave ficam como estão.
+- **As variantes vistas** (13/10/2026, o que ficou da revisão do #421). Uma
+  variante criada com o ecrã aberto, num par sem publicação à venda, não
+  muda a versão (só a publicada a recebe em `variantes_fora`), e entrava no
+  que se publica sem a pessoa a ver. O corpo leva as activas que o ecrã
+  mostrou; uma activa do artigo que não esteja lá dá **409
+  `catalog.version_conflict`**, sem escrever, e o ecrã relê (a nova vem por
+  marcar e diz «nova», também num par sem publicação; revisão do #436, P2). Confere-se dentro de `publicar`, depois da fila do artigo, onde
+  entra quem cria uma variante. Uma vista que entretanto foi arquivada não
+  impede.
 - **As regras são as do Catálogo, sem cópia no Hub**: a verificação (C2) é
   do servidor; com impedimentos, nada muda além da verificação guardada e a
   resposta diz `publicada: false` com a lista (o ecrã lê sempre
@@ -1758,7 +1767,7 @@ volta com «Publicado em Loja online · Portugal.» e a `ENS-041-B` à venda.
 | Onde | O que muda | Estados além do normal |
 |---|---|---|
 | **Ficha**, secção «Publicações» (§12.2, §18, §19) | Com `catalog:publish`: em cada publicação, «Rever a publicação» (rascunho, publicada ou arquivada) e, numa publicada, «Retirar», que pergunta antes («Retirar o Gel Coral 41 de Loja online · Portugal? Deixa de estar à venda nesta loja.»). Por baixo da tabela, «Publicar noutra loja» quando há pares sem publicação. Uma publicada com variantes fora diz quantas: «1 variante fora». | — |
-| **Publicação** (`/artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}`) | No topo, o canal, o mercado (com a loja quando o nome se repete, §19.2) e o estado. **As variantes**: uma caixa por variante activa, marcada se está à venda; as que estão fora dizem «fora», e uma nova diz «nova» (§27.5). **«Verificar»** pede a verificação com as escolhidas e mostra o resultado: «Pode publicar» ou a lista dos impedimentos, cada um com a frase e a ligação para onde se resolve; sempre com «A conformidade do produto ainda não é verificada.». **«Publicar»** (ou «Publicar outra vez» numa publicada) só depois de uma verificação sem impedimentos com as mesmas escolhidas; mudar uma escolha pede outra verificação. Depois de publicar, volta à ficha com «Publicado em {canal} · {mercado}.» | a verificar; a publicar; impedimentos (a lista; o botão «Publicar» não aparece); um impedimento novo no instante de publicar (`publicada: false`: a lista nova, nada mudou); conflito (409: «Outra pessoa mudou esta publicação entretanto.», com o estado e as variantes de agora; as escolhas da pessoa ficam); a resposta perdida (§27.2); sem permissão (só o aviso, sem acções); par que não existe ou em que o canal deixou de vender (só o aviso) |
+| **Publicação** (`/artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}`) | No topo, o canal, o mercado (com a loja quando o nome se repete, §19.2) e o estado. **As variantes**: uma caixa por variante activa, marcada se está à venda; as que estão fora dizem «fora», e uma nova diz «nova» (§27.5). **«Verificar»** pede a verificação com as escolhidas e mostra o resultado: «Pode publicar» ou a lista dos impedimentos, cada um com a frase e a ligação para onde se resolve; sempre com «A conformidade do produto ainda não é verificada.». **«Publicar»** (ou «Publicar outra vez» numa publicada) só depois de uma verificação sem impedimentos com as mesmas escolhidas; mudar uma escolha pede outra verificação. Depois de publicar, volta à ficha com «Publicado em {canal} · {mercado}.» | a verificar; a publicar; impedimentos (a lista; o botão «Publicar» não aparece); um impedimento novo no instante de publicar (`publicada: false`: a lista nova, nada mudou); conflito (409: «Outra pessoa mudou esta publicação ou as variantes do artigo entretanto.», com o estado e as variantes de agora; as escolhas da pessoa ficam); a resposta perdida (§27.2); sem permissão (só o aviso, sem acções); par que não existe ou em que o canal deixou de vender (só o aviso) |
 | **Publicar noutra loja** (na ficha) | Uma lista dos pares sem publicação («Loja online · Espanha»); escolher um abre a página da publicação desse par, sem nada escolhido à partida (todas as variantes activas marcadas). | sem pares: a ligação não aparece |
 
 **Os impedimentos em linguagem comum** (os códigos da API, `docs/14` §5;
@@ -1835,7 +1844,7 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
 - **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma variante vem marcada** (Diogo, 13/10/2026: *«A»*; `docs/06`, EJ): a base só põe fora a variante acrescentada a uma publicação publicada, e assim nada volta à venda sem ser escolhido (revisão do #421, P2-2).
 - **«Retirar» pergunta com a caixa do navegador** (`window.confirm`), como as outras perguntas da ficha.
 - **Os textos de `classificacao_em_falta`, `natureza_incompativel`, `familia_restrita` e `data_ou_local_em_falta`** foram escritos aqui (a §27.3 dizia «o texto do código»); a família mostra o código interno.
-- **Fica** (revisão do #421): uma variante criada enquanto o ecrã está aberto, num par sem publicação publicada, entra no que se publica se a pessoa não recarregar (o servidor grava as `variantes_fora` que o ecrã mandou; ainda passa pela verificação do preço e do peso); o aviso «Publicado em…» na ficha vem do endereço, como o «Alterações guardadas»; nenhum papel de hoje tem `catalog:write` sem `catalog:publish`, por isso o teste dos papéis não distingue os dois.
+- **Fica** (revisão do #421): ~~uma variante criada enquanto o ecrã está aberto, num par sem publicação publicada, entra no que se publica se a pessoa não recarregar~~ — tratado a 13/10/2026 com as `variantes_vistas` (§27.2); o aviso «Publicado em…» na ficha vem do endereço, como o «Alterações guardadas»; nenhum papel de hoje tem `catalog:write` sem `catalog:publish`, por isso o teste dos papéis não distingue os dois.
 
 ## 28. O ecrã «A decidir» (issue #366, parte 2)
 

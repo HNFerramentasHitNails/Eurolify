@@ -74,6 +74,8 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
   revisão do #402, P2-1). O prazo de 7 dias é **C** (jurista). Índice só
   das sessões com dados; o custo com muitas sessões não foi medido. A tarefa
   não avisa se parar (desvio ao §15.6, como a fila do titular).
+  Fechado a 13/10/2026: a verificação diária avisa as duas (`docs/23`
+  §15.11; migração 0088; memória `aviso-tarefas-que-param-13out2026.md`).
 - Parte 3: não se mediu o tamanho nem o tempo da exportação de uma pessoa
   com muitas encomendas (uma consulta por tabela e por ficha), nem se o
   planeador usa os índices da 0082 e os GIN da 0046 (sem EXPLAIN). Os montantes
