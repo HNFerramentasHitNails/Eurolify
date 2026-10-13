@@ -76,14 +76,16 @@ describe.skipIf(URL_BASE === undefined)("Envios: o aviso da tentativa", () => {
       id: string;
       estado:
         | "recolhida"
+        | "em_transito"
         | "tentativa_falhada"
         | "disponivel_para_levantar"
         | "entregue";
     }[],
+    c: Cenario = s,
   ) {
     ctt.estado.pedir = "emitir";
-    const a = await expedicaoPaga(s, s.metodoCtt, 1);
-    const e = await ok(s.adm("POST", `/shipments/${a.expedicao}/label`));
+    const a = await expedicaoPaga(c, c.metodoCtt, 1);
+    const e = await ok(c.adm("POST", `/shipments/${a.expedicao}/label`));
     ctt.estado.eventos.set(
       String(e["seguimento"]),
       eventos.map((x, i) => ({
@@ -93,7 +95,7 @@ describe.skipIf(URL_BASE === undefined)("Envios: o aviso da tentativa", () => {
         em: new Date(Date.UTC(2026, 10, 14, 11, 20 + i)),
       })),
     );
-    await ok(s.adm("POST", `/shipments/${a.expedicao}/refresh`));
+    await ok(c.adm("POST", `/shipments/${a.expedicao}/refresh`));
     return { ...a, seguimento: String(e["seguimento"]) };
   }
 
@@ -102,8 +104,9 @@ describe.skipIf(URL_BASE === undefined)("Envios: o aviso da tentativa", () => {
       await sql<{
         pessoa_id: string;
         estado: string;
+        ultimo_erro: string | null;
         dados: Json;
-      }>`select pessoa_id::text, estado, dados from notificacao
+      }>`select pessoa_id::text, estado, ultimo_erro, dados from notificacao
          where tipo = 'shipment.needs_attention'
            and dados->>'expedicao' = ${expedicao.replace(/^shp_/, "")}`.execute(
         base.dono,
@@ -125,16 +128,27 @@ describe.skipIf(URL_BASE === undefined)("Envios: o aviso da tentativa", () => {
       expect(m.assunto).toContain("não conseguiu entregar");
       expect(m.texto).toContain(a.seguimento);
       expect(m.texto).toMatch(/14\/11\/2026 11:20/);
-      for (const proibido of [
-        "Rui",
-        "Rua do Exemplo",
-        "AUSENTE",
-        "912345678",
-        "1000-001",
-      ]) {
+      expect(m.texto).toContain("transportadora (CTT)");
+      for (const proibido of ["Rui", "Exemplo", "AUSENTE"]) {
         expect(m.texto).not.toContain(proibido);
         expect(m.assunto).not.toContain(proibido);
       }
+    }
+    // Na fila só ficam estas chaves: nunca o texto da transportadora (traz
+    // aqui o nome e a morada de quem recebe), que ficaria 90 dias.
+    for (const x of avisos) {
+      expect(Object.keys(x.dados).sort()).toEqual(
+        [
+          "em",
+          "estado",
+          "expedicao",
+          "fuso",
+          "loja",
+          "seguimento",
+          "transportadora",
+        ].sort(),
+      );
+      expect(JSON.stringify(x.dados)).not.toMatch(/Rui|Exemplo|AUSENTE/);
     }
   });
 
@@ -213,6 +227,135 @@ describe.skipIf(URL_BASE === undefined)("Envios: o aviso da tentativa", () => {
       "cancelada",
       "cancelada",
     ]);
+  });
+
+  it("a encomenda que volta a andar depois da tentativa: o aviso cancela-se no envio e um evento atrasado não avisa", async () => {
+    // No mesmo lote: a tentativa grava-se antes de «em trânsito», o aviso
+    // entra na fila e cancela-se no envio (revisão do #434, P2-1).
+    const a = await comEventos([
+      { id: "r-1", estado: "recolhida" },
+      { id: "t-1", estado: "tentativa_falhada" },
+      { id: "m-1", estado: "em_transito" },
+    ]);
+    const correio = new CorreioDeEnsaio();
+    await correrNotificacoes(base.api, correio);
+    expect(
+      (await avisosDe(a.expedicao)).map((x) => [x.estado, x.ultimo_erro]),
+    ).toEqual([
+      ["cancelada", "encomenda_voltou_a_andar"],
+      ["cancelada", "encomenda_voltou_a_andar"],
+      ["cancelada", "encomenda_voltou_a_andar"],
+    ]);
+    expect(
+      correio.enviados.filter((m) => m.texto.includes(a.expedicao)),
+    ).toEqual([]);
+    // Um «para levantar» mais antigo do que o «em trânsito», que chega
+    // depois, não entra na fila.
+    ctt.estado.eventos.set(a.seguimento, [
+      {
+        idExterno: "l-0",
+        estadoTransportadora: "PONTO DE RECOLHA",
+        estadoNormalizado: "disponivel_para_levantar",
+        em: new Date(Date.UTC(2026, 10, 14, 11, 21)),
+      },
+    ]);
+    await ok(s.adm("POST", `/shipments/${a.expedicao}/refresh`));
+    expect(await avisosDe(a.expedicao)).toHaveLength(3);
+  });
+
+  it("perdida, devolvida ou cancelada antes do envio: o aviso cancela-se; depois, um evento novo não avisa", async () => {
+    for (const estado of ["perdida", "devolvida_ao_remetente", "cancelada"]) {
+      const a = await comEventos([{ id: "t-1", estado: "tentativa_falhada" }]);
+      expect(await avisosDe(a.expedicao)).toHaveLength(3);
+      const id = a.expedicao.replace(/^shp_/, "");
+      // Pelas transições da expedição (0079): perdida e devolvida só depois
+      // de expedida; cancelada antes, e com a etiqueta anulada.
+      if (estado === "cancelada") {
+        await ok(s.adm("POST", `/shipments/${a.expedicao}/label/void`));
+      }
+      await comComerciante(base.api, s.c, async (trx) => {
+        if (estado !== "cancelada") {
+          await sql`update expedicao set estado = 'expedida'
+            where id = ${id}::uuid and estado = 'criada'`.execute(trx);
+        }
+        await sql`update expedicao set estado = ${estado}
+          where id = ${id}::uuid`.execute(trx);
+      });
+      await correrNotificacoes(base.api, new CorreioDeEnsaio());
+      expect(
+        (await avisosDe(a.expedicao)).map((x) => [x.estado, x.ultimo_erro]),
+        estado,
+      ).toEqual([
+        ["cancelada", "expedicao_ja_acabou"],
+        ["cancelada", "expedicao_ja_acabou"],
+        ["cancelada", "expedicao_ja_acabou"],
+      ]);
+      await comComerciante(base.api, s.c, (trx) =>
+        sql`insert into evento_seguimento (comerciante_id, expedicao_id, origem,
+            id_externo, estado_transportadora, estado_normalizado, em)
+          select comerciante_id, id, 'consulta', 'l-1', 'PONTO DE RECOLHA',
+            'disponivel_para_levantar', now()
+          from expedicao where id = ${id}::uuid`.execute(trx),
+      );
+      expect(await avisosDe(a.expedicao), estado).toHaveLength(3);
+    }
+  });
+
+  it("quem saiu, a pessoa desactivada e quem passa a apoio: sem e-mail no envio e sem aviso novo", async () => {
+    const t = await apoio.cenario();
+    const p: Record<string, string> = {};
+    for (const [nome, papel] of [
+      ["fica", "dono"],
+      ["sai", "armazem"],
+      ["desactivada", "gestor"],
+      ["muda", "armazem"],
+    ] as const) {
+      p[nome] = (await h.pessoaCom(t.c, papel)).pessoa;
+    }
+    const a = await comEventos([{ id: "t-1", estado: "tentativa_falhada" }], t);
+    expect(await avisosDe(a.expedicao)).toHaveLength(4);
+    await sql`update membro set ate = now(), terminado_por = 'teste'
+      where comerciante_id = ${t.c}::uuid and pessoa_id = ${p["sai"] ?? ""}::uuid`.execute(
+      base.dono,
+    );
+    await sql`update pessoa set estado = 'desactivada'
+      where id = ${p["desactivada"] ?? ""}::uuid`.execute(base.dono);
+    await sql`update membro set papel = 'apoio'
+      where comerciante_id = ${t.c}::uuid and pessoa_id = ${p["muda"] ?? ""}::uuid`.execute(
+      base.dono,
+    );
+    const correio = new CorreioDeEnsaio();
+    await correrNotificacoes(base.api, correio);
+    const nome = (id: string) =>
+      Object.entries(p).find(([, v]) => v === id)?.[0] ?? id;
+    expect(
+      (await avisosDe(a.expedicao))
+        .map((x) => `${nome(x.pessoa_id)}:${x.estado}:${x.ultimo_erro ?? ""}`)
+        .sort(),
+    ).toEqual([
+      "desactivada:cancelada:destinatario_inactivo",
+      "fica:enviada:",
+      "muda:cancelada:destinatario_inactivo",
+      "sai:cancelada:destinatario_inactivo",
+    ]);
+    expect(
+      correio.enviados.filter((m) => m.texto.includes(a.expedicao)),
+    ).toHaveLength(1);
+    // Um «para levantar» depois: só quem ainda expede entra na fila.
+    ctt.estado.eventos.set(a.seguimento, [
+      {
+        idExterno: "l-1",
+        estadoTransportadora: "PONTO DE RECOLHA",
+        estadoNormalizado: "disponivel_para_levantar",
+        em: new Date("2026-11-15T09:00:00Z"),
+      },
+    ]);
+    await ok(t.adm("POST", `/shipments/${a.expedicao}/refresh`));
+    expect(
+      (await avisosDe(a.expedicao))
+        .filter((x) => x.dados["estado"] === "disponivel_para_levantar")
+        .map((x) => nome(x.pessoa_id)),
+    ).toEqual(["fica"]);
   });
 
   it("isolamento: outro comerciante não vê estas notificações; o texto em espanhol e em inglês", async () => {

@@ -399,10 +399,15 @@ function textoDaLigacao(
   return { assunto: t.assunto, texto: t.texto.join("\n") };
 }
 
-/** Um número de seguimento ou um nome de transportadora: uma linha, curta. */
+/** Um número de seguimento: uma linha, curta. */
 const curto = (t: string | null) => {
   const x = linha(t ?? undefined).slice(0, 60);
   return x === "" ? "?" : x;
+};
+
+const NOMES_DAS_TRANSPORTADORAS: Record<string, string> = {
+  ctt: "CTT",
+  sendcloud: "Sendcloud",
 };
 
 function textoDoEnvio(
@@ -412,7 +417,8 @@ function textoDoEnvio(
 ): Omit<Mensagem, "para"> {
   const shp = `shp_${d.expedicao}`;
   const seguimento = curto(d.seguimento);
-  const transportadora = curto(d.transportadora);
+  const transportadora =
+    NOMES_DAS_TRANSPORTADORAS[d.transportadora ?? ""] ?? "?";
   const quando = `${dataHora(d.em, l)} (${linha(d.fuso ?? undefined) || "?"})`;
   const levantar = d.estado === "disponivel_para_levantar";
   if (!levantar && d.estado !== "tentativa_falhada") {
@@ -427,13 +433,13 @@ function textoDoEnvio(
         "Olá,",
         "",
         levantar
-          ? `Na loja «${loja}», a ${transportadora} diz que a expedição ${shp} (seguimento ${seguimento}) está disponível para levantar desde ${quando}.`
-          : `Na loja «${loja}», a ${transportadora} diz que não conseguiu entregar a expedição ${shp} (seguimento ${seguimento}) em ${quando}.`,
+          ? `Na loja «${loja}», a transportadora (${transportadora}) diz que a expedição ${shp} (seguimento ${seguimento}) está disponível para levantar desde ${quando}.`
+          : `Na loja «${loja}», a transportadora (${transportadora}) diz que não conseguiu entregar a expedição ${shp} (seguimento ${seguimento}) em ${quando}.`,
         "Pode ser preciso falar com o cliente ou com a transportadora.",
         "",
         "Veja o seguimento no Hub, em «Expedir». Pela API: GET /shipments/{id}/events.",
         "",
-        "Este aviso vai para quem expede (o dono, o gestor e o armazém), uma vez por expedição e por situação. Não leva dados de clientes.",
+        "Este aviso vai para quem expede (o dono, o gestor e o armazém), uma vez por expedição e por situação. Não leva o nome nem a morada de quem recebe.",
         "Eurolify",
       ],
     },
@@ -445,13 +451,13 @@ function textoDoEnvio(
         "Hola:",
         "",
         levantar
-          ? `En la tienda «${loja}», ${transportadora} dice que el envío ${shp} (seguimiento ${seguimento}) está disponible para recoger desde el ${quando}.`
-          : `En la tienda «${loja}», ${transportadora} dice que no pudo entregar el envío ${shp} (seguimiento ${seguimento}) el ${quando}.`,
+          ? `En la tienda «${loja}», la transportista (${transportadora}) dice que el envío ${shp} (seguimiento ${seguimento}) está disponible para recoger desde el ${quando}.`
+          : `En la tienda «${loja}», la transportista (${transportadora}) dice que no pudo entregar el envío ${shp} (seguimiento ${seguimento}) el ${quando}.`,
         "Puede ser necesario hablar con el cliente o con la transportista.",
         "",
         "Vea el seguimiento en el Hub, en «Expedir». Por la API: GET /shipments/{id}/events.",
         "",
-        "Este aviso se envía a quien expide (el propietario, el gestor y el almacén), una vez por envío y por situación. No incluye datos de clientes.",
+        "Este aviso se envía a quien expide (el propietario, el gestor y el almacén), una vez por envío y por situación. No incluye el nombre ni la dirección del destinatario.",
         "Eurolify",
       ],
     },
@@ -463,13 +469,13 @@ function textoDoEnvio(
         "Hello,",
         "",
         levantar
-          ? `In the shop "${loja}", ${transportadora} says shipment ${shp} (tracking ${seguimento}) has been available for collection since ${quando}.`
-          : `In the shop "${loja}", ${transportadora} says it could not deliver shipment ${shp} (tracking ${seguimento}) on ${quando}.`,
+          ? `In the shop "${loja}", the carrier (${transportadora}) says shipment ${shp} (tracking ${seguimento}) has been available for collection since ${quando}.`
+          : `In the shop "${loja}", the carrier (${transportadora}) says it could not deliver shipment ${shp} (tracking ${seguimento}) on ${quando}.`,
         "You may need to contact the customer or the carrier.",
         "",
         "See the tracking in the Hub, under «Expedir». Through the API: GET /shipments/{id}/events.",
         "",
-        "This notice goes to those who ship (the owner, the manager and the warehouse), once per shipment and per situation. It carries no customer data.",
+        "This notice goes to those who ship (the owner, the manager and the warehouse), once per shipment and per situation. It does not carry the recipient's name or address.",
         "Eurolify",
       ],
     },

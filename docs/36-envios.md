@@ -1055,6 +1055,14 @@ Hub, em «Expedir».» Sem o nome nem a morada de quem recebe.
   expedição já acabou) e, se o aviso já estava na fila, cancela-se no envio.
 - **O armazém recebe um e-mail** que antes não recebia: fica no T10, e cada
   um vê só a sua loja.
+- **A referência é por expedição e por estado** (revisão do #434, P3-2): uma
+  etiqueta anulada e emitida outra vez na mesma expedição não volta a avisar
+  da tentativa falhada; quem entra na equipa depois do primeiro aviso só
+  recebe os seguintes.
+- **A encomenda voltou a andar** depois do evento (recolhida, em trânsito ou
+  entregue mais tarde; revisão do #434, P2-1): um evento atrasado não avisa
+  e, se o aviso já estava na fila, cancela-se no envio
+  (`encomenda_voltou_a_andar`).
 
 ### 20.4 Testes que têm de falhar sem a protecção
 
@@ -1080,8 +1088,8 @@ destino e a conferência no envio), os modelos PT, ES e EN, o T10 do
 |---|---|
 | o tipo `shipment.needs_attention`; o gatilho no `evento_seguimento` (sem `ALWAYS`, regra da 0053); quem recebe (`envios_aviso_pode_receber()`, `fulfilment:write`); a referência por expedição e estado; a conferência no envio (`envios_aviso_espera()`); `notificacao_destino()` com o tipo novo | migração 0087 |
 | os textos PT, ES e EN (o número de seguimento e a transportadora numa linha curta; um estado desconhecido falha com `dados_invalidos`) | `src/notificacoes/modelos.ts` |
-| no envio: `expedicao_ja_acabou` | `src/notificacoes/repositorio.ts` |
-| 4 testes com o PostgreSQL 18.6 | `test/envios-aviso-tentativa.test.ts` |
+| no envio: `expedicao_ja_acabou` ou `encomenda_voltou_a_andar` (revisão do #434, P2-1) | `src/notificacoes/repositorio.ts` |
+| 7 testes com o PostgreSQL 18.6, os seis pontos do §20.4 todos: quem saiu, a pessoa desactivada e quem passa a apoio (no gatilho e no envio); cada estado final; a encomenda que volta a andar; as chaves exactas dos `dados` | `test/envios-aviso-tentativa.test.ts` |
 | o T10 do `docs/17` e o `docs/34` §12.2 | — |
 
 **Desvio do desenho:**
@@ -1089,4 +1097,10 @@ destino e a conferência no envio), os modelos PT, ES e EN, o T10 do
   juntos): o evento grava-se antes de a expedição mudar, e o aviso entra na
   fila. No envio cancela-se, sem e-mail. Um evento que chega depois da
   entrega não entra na fila (o §20.3 dizia só «não avisa»; o resultado é o
-  mesmo: nenhum e-mail).
+  mesmo: nenhum e-mail). O mesmo para uma tentativa e um «em trânsito»
+  posterior no mesmo lote.
+- **O e-mail diz «não leva o nome nem a morada de quem recebe»**, e não «não
+  leva dados de clientes» (revisão do #434, P2-4): leva o número de
+  seguimento, que identifica a encomenda junto da transportadora. Se esse
+  número nas notificações entra no apagamento do titular (0072) fica **C**,
+  por decidir.

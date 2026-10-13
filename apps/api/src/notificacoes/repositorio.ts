@@ -203,7 +203,7 @@ async function tomarVez(
     : n.tipo === "invoicing.connection_error"
       ? ligacaoEspera(trx, n.referencia)
       : n.tipo === "shipment.needs_attention"
-        ? envioEspera(trx, (n.dados as { expedicao?: unknown }).expedicao)
+        ? envioEspera(trx, n.dados)
         : devolucaoEspera(trx, n.referencia));
   if (espera !== null) {
     await mudar(trx, id, { estado: "cancelada", ultimo_erro: espera });
@@ -280,18 +280,26 @@ async function ligacaoEspera(
 }
 
 /**
- * Nada, se a expedição do aviso ainda não acabou (docs/36 §20); senão, o
- * código.
+ * Nada, se a expedição do aviso ainda não acabou e a encomenda não voltou a
+ * andar depois do evento (docs/36 §20); senão, o código.
  */
 async function envioEspera(
   trx: Transaction<BaseDados>,
-  expedicao: unknown,
+  dados: unknown,
 ): Promise<string | null> {
-  if (typeof expedicao !== "string") return "dados_invalidos";
+  const { expedicao, estado } = (dados ?? {}) as {
+    expedicao?: unknown;
+    estado?: unknown;
+  };
+  if (typeof expedicao !== "string" || typeof estado !== "string") {
+    return "dados_invalidos";
+  }
   const { rows } = await sql<{
-    espera: boolean;
-  }>`select envios_aviso_espera(${expedicao}::uuid) as espera`.execute(trx);
-  return rows[0]?.espera === true ? null : "expedicao_ja_acabou";
+    motivo: string | null;
+  }>`select envios_aviso_espera(${expedicao}::uuid, ${estado}) as motivo`.execute(
+    trx,
+  );
+  return rows[0]?.motivo ?? null;
 }
 
 /** Nada, se o caso do aviso ainda espera; senão, o código. */
