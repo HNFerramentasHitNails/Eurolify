@@ -322,6 +322,9 @@ contra um ambiente de teste.
 - Se o art. 19.º do DL 24/2014 (reembolso em dobro) se aplica à expedição
   perdida ou só à indisponibilidade do bem (L4).
 - Os textos da data-limite e das restrições de entrega por língua (L1, L3).
+- Se dar uma etiqueta de devolução pré-paga é «concordar em suportar» o custo
+  da volta, e se um desconto posterior no reembolso é então possível (§22.2,
+  L11).
 - Entrega num ponto de recolha (§21):
   - se o dono do ponto é «terceiro indicado pelo consumidor» (L5);
   - se o país do ponto, que passa a ser o país de entrega, decide os textos
@@ -1366,10 +1369,13 @@ página, **W**). Nada se correu contra uma conta real.
 
 O que isto quer dizer aqui: a etiqueta é paga pela conta do comerciante, por
 isso **é ele que suporta o custo** quando a pede. Descontar o custo da volta
-no reembolso continua a ser uma decisão de uma pessoa, na decisão da
-devolução (`docs/30` R9), e só é possível se o cliente tiver sido informado
-antes (L11; o texto legal por país do R3 do `docs/30`, **C**). Este pedido
-não desconta nada sozinho.
+no reembolso fica para uma pessoa (decisão do Diogo), mas **ainda não existe**:
+o reembolso da pós-venda (`docs/30`) não tem dedução, e esse desconto é uma
+decisão por desenhar, só possível se o cliente tiver sido informado antes
+(L11; o texto legal por país do R3 do `docs/30`). Dar uma etiqueta pré-paga
+pode ler-se como o comerciante aceitar suportar o custo (art. 14.º, n.º 1,
+2.º parágrafo): **C**, para o jurista (§12). Este pedido não desconta nada
+(revisão do #447, P2).
 
 ### 22.3 O que entra
 
@@ -1381,15 +1387,15 @@ não desconta nada sozinho.
 | **A referência** | «`rma_`-tentativa», em `external_reference`. Como a lista não procura por ela, **uma resposta perdida fica `incerta`** e uma pessoa confirma no painel da transportadora; nunca se pede outra sozinha |
 | **O ficheiro** | o PDF, guardado como o da expedição (§3.5): privado, só para `returns:read`, apagado 30 dias depois de a devolução fechar ou ser cancelada (Q7) |
 | **A devolução** | a transportadora e o seguimento passam a ser os da etiqueta (deixam de se escrever à mão quando há etiqueta) |
-| **Anular** | só se a transportadora disser que se pode (`is_cancellable`); senão `shipping.void_not_allowed` |
-| **O seguimento** | mostra-se (consulta, como §4), mas **não muda a devolução**: a recepção, a inspecção e o reembolso continuam a ser de uma pessoa (`eurolify-transport-logistics-eu`: o estado da transportadora não decide reembolso) |
+| **Anular** | uma pessoa confirma que a anulou no painel da transportadora (§22.9: a Sendcloud só aceita um pedido de anulação); uma incerta só 15 minutos depois |
+| **O seguimento** | guarda-se o número e o endereço público; **não muda a devolução**: a recepção, a inspecção e o reembolso continuam a ser de uma pessoa (`eurolify-transport-logistics-eu`: o estado da transportadora não decide reembolso) |
 | **Entregar o PDF ao cliente** | é o comerciante que o manda; o e-mail ao cliente espera pelo serviço transaccional (`docs/34` §9) |
 
 ### 22.4 O que fica de fora, e porquê
 
 | Fica de fora |
 |---|
-| **Descontar o custo da volta no reembolso**: decisão de uma pessoa, já existe na decisão da devolução |
+| **Descontar o custo da volta no reembolso**: ainda não existe; é uma decisão por desenhar (§22.2) |
 | **O cliente pedir a etiqueta sozinho** (no botão de livre resolução): fica para quando houver e-mail ao cliente e uma decisão sobre quem paga |
 | **Recolha em casa** (`delivery_option` `pickup`): só a entrega num ponto ou balcão |
 | **Devoluções de fora da UE** (pedem `parcel_items` e alfândega) |
@@ -1411,7 +1417,7 @@ não desconta nada sozinho.
 - só uma devolução `a_aguardar` e uma conta `pronta`; só um serviço de volta;
 - o que vai para a transportadora não leva preços, NIF nem o motivo do
   cliente; `send_tracking_emails` é `false`;
-- o seguimento da volta não muda o estado da devolução;
+- uma falha qualquer depois de pedir fica incerta e não se pede outra;
 - o ficheiro só se lê com `returns:read`, e apaga-se 30 dias depois de a
   devolução acabar;
 - isolamento entre comerciantes.
@@ -1432,16 +1438,16 @@ Sendcloud, as rotas `POST/GET /returns/{id}/label` e `POST
 /returns/{id}/label/void`, os testes e a revisão do agente); (2) o Hub (o
 botão e o PDF na página da devolução), com capturas.
 
-### 22.9 Em código (13/10/2026; migração 0092)
+### 22.9 Em código (13/10/2026; migração 0093)
 
 | O quê | Onde |
 |---|---|
-| a etiqueta da devolução (estados, tentativa, conta, serviço, peso, motivo, seguimento) e o ficheiro, com RLS forçado; os caminhos só para a frente; o prazo do ficheiro numa tabela interna, posto quando a devolução fecha ou é cancelada; o apagamento do titular leva o ficheiro e o motivo | migração 0092 |
+| a etiqueta da devolução (estados, tentativa, conta, serviço, peso, motivo, seguimento) e o ficheiro, com RLS forçado; os caminhos só para a frente; o prazo do ficheiro numa tabela interna, posto quando a devolução fecha ou é cancelada; o apagamento do titular leva o ficheiro e o motivo | migração 0093 |
 | o contrato ganha `pedirEtiquetaDevolucao` (opcional) | `src/envios/adaptador.ts` |
 | a Sendcloud: `POST /returns/announce-synchronously` (com `send_tracking_emails: false` e `delivery_option: drop_off_point`), `GET /returns/{id}` e o PDF só da própria Sendcloud; a referência repetida e a devolução sem etiqueta ficam incertas; em modo teste, só `sendcloud:letter` | `src/envios/sendcloud.ts` |
 | pedir, ler, o ficheiro e anular | `src/envios/devolucoes.ts`; `POST/GET /returns/{id}/label`, `GET /returns/{id}/label/file`, `POST /returns/{id}/label/void` |
 | a volta da API apaga os ficheiros com o prazo passado | `envios_devolucao_ficheiros_apagar()`, chamada em `correrTrabalho` |
-| 4 testes pela API com a transportadora de ensaio; 1 do adaptador contra a Sendcloud de ensaio | `test/envios-devolucao.test.ts`, `test/envios-sendcloud.test.ts` |
+| 5 testes pela API com a transportadora de ensaio; 1 do adaptador contra a Sendcloud de ensaio | `test/envios-devolucao.test.ts`, `test/envios-sendcloud.test.ts` |
 
 **Desvios do desenho:**
 - **Anular não chama a transportadora.** A Sendcloud só aceita um *pedido*
@@ -1455,7 +1461,33 @@ botão e o PDF na página da devolução), com capturas.
 - **O destino da volta é a morada de recolha da conta** (a do remetente das
   etiquetas), e não a do armazém: é a que a conta já conferiu.
 - **Um pedido que ficou a meio** (a API reiniciou) passa a `incerta` quando
-  se lê ou se volta a pedir, e não pela volta da API.
+  se lê ou se volta a pedir (numa transacção à parte), e não pela volta da
+  API.
+
+**Da revisão do agente (#447):**
+- **P1:** qualquer falha depois de pedir fica `incerta`; só uma recusa
+  explícita da transportadora recusa. O ficheiro que não se lê e os estados
+  da Sendcloud que não são um 4xx claro também ficam incertos.
+- **P2:**
+  - anular uma incerta só 15 minutos depois e com a confirmação do painel
+    (`anulada_no_painel`);
+  - no máximo 10 tentativas;
+  - um histórico só de acréscimo de cada mudança, com o seguimento e quem;
+  - a devolução bloqueia-se antes da etiqueta;
+  - as chaves estrangeiras levam o comerciante;
+  - os números ONU conferem-se, como na expedição;
+  - o desconto da volta passa a «por desenhar» (§22.2).
+- **P3:**
+  - os campos da etiqueta só mudam nas transições;
+  - anular tira da devolução o seguimento da etiqueta anulada;
+  - estes textos.
+- **Ficou como estava:**
+  - o tempo das três chamadas: o pior caso é uma incerta;
+  - a recepção ainda poder escrever o seguimento à mão (é da pós-venda);
+  - o PDF de uma devolução que nunca fecha (como o da expedição);
+  - a janela de segundos com o apagamento do titular a meio de um pedido;
+  - o que a Sendcloud guarda (§16.2).
+- **A migração passou a 0093:** a 0092 é de outra sessão.
 
 **Por fazer:** o pedido 2 (Hub: o botão e o PDF na página da devolução, com
 capturas).

@@ -1517,7 +1517,7 @@ export interface TabelaEtiquetaFicheiro {
   criado_em: ColumnType<Date, never, never>;
 }
 
-/** A etiqueta de devolução pela transportadora (docs/36 §22, 0092). */
+/** A etiqueta de devolução pela transportadora (docs/36 §22, 0093). */
 export interface TabelaEtiquetaDevolucao {
   devolucao_id: ColumnType<string, string, never>;
   comerciante_id: ColumnType<string, string, never>;
@@ -1539,7 +1539,7 @@ export interface TabelaEtiquetaDevolucao {
   criado_por: ColumnType<string, string, string>;
 }
 
-/** O ficheiro da etiqueta de devolução (docs/36 §22, 0092). */
+/** O ficheiro da etiqueta de devolução (docs/36 §22, 0093). */
 export interface TabelaEtiquetaDevolucaoFicheiro {
   devolucao_id: ColumnType<string, string, never>;
   comerciante_id: ColumnType<string, string, never>;

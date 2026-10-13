@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { criarChave } from "../src/identidade/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import {
   criarBaseDeTeste,
@@ -12,7 +13,7 @@ import { eupagoFalso } from "./eupago-falso.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 import { transportadoraFalsa } from "./transportadora-falsa.js";
 
-// A etiqueta de devolução pela transportadora (docs/36 §22; migração 0092):
+// A etiqueta de devolução pela transportadora (docs/36 §22; migração 0093):
 // numa devolução à espera, com a conta e um serviço de morada; vai o nome e
 // a morada de entrega do cliente, nunca o telefone, o e-mail, os preços nem
 // o motivo dele; uma viva por devolução; a resposta perdida fica incerta e
@@ -83,6 +84,34 @@ describe.skipIf(URL_BASE === undefined)(
       );
       return String(r["id"]);
     }
+
+    /** Muda a hora da etiqueta para `minutos` atrás (o dono, com o comerciante posto). */
+    const envelhecer = async (rma: string, minutos: number, c: Cenario = s) => {
+      await base.dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${c.c}, true)`.execute(
+          trx,
+        );
+        await sql`update etiqueta_devolucao
+          set em = now() - make_interval(mins => ${minutos})
+          where devolucao_id = ${rma.replace(/^rma_/, "")}::uuid`.execute(trx);
+      });
+    };
+    const historico = async (rma: string, c: Cenario = s) =>
+      base.dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${c.c}, true)`.execute(
+          trx,
+        );
+        return (
+          await sql<{
+            tentativa: number;
+            estado: string;
+            seguimento: string | null;
+            quem: string | null;
+          }>`select tentativa, estado, seguimento, quem from etiqueta_devolucao_historico
+            where devolucao_id = ${rma.replace(/^rma_/, "")}::uuid
+            order by em, id`.execute(trx)
+        ).rows;
+      });
 
     const pedir = (rma: string, servico = "EXPRESSO_48", c: Cenario = s) =>
       c.adm("POST", `/returns/${rma}/label`, {
@@ -155,18 +184,26 @@ describe.skipIf(URL_BASE === undefined)(
         "shipping.label_uncertain",
       ]);
       expect(ctt.estado.pedidosDevolucao.length).toBe(antes);
+      const anular = () =>
+        s.adm("POST", `/returns/${rma}/label/void`, {
+          motivo: "não existe no painel da transportadora",
+          anulada_no_painel: true,
+        });
+      // Sem a confirmação do painel, ou com um motivo curto, recusa-se.
       expect(
         await codigo(
-          s.adm("POST", `/returns/${rma}/label/void`, { motivo: "x" }),
-        ),
-      ).toEqual([400, "request.invalid"]);
-      expect(
-        await ok(
           s.adm("POST", `/returns/${rma}/label/void`, {
-            motivo: "não existe no painel da transportadora",
+            motivo: "não existe no painel",
           }),
         ),
-      ).toMatchObject({ estado: "anulada" });
+      ).toEqual([400, "request.invalid"]);
+      // Uma incerta acabada de ficar incerta ainda não se anula (#447, P2).
+      expect(await codigo(anular())).toEqual([
+        409,
+        "shipping.void_not_allowed",
+      ]);
+      await envelhecer(rma, 16);
+      expect(await ok(anular())).toMatchObject({ estado: "anulada" });
       ctt.estado.pedirDevolucao = "recusar";
       expect(await ok(pedir(rma))).toMatchObject({
         estado: "recusada",
@@ -228,6 +265,96 @@ describe.skipIf(URL_BASE === undefined)(
         400,
         "shipping.invalid_field",
       ]);
+    });
+
+    it("revisão do #447: um erro qualquer depois de pedir fica incerto (nunca duas pagas); o pedido a meio passa a incerto; o histórico guarda cada etiqueta; returns:read só lê", async () => {
+      const rma = await devolucao();
+      await ok(pedir(rma));
+      const primeira = await ok(s.adm("GET", `/returns/${rma}/label`));
+      await envelhecer(rma, 1);
+      await ok(
+        s.adm("POST", `/returns/${rma}/label/void`, {
+          motivo: "anulada no painel da transportadora",
+          anulada_no_painel: true,
+        }),
+      );
+      // A devolução deixa de mostrar o seguimento anulado.
+      expect(await ok(s.adm("GET", `/returns/${rma}`))).toMatchObject({
+        seguimento: null,
+      });
+      ctt.estado.pedirDevolucao = "erro";
+      expect(await ok(pedir(rma))).toMatchObject({
+        estado: "incerta",
+        tentativa: 2,
+      });
+      ctt.estado.pedirDevolucao = "emitir";
+      expect(await codigo(pedir(rma))).toEqual([
+        409,
+        "shipping.label_uncertain",
+      ]);
+      // O histórico: a primeira, paga, com o seguimento, e quem a anulou.
+      const h = await historico(rma);
+      expect(h.map((x) => [x.tentativa, x.estado])).toEqual([
+        [1, "a_pedir"],
+        [1, "emitida"],
+        [1, "anulada"],
+        [2, "a_pedir"],
+        [2, "incerta"],
+      ]);
+      expect(h[1]?.seguimento).toBe(primeira["seguimento"]);
+      expect(h.every((x) => x.quem !== null)).toBe(true);
+
+      // Um pedido que ficou a meio (a API reiniciou) passa a incerto e fica.
+      const outra = await devolucao();
+      ctt.estado.pedirDevolucao = "emitir";
+      await ok(pedir(outra));
+      await envelhecer(outra, 1);
+      await ok(
+        s.adm("POST", `/returns/${outra}/label/void`, {
+          motivo: "anulada no painel da transportadora",
+          anulada_no_painel: true,
+        }),
+      );
+      await base.dono.transaction().execute(async (trx) => {
+        await sql`select set_config('eurolify.comerciante', ${s.c}, true),
+          set_config('eurolify.quem', 'pessoa:teste', true)`.execute(trx);
+        await sql`update etiqueta_devolucao set estado = 'a_pedir', tentativa = 2,
+            seguimento = null, url_seguimento = null
+          where devolucao_id = ${outra.replace(/^rma_/, "")}::uuid`.execute(
+          trx,
+        );
+      });
+      await envelhecer(outra, 10);
+      expect(await codigo(pedir(outra))).toEqual([
+        409,
+        "shipping.label_uncertain",
+      ]);
+      expect(await ok(s.adm("GET", `/returns/${outra}/label`))).toMatchObject({
+        estado: "incerta",
+      });
+
+      // Uma chave só com returns:read lê, mas não pede nem anula.
+      const leitor = (
+        await criarChave(base.dono, s.c, {
+          tipo: "servidor",
+          criadaPor: "operador:teste",
+          nome: "Só ler devoluções",
+          ambitos: ["returns:read"],
+        })
+      ).segredo;
+      const comLeitor = (m: "GET" | "POST", url: string, corpo?: unknown) =>
+        apoio.pedir(m, url, corpo, { authorization: `Bearer ${leitor}` });
+      expect(
+        (await comLeitor("GET", `/returns/${outra}/label`)).statusCode,
+      ).toBe(200);
+      expect(
+        (
+          await comLeitor("POST", `/returns/${outra}/label`, {
+            conta: s.conta,
+            servico: "EXPRESSO_48",
+          })
+        ).statusCode,
+      ).toBe(403);
     });
   },
 );

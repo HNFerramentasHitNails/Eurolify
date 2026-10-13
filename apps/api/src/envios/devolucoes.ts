@@ -29,6 +29,13 @@ import {
 
 /** Um pedido `a_pedir` mais velho do que isto ficou a meio (a API reiniciou). */
 const A_MEIO_MS = 5 * 60 * 1000;
+/**
+ * Uma incerta só se anula depois disto: a transportadora pode ainda estar a
+ * criá-la (como a expedição, `etiquetas.ts`; revisão do #447, P2).
+ */
+export const INCERTA_IDADE_MINIMA_MS = 15 * 60 * 1000;
+/** No máximo tantas tentativas por devolução (revisão do #447, P2; 0093). */
+export const MAX_TENTATIVAS = 10;
 
 async function marcar(trx: Transaction<BaseDados>, quem: string) {
   await sql`select set_config('eurolify.quem', ${quem}, true),
@@ -112,11 +119,30 @@ async function soltarAMeio(trx: Transaction<BaseDados>, id: string) {
     .execute();
 }
 
+/**
+ * Um pedido que ficou a meio passa a `incerta` numa transacção à parte, com
+ * quem a viu (revisão do #447, P3): fica gravado mesmo que o pedido que a
+ * encontrou seja recusado a seguir.
+ */
+async function soltarSeAMeio(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  quem: string,
+) {
+  await noEnvios(db, c, async (trx) => {
+    await marcar(trx, quem);
+    await soltarAMeio(trx, id);
+  });
+}
+
 export async function lerEtiquetaDevolucao(
   db: Kysely<BaseDados>,
   c: string,
   id: string,
+  quem: string,
 ): Promise<EtiquetaDaDevolucao> {
+  await soltarSeAMeio(db, c, id, quem);
   return noEnvios(db, c, async (trx) => {
     const d = await trx
       .selectFrom("devolucao")
@@ -126,7 +152,6 @@ export async function lerEtiquetaDevolucao(
     if (d === undefined) {
       throw new ErroEnvios("shipping.not_found", "esta devolução não existe");
     }
-    await soltarAMeio(trx, id);
     const e = await lida(trx, id);
     if (e === null) {
       throw new ErroEnvios(
@@ -210,9 +235,14 @@ async function preparar(
         `a etiqueta de devolução só se pede com a devolução à espera (está «${d.estado}»)`,
       );
     }
-    await soltarAMeio(trx, id);
     const antes = await lida(trx, id);
     if (antes !== null) {
+      if (antes.tentativa >= MAX_TENTATIVAS) {
+        throw new ErroEnvios(
+          "shipping.invalid_field",
+          `no máximo ${String(MAX_TENTATIVAS)} etiquetas por devolução: confira as anteriores no painel da transportadora`,
+        );
+      }
       if (antes.estado === "incerta") {
         throw new ErroEnvios(
           "shipping.label_uncertain",
@@ -302,7 +332,16 @@ async function preparar(
       ])
       .where("linha_devolucao.devolucao_id", "=", id)
       .execute();
-    const { pesoG } = await conteudoDe(trx, linhas);
+    const { pesoG, onu } = await conteudoDe(trx, linhas);
+    // Os perigosos, como na expedição (L9; revisão do #447, P2).
+    const recusados = [...onu].filter((n) => !servico.aceitaOnu.includes(n));
+    if (recusados.length > 0) {
+      throw new ErroEnvios(
+        "shipping.invalid_field",
+        "o serviço não aceita uma mercadoria perigosa desta devolução",
+        { onu: recusados },
+      );
+    }
     if (pesoG === null) {
       throw new ErroEnvios(
         "shipping.invalid_field",
@@ -405,6 +444,14 @@ async function registar(
 ) {
   await noEnvios(db, c, async (trx) => {
     await marcar(trx, quem);
+    // A devolução primeiro, depois a etiqueta: a mesma ordem de `preparar`
+    // e do gatilho que fecha a devolução (revisão do #447, P2).
+    await trx
+      .selectFrom("devolucao")
+      .select("id")
+      .where("id", "=", id)
+      .forUpdate()
+      .execute();
     const e = await trx
       .selectFrom("etiqueta_devolucao")
       .select(["estado", "tentativa", "transportadora"])
@@ -472,6 +519,7 @@ export async function pedirEtiquetaDevolucao(
   cfg: ConfigEnvios | undefined,
   quem: string,
 ): Promise<EtiquetaDaDevolucao> {
+  await soltarSeAMeio(db, c, id, quem);
   const p = await preparar(db, c, id, escolha, cfg, quem);
   let r: ResultadoEtiqueta | { estado: "incerta"; motivo: string };
   try {
@@ -487,17 +535,17 @@ export async function pedirEtiquetaDevolucao(
       }),
     );
   } catch (erro) {
-    if (!(erro instanceof ErroDeRede)) {
-      r = { estado: "recusada", motivo: codigoDe(erro) };
-    } else {
-      r = {
-        estado: "incerta",
-        motivo: `não se sabe se a transportadora criou a etiqueta: ${erro.message}`,
-      };
-    }
+    // Depois de pedir, qualquer falha é incerta: só uma recusa explícita da
+    // transportadora recusa (revisão do #447, P1). Nunca se paga duas.
+    r = {
+      estado: "incerta",
+      motivo: `não se sabe se a transportadora criou a etiqueta: ${
+        erro instanceof Error ? erro.message : codigoDe(erro)
+      }`.slice(0, 500),
+    };
   }
   await registar(db, c, id, p.tentativa, quem, r);
-  return lerEtiquetaDevolucao(db, c, id);
+  return lerEtiquetaDevolucao(db, c, id, quem);
 }
 
 /**
@@ -512,12 +560,23 @@ export async function anularEtiquetaDevolucao(
   motivo: string,
   quem: string,
 ): Promise<EtiquetaDaDevolucao> {
+  await soltarSeAMeio(db, c, id, quem);
   await noEnvios(db, c, async (trx) => {
     await marcar(trx, quem);
-    await soltarAMeio(trx, id);
+    await trx
+      .selectFrom("devolucao")
+      .select("id")
+      .where("id", "=", id)
+      .forUpdate()
+      .execute();
     const e = await trx
       .selectFrom("etiqueta_devolucao")
-      .select("estado")
+      .select(["estado", "em", "transportadora", "seguimento"])
+      .select(
+        sql<boolean>`em > now() - make_interval(secs => ${
+          INCERTA_IDADE_MINIMA_MS / 1000
+        })`.as("recente"),
+      )
       .where("devolucao_id", "=", id)
       .forUpdate()
       .executeTakeFirst();
@@ -535,6 +594,15 @@ export async function anularEtiquetaDevolucao(
           : `não há etiqueta viva para anular (está «${e.estado}»)`,
       );
     }
+    // A transportadora pode ainda estar a criá-la (revisão do #447, P2).
+    if (e.estado === "incerta" && e.recente) {
+      throw new ErroEnvios(
+        "shipping.void_not_allowed",
+        `a etiqueta ficou incerta há menos de ${String(
+          INCERTA_IDADE_MINIMA_MS / 60_000,
+        )} minutos: confirme no painel da transportadora mais tarde`,
+      );
+    }
     await trx
       .deleteFrom("etiqueta_devolucao_ficheiro")
       .where("devolucao_id", "=", id)
@@ -544,6 +612,21 @@ export async function anularEtiquetaDevolucao(
       .set({ estado: "anulada", motivo: motivo.slice(0, 500) })
       .where("devolucao_id", "=", id)
       .execute();
+    // A devolução deixa de mostrar o seguimento de uma etiqueta anulada, se
+    // ainda for o dela (revisão do #447, P3).
+    if (e.seguimento !== null) {
+      await trx
+        .updateTable("devolucao")
+        .set((eb) => ({
+          transportadora: null,
+          seguimento: null,
+          versao: eb("versao", "+", 1),
+        }))
+        .where("id", "=", id)
+        .where("seguimento", "=", e.seguimento)
+        .where("transportadora", "=", e.transportadora)
+        .execute();
+    }
   });
-  return lerEtiquetaDevolucao(db, c, id);
+  return lerEtiquetaDevolucao(db, c, id, quem);
 }

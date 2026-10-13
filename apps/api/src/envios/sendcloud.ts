@@ -567,11 +567,19 @@ export function adaptadorSendcloud(
           ),
         };
       }
+      // Só um 4xx claro prova que nada se criou; o resto (202, 409, 3xx…)
+      // não se sabe: incerta (revisão do #447, P3).
       if (r.estado !== 201 && r.estado !== 200) {
-        return {
-          estado: "recusada",
-          motivo: motivoDe(r.json, `a Sendcloud recusou (${String(r.estado)})`),
-        };
+        if ([401, 403, 404, 422].includes(r.estado)) {
+          return {
+            estado: "recusada",
+            motivo: motivoDe(
+              r.json,
+              `a Sendcloud recusou (${String(r.estado)})`,
+            ),
+          };
+        }
+        throw new ErroDeRede(`a Sendcloud respondeu ${String(r.estado)}`);
       }
       const id = texto(objecto(r.json)?.["return_id"]);
       if (id === null) throw new ErroDeRede("a resposta não traz a devolução");
@@ -611,7 +619,16 @@ export function adaptadorSendcloud(
           `o ficheiro da etiqueta não veio (${String(f.status)})`,
         );
       }
-      const conteudo = Buffer.from(await f.arrayBuffer());
+      // A devolução já existe (e foi paga): qualquer falha a ler o ficheiro
+      // é incerta, nunca recusada (revisão do #447, P1).
+      const conteudo = await f.arrayBuffer().then(
+        (b) => Buffer.from(b),
+        (erro: unknown) => {
+          throw new ErroDeRede("o ficheiro da etiqueta não se leu", {
+            cause: erro,
+          });
+        },
+      );
       if (!conteudo.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
         throw new ErroDeRede("o ficheiro da etiqueta não é um PDF");
       }

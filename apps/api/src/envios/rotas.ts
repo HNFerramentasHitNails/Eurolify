@@ -573,6 +573,7 @@ export function rotasDosEnvios(
             base,
             chaveDo(pedido).comercianteId,
             semPrefixo(pedido.params.id),
+            quemDo(pedido),
           ),
         ),
       ),
@@ -627,7 +628,13 @@ export function rotasDosEnvios(
           "Anula a etiqueta de devolução emitida ou incerta (docs/36 §22): é quem a pede a dizer que a anulou no painel da transportadora, ou que a incerta não existe lá. O Eurolify não a anula na transportadora. O ficheiro apaga-se e pode pedir-se outra.",
         params: Devolucao,
         body: Type.Object(
-          { motivo: Type.String({ minLength: 3, maxLength: 500 }) },
+          {
+            motivo: Type.String({ minLength: 3, maxLength: 500 }),
+            // Quem anula diz que a anulou no painel da transportadora (ou
+            // que a incerta não existe lá): o Eurolify não a anula lá
+            // (revisão do #447, P2).
+            anulada_no_painel: Type.Literal(true),
+          },
           { additionalProperties: false },
         ),
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },

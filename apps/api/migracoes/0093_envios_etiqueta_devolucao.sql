@@ -12,6 +12,9 @@
 --   Sendcloud só aceita um pedido de anulação, sem confirmação (V13).
 -- - O ficheiro leva o nome e a morada do cliente: privado, apagado 30 dias
 --   depois de a devolução acabar (Q7) ou logo no apagamento do titular.
+-- - Cada tentativa e cada anulação ficam num histórico só de acréscimo (o
+--   seguimento de uma etiqueta paga não se perde; revisão do #447, P2).
+-- - No máximo 10 tentativas por devolução (revisão do #447, P2).
 SET LOCAL lock_timeout = '10s';
 
 CREATE TABLE etiqueta_devolucao (
@@ -22,7 +25,7 @@ CREATE TABLE etiqueta_devolucao (
   servico text NOT NULL CHECK (servico ~ '^[0-9A-Za-z_.:/-]{1,100}$'),
   estado text NOT NULL DEFAULT 'a_pedir' CHECK (estado IN ('a_pedir', 'emitida', 'incerta',
     'recusada', 'anulada')),
-  tentativa integer NOT NULL DEFAULT 1 CHECK (tentativa BETWEEN 1 AND 1000),
+  tentativa integer NOT NULL DEFAULT 1 CHECK (tentativa BETWEEN 1 AND 10),
   peso_g integer NOT NULL CHECK (peso_g BETWEEN 1 AND 1000000),
   motivo text CHECK (motivo IS NULL OR length(motivo) <= 500),
   seguimento text CHECK (seguimento IS NULL OR length(seguimento) BETWEEN 1 AND 200),
@@ -33,8 +36,11 @@ CREATE TABLE etiqueta_devolucao (
   -- depois (Q7).
   acabou_em timestamptz,
   criado_por text NOT NULL CHECK (length(criado_por) BETWEEN 1 AND 200),
+  UNIQUE (comerciante_id, devolucao_id),
   FOREIGN KEY (comerciante_id, devolucao_id) REFERENCES devolucao (comerciante_id, id),
-  FOREIGN KEY (conta_transportadora_id) REFERENCES conta_transportadora (id),
+  -- A conta é do mesmo comerciante (revisão do #447, P2).
+  FOREIGN KEY (comerciante_id, conta_transportadora_id)
+    REFERENCES conta_transportadora (comerciante_id, id),
   CHECK ((estado = 'emitida') = (seguimento IS NOT NULL) OR estado = 'anulada')
 );
 
@@ -57,6 +63,19 @@ BEGIN
      AND NEW.tentativa <> OLD.tentativa + 1 THEN
     RAISE EXCEPTION 'shipping.invalid_transition: cada pedido de etiqueta é uma tentativa nova';
   END IF;
+  -- Fora de uma transição, só o motivo (apagamento do titular) e o fim da
+  -- devolução mudam; o resto é da tentativa (revisão do #447, P3).
+  IF NEW.estado = OLD.estado AND (
+       NEW.tentativa IS DISTINCT FROM OLD.tentativa
+    OR NEW.conta_transportadora_id IS DISTINCT FROM OLD.conta_transportadora_id
+    OR NEW.transportadora IS DISTINCT FROM OLD.transportadora
+    OR NEW.servico IS DISTINCT FROM OLD.servico
+    OR NEW.peso_g IS DISTINCT FROM OLD.peso_g
+    OR NEW.seguimento IS DISTINCT FROM OLD.seguimento
+    OR NEW.url_seguimento IS DISTINCT FROM OLD.url_seguimento
+    OR NEW.criado_por IS DISTINCT FROM OLD.criado_por) THEN
+    RAISE EXCEPTION 'shipping.immutable: a etiqueta só muda pelas transições';
+  END IF;
   IF NEW.estado IS DISTINCT FROM OLD.estado THEN
     NEW.em := now();
   END IF;
@@ -67,13 +86,60 @@ CREATE TRIGGER etiqueta_devolucao_valida BEFORE UPDATE ON etiqueta_devolucao
   FOR EACH ROW EXECUTE FUNCTION etiqueta_devolucao_valida();
 
 CREATE TABLE etiqueta_devolucao_ficheiro (
-  devolucao_id uuid PRIMARY KEY REFERENCES etiqueta_devolucao (devolucao_id),
+  devolucao_id uuid PRIMARY KEY,
   comerciante_id uuid NOT NULL REFERENCES comerciante (id),
   tentativa integer NOT NULL,
   formato text NOT NULL CHECK (formato IN ('pdf', 'zpl')),
   conteudo bytea NOT NULL CHECK (octet_length(conteudo) BETWEEN 1 AND 2000000),
-  criado_em timestamptz NOT NULL DEFAULT now()
+  criado_em timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (comerciante_id, devolucao_id)
+    REFERENCES etiqueta_devolucao (comerciante_id, devolucao_id)
 );
+
+-- O histórico de cada etiqueta (revisão do #447, P2): uma linha por mudança
+-- de estado, só se acrescenta; escreve-o o gatilho. Guarda o seguimento de
+-- uma etiqueta paga mesmo depois de se pedir outra.
+CREATE TABLE etiqueta_devolucao_historico (
+  id uuid PRIMARY KEY DEFAULT uuidv7(),
+  comerciante_id uuid NOT NULL REFERENCES comerciante (id),
+  devolucao_id uuid NOT NULL,
+  tentativa integer NOT NULL,
+  estado text NOT NULL,
+  conta_transportadora_id uuid NOT NULL,
+  servico text NOT NULL,
+  seguimento text,
+  motivo text,
+  quem text,
+  em timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (comerciante_id, devolucao_id)
+    REFERENCES etiqueta_devolucao (comerciante_id, devolucao_id)
+);
+
+CREATE FUNCTION etiqueta_devolucao_historico() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.estado IS NOT DISTINCT FROM OLD.estado THEN
+    RETURN NULL;
+  END IF;
+  INSERT INTO public.etiqueta_devolucao_historico (comerciante_id, devolucao_id, tentativa,
+    estado, conta_transportadora_id, servico, seguimento, motivo, quem)
+  VALUES (NEW.comerciante_id, NEW.devolucao_id, NEW.tentativa, NEW.estado,
+    NEW.conta_transportadora_id, NEW.servico, NEW.seguimento, NEW.motivo,
+    nullif(btrim(current_setting('eurolify.quem', true)), ''));
+  RETURN NULL;
+END
+$$;
+CREATE TRIGGER etiqueta_devolucao_historico AFTER INSERT OR UPDATE OF estado
+  ON etiqueta_devolucao FOR EACH ROW EXECUTE FUNCTION etiqueta_devolucao_historico();
+
+-- O apagamento do titular limpa o motivo no histórico (pode citar a morada).
+CREATE FUNCTION etiqueta_devolucao_historico_limpar(p_encomenda uuid) RETURNS void
+  LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  UPDATE public.etiqueta_devolucao_historico h SET motivo = NULL
+  FROM public.devolucao d
+  WHERE h.devolucao_id = d.id AND d.encomenda_id = p_encomenda
+    AND h.comerciante_id = public.comerciante_actual() AND h.motivo IS NOT NULL
+$$;
 
 -- Quando apagar o ficheiro de cada devolução acabada (Q7). Interna (RLS sem
 -- forçar, como o `trabalho_envio` da 0079): a volta da API percorre-a por
@@ -148,6 +214,7 @@ BEGIN
   UPDATE public.etiqueta_devolucao e SET motivo = NULL
   FROM public.devolucao d
   WHERE e.devolucao_id = d.id AND d.encomenda_id = NEW.id AND e.motivo IS NOT NULL;
+  PERFORM public.etiqueta_devolucao_historico_limpar(NEW.id);
   RETURN NULL;
 END
 $$;
@@ -158,7 +225,8 @@ DO $$
 DECLARE
   tabela text;
 BEGIN
-  FOREACH tabela IN ARRAY ARRAY['etiqueta_devolucao', 'etiqueta_devolucao_ficheiro'] LOOP
+  FOREACH tabela IN ARRAY ARRAY['etiqueta_devolucao', 'etiqueta_devolucao_ficheiro',
+    'etiqueta_devolucao_historico'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tabela);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tabela);
     EXECUTE format(
@@ -169,7 +237,8 @@ BEGIN
 END
 $$;
 
-GRANT SELECT ON etiqueta_devolucao, etiqueta_devolucao_ficheiro TO eurolify_api;
+GRANT SELECT ON etiqueta_devolucao, etiqueta_devolucao_ficheiro, etiqueta_devolucao_historico
+  TO eurolify_api;
 GRANT INSERT (devolucao_id, comerciante_id, conta_transportadora_id, transportadora, servico,
   peso_g, criado_por) ON etiqueta_devolucao TO eurolify_api;
 GRANT UPDATE (conta_transportadora_id, transportadora, servico, estado, tentativa, peso_g, motivo,
@@ -179,5 +248,6 @@ GRANT INSERT (devolucao_id, comerciante_id, tentativa, formato, conteudo)
 GRANT DELETE ON etiqueta_devolucao_ficheiro TO eurolify_api;
 
 REVOKE EXECUTE ON FUNCTION etiqueta_devolucao_valida(), devolucao_etiqueta_acabou(),
-  envios_devolucao_ficheiros_apagar(), encomenda_titular_devolucoes() FROM PUBLIC;
+  envios_devolucao_ficheiros_apagar(), encomenda_titular_devolucoes(),
+  etiqueta_devolucao_historico(), etiqueta_devolucao_historico_limpar(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION envios_devolucao_ficheiros_apagar() TO eurolify_api;
