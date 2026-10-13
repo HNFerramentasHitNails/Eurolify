@@ -766,6 +766,14 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         prova_entrega: "recebido pela Ana Silva",
       }),
     );
+    // O seguimento da transportadora com o nome de quem recebeu.
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`insert into evento_seguimento (comerciante_id, expedicao_id,
+          origem, id_externo, estado_transportadora, estado_normalizado, em)
+        values (comerciante_actual(), ${String(x["id"]).slice(4)}::uuid,
+          'aviso', 'EVT-APAGA-1', 'Entregue a Ana Silva', 'entregue',
+          now())`.execute(trx);
+    });
     // Concluída (a tarefa fá-lo 14 dias depois de entregue).
     await comComerciante(base.dono, s.c, async (trx) => {
       await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
@@ -835,6 +843,15 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         where encomenda_id = ${id}::uuid`.execute(base.dono)
     ).rows[0]?.prova_entrega;
     expect(prova).toBe("(pseudonimizado)");
+    // O texto da transportadora também (0079), e é isso que a exportação
+    // passa a dar (revisão do #414, P2-1).
+    expect(
+      (
+        await sql<{ t: string }>`select s.estado_transportadora as t
+          from evento_seguimento s join expedicao x on x.id = s.expedicao_id
+          where x.encomenda_id = ${id}::uuid`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ t: "(pseudonimizado)" }]);
     const avisos = (
       await sql<{ corpo: string }>`select a.corpo from aviso_pagamento a
         join pagamento p on p.id = a.pagamento_id
@@ -1153,6 +1170,57 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         base.dono,
       )
     ).rows.map((m) => m.motivo);
+    // Outra encomenda no mesmo comerciante, de outra ficha (cada compra sem
+    // conta cria uma), com livre resolução, reembolso e seguimento: nada
+    // dela sai (revisão do #414, P3-3).
+    const outra = await paga(s, [[s.v1, 2]]);
+    const [linhaOutra] = await expedir(s, outra.encomenda);
+    const xOutra = (
+      await sql<{ id: string }>`select id from expedicao
+        where encomenda_id = ${outra.encomenda.slice(4)}::uuid`.execute(
+        base.dono,
+      )
+    ).rows[0]?.id;
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`insert into evento_seguimento (comerciante_id, expedicao_id,
+          origem, id_externo, estado_transportadora, estado_normalizado, em)
+        values (comerciante_actual(), ${String(xOutra)}::uuid,
+          'aviso', 'EVT-OUTRA-1', 'Entregue a Rui Costa', 'entregue',
+          now())`.execute(trx);
+    });
+    const prbOutra = await ok(
+      s.adm("POST", "/problems", {
+        encomenda: outra.encomenda,
+        tipo: "chegou_danificado",
+        descricao: "o Rui diz que veio aberto",
+      }),
+      201,
+    );
+    await ok(
+      s.adm("POST", `/problems/${String(prbOutra["id"])}/decide`, {
+        versao: 1,
+        linhas: [{ linha: linhaOutra?.["id"], quantidade: 1 }],
+        motivo: "aberto",
+      }),
+      201,
+    );
+    await ok(
+      pedir("POST", `/store/orders/${outra.token}/withdrawal`, {
+        linhas: [{ linha: linhaOutra?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    const daOutra = (
+      await sql<{ id: string }>`
+        select id::text from encomenda where id = ${outra.encomenda.slice(4)}::uuid
+        union all select id::text from pedido_livre_resolucao
+          where encomenda_id = ${outra.encomenda.slice(4)}::uuid
+        union all select id::text from reembolso
+          where encomenda_id = ${outra.encomenda.slice(4)}::uuid
+        union all select id::text from evento_seguimento
+          where expedicao_id = ${String(xOutra)}::uuid`.execute(base.dono)
+    ).rows.map((r) => r.id);
+    expect(daOutra).toHaveLength(4);
     const exp = await exportarTitular(s, e.encomenda);
     const f = (exp["fichas"] as Json[])[0] ?? {};
     const texto = JSON.stringify(exp);
@@ -1241,6 +1309,18 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       }),
     ]);
     expect(texto).not.toContain("EVT-EXPORTA-91");
+    // Só estas colunas (revisão do #414, P3-2).
+    expect(
+      Object.keys((f["seguimento_das_expedicoes"] as Json[])[0] ?? {}).sort(),
+    ).toEqual([
+      "em",
+      "estado_normalizado",
+      "estado_transportadora",
+      "expedicao_id",
+      "id",
+    ]);
+    for (const x of daOutra) expect(texto).not.toContain(x);
+    expect(texto).not.toContain("Rui Costa");
     expect(f["problemas"]).toEqual([
       expect.objectContaining({
         descricao: "a Ana Silva diz que o frasco veio partido",

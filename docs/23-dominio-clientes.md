@@ -1203,6 +1203,7 @@ O prazo de 7 dias é proposta (`docs/25` §7, J3/J4: **C**, jurista).
 | o histórico de estados da encomenda e do pagamento (de, para, quando, canal), sem o motivo nem quem mudou | `estados_das_encomendas`, `estados_dos_pagamentos` |
 | os documentos fiscais: tipo, estado, o comprador e os totais da última versão do conteúdo e, emitido, o número, a série, a data, o ATCUD, os totais e o comprador lidos do documento (`comprador_no_documento`); emitido fora do Eurolify, o número declarado (`numero_declarado`, 0070); sem o PDF nem a resposta em bruto (Q4); o rasto (com o motivo das correcções) não sai | `documentos_fiscais` |
 | a livre resolução (contacto, confirmação, prazo, estado, motivo da decisão), as devoluções com as linhas, os problemas com a descrição, os reembolsos (montante, via, estado, datas) sem a prova nem a falha técnica | `pedidos_de_livre_resolucao`, `devolucoes`, `linhas_das_devolucoes`, `problemas`, `reembolsos` |
+| as linhas da livre resolução (que artigos a pessoa quis devolver), as linhas de cada reembolso (com os portes, sem artigo), a decisão de higiene de cada linha devolvida e o seguimento da transportadora (o estado que ela deu, o normalizado e a data; sem o id do evento dela nem o aviso em bruto) | `linhas_da_livre_resolucao`, `linhas_dos_reembolsos`, `linhas_das_devolucoes.decisao_higiene`, `seguimento_das_expedicoes` |
 | não saem a sessão de checkout, os avisos dos prestadores nem os eventos de saída | — |
 | os índices das procuras da exportação: as encomendas pela ficha, a pós-venda e os documentos pela encomenda (revisão do #411, P2-3) | migração 0082 |
 | a exportação e o apagamento listam as outras fichas do comerciante, fora do grupo, com um e-mail (sem distinguir maiúsculas, como os candidatos a duplicado) ou um telefone igual: só o id, o estado e o sinal, nunca o contacto; é para o dono, não para entregar ao titular (um telefone partilhado pode ser de outra pessoa). Não se juntam: decide o dono se as funde e repete o pedido. No apagamento contam-se antes de apagar, com a ficha presa, na mesma transacção | `fichasComOMesmoContacto()`; `fichas_com_o_mesmo_contacto` nas duas respostas |
@@ -1221,7 +1222,12 @@ linha devolvida e o seguimento da transportadora passam também a sair
 (`linhas_da_livre_resolucao`, `linhas_dos_reembolsos`,
 `linhas_das_devolucoes.decisao_higiene`, `seguimento_das_expedicoes`;
 revisão do #411, P3-2; Diogo, 13/10/2026: *«sim, avança com os quatro num
-pedido à parte»*), com teste e contraprova de cada um.
+pedido à parte»*), com teste e contraprova de cada um. O texto da
+transportadora, como a prova de entrega, pode ter o nome de outra pessoa
+(quem recebeu): o RGPD, art. 15.º, n.º 4, diz que a cópia «não prejudica
+os direitos e as liberdades de terceiros» (`eur-lex`, `corpus/dados-e-privacidade/32016R0679-rgpd.md`, versão de 2016-05-04) — **C**, para o jurista (revisão
+do #414, P3-6). Um evento que chegue depois do apagamento entra com o
+texto como vem (revisão do #414, P3-1; fica para o domínio dos envios).
 
 Fica de fora, da revisão do #411: a lista das fichas parecidas só se vê antes do apagamento pela
 exportação (P3-3); a exportação lê em READ COMMITTED, dentro da transacção
