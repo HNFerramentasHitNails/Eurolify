@@ -32,6 +32,7 @@ const GUARDADA: VarianteArtigo = {
   classe_adr: null,
   posicao: 0,
   versao: 3,
+  criado_em: "2026-10-09T10:00:00.000Z",
 };
 
 describe("alterar uma variante", () => {

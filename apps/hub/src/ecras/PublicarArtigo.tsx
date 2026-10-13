@@ -17,6 +17,7 @@ import {
   chaveDaEscolha,
   escolhaDepoisDeRecarregar,
   escolhaInicial,
+  marcaDaVariante,
   linhasDosImpedimentos,
   podePublicar,
   publicacaoConfere,
@@ -513,8 +514,8 @@ export function PublicarArtigo({
                 lido.ficha.variantes
                   .filter((v) => v.estado === "activa")
                   .map((v) => {
-                    const estaFora =
-                      publicacao?.variantes_fora.includes(v.id) === true;
+                    const marca = marcaDaVariante(v, publicacao);
+                    const estaFora = marca !== null;
                     return (
                       <div className="variante-escolha" key={v.id}>
                         <label className="opcao">
@@ -539,7 +540,9 @@ export function PublicarArtigo({
                             id={`publicar-${v.id}-fora`}
                             className="secundario"
                           >
-                            {t.publicarForaMarca}
+                            {marca === "nova"
+                              ? t.publicarNovaMarca
+                              : t.publicarForaMarca}
                           </span>
                         ) : null}
                       </div>

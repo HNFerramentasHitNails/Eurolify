@@ -4,6 +4,7 @@ import {
   chaveDaEscolha,
   escolhaDepoisDeRecarregar,
   escolhaInicial,
+  marcaDaVariante,
   linhasDosImpedimentos,
   paresSemPublicacao,
   podePublicar,
@@ -432,5 +433,39 @@ describe("os impedimentos em linguagem comum", () => {
         ).not.toBe("");
       }
     }
+  });
+});
+
+describe("a marca da variante na publicação (§27.5)", () => {
+  const pub = {
+    estado: "publicado" as const,
+    variantes_fora: [B],
+    publicado_em: "2026-10-13T10:00:00.000Z",
+  };
+  it("fora e nascida depois da última publicação: «nova»", () => {
+    expect(
+      marcaDaVariante({ id: B, criado_em: "2026-10-13T11:00:00.000Z" }, pub),
+    ).toBe("nova");
+  });
+  it("fora e nascida antes (alguém a tirou, ou ficou de fora ao publicar outra vez): «fora»", () => {
+    expect(
+      marcaDaVariante({ id: B, criado_em: "2026-10-13T09:00:00.000Z" }, pub),
+    ).toBe("fora");
+  });
+  it("à venda, ou sem publicação: nenhuma marca", () => {
+    expect(
+      marcaDaVariante({ id: A, criado_em: "2026-10-13T11:00:00.000Z" }, pub),
+    ).toBeNull();
+    expect(
+      marcaDaVariante({ id: B, criado_em: "2026-10-13T11:00:00.000Z" }, null),
+    ).toBeNull();
+  });
+  it("numa publicação que não está à venda, a que está fora diz «fora», nunca «nova»", () => {
+    expect(
+      marcaDaVariante(
+        { id: B, criado_em: "2026-10-13T11:00:00.000Z" },
+        { ...pub, estado: "arquivado" },
+      ),
+    ).toBe("fora");
   });
 });

@@ -1397,6 +1397,7 @@ export const en: Textos = {
     "Tick the variants you want to put on sale in this store. Those left unticked are not sold here.",
   publicarSemVariantes: "This product has no active variants.",
   publicarForaMarca: "left out",
+  publicarNovaMarca: "new",
   publicarVerificar: "Check",
   publicarAVerificar: "Checking…",
   publicarPublicar: "Publish",
