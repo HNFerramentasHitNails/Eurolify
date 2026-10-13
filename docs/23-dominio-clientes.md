@@ -1418,8 +1418,9 @@ envio da resposta ao titular (o comerciante responde pelo seu canal); a
 contagem de dias úteis ou feriados (o RGPD conta em meses).
 
 **Perguntas para o Diogo ou o Bruno.**
-- **Q-P1:** aprovas o desenho, com a fila nova na lista «A decidir» e o
-  prazo da tarefa 7 dias antes do prazo legal?
+- **Q-P1, decidida:** aprovado pelo Diogo a 13/10/2026 (*«A»*; `docs/06`
+  EO), com a fila nova na lista «A decidir» e o prazo da tarefa 7 dias antes
+  do prazo legal.
 - **Q-P2:** um pedido de quem ainda não tem ficha (ex.: um e-mail de um
   endereço que não está em nenhuma ficha) fica fora do Eurolify até se saber
   quem é (proposta), ou regista-se sem ficha?
