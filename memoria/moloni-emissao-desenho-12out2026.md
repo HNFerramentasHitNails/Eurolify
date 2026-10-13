@@ -54,3 +54,24 @@
 ### O que ficou por verificar
 - Nada lido no Moloni real: as credenciais continuam fora do ambiente.
 - `fiscal_zone`, `saft_type` e a paginação acima de 50 por medir.
+
+## 13/10/2026 — o aviso ao dono quando a ligação fica com erro (#422)
+
+### O que se fez
+- Desenho no `docs/29` §18, aprovado pelo Diogo com a Q1 em A (`docs/06`,
+  EJ): a oitava fila do «A decidir», `ligacao_faturacao` (só o dono decide,
+  1 dia), e um e-mail logo aos donos quando o Moloni recusa renovar.
+- Código na migração **0084** (a 0083 entrou com o #420): `docs/29` §18.6.
+- Revisão de um agente (Sonnet 5.5; 0 P0, 2 P1, 5 P2, 6 P3), publicada no
+  #422 e tratada: o número de faturas retidas passou a contar-se no envio.
+
+### Números (com data e como se contaram)
+- 13/10/2026, PostgreSQL local (Docker) e Moloni simulado, com o `main` do
+  #420 junto: API 1586 a passar e 1 saltado; Hub 244; capturas sem falhas;
+  fluxo `verificar` verde.
+
+### O que ficou por verificar
+- A corrida das credenciais novas durante uma renovação recusada (P2-4) não
+  tem teste.
+- O e-mail não leva o endereço do Hub (a API não o conhece).
+- Nada medido no Moloni real: as credenciais continuam fora do ambiente.
