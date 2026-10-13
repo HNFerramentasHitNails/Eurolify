@@ -1066,7 +1066,7 @@ export const pt = {
   ossDeclarados: "Declarados à parte pelo dono",
   ossDeclaradosAviso:
     "O valor destes documentos não está nas somas: declare-o à mão a partir do documento emitido.",
-  ossDeclaradoEm: "decidido a {data}",
+  ossDeclaradoPor: "decidido por {nome} a {data}",
   ossNada: "Nada.",
   ossPaisPorSaber: "país por saber",
   ossLimiarTitulo: "O limiar das vendas à distância",

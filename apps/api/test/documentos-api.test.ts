@@ -2589,7 +2589,8 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     );
     d = (await documentoDe(s, e.encomenda)) as Json;
     expect(d["estado"]).toBe("resolvido");
-    expect((await relatorio(s, "2026-T3"))["impedimentos"]).toContainEqual({
+    const antes = await relatorio(s, "2026-T3");
+    expect(antes["impedimentos"]).toContainEqual({
       motivo: "linhas_desalinhadas",
       documentos: [d["id"]],
     });
@@ -2640,10 +2641,11 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
         (b) => (b["linhas"] as Json[]).length === 0,
       ),
     ).toBe(true);
-    // No limiar, conta nos excluídos.
-    expect(
-      ((t3["limiar"] as Json)["documentos_excluidos"] as number) >= 1,
-    ).toBe(true);
+    // No limiar, continua nos excluídos: o valor não se conhece (revisão
+    // do #437, P2-2).
+    expect((t3["limiar"] as Json)["documentos_excluidos"]).toBe(
+      (antes["limiar"] as Json)["documentos_excluidos"],
+    );
     // Fecha-se o T3 com ele; a fotografia guarda a lista à parte.
     const fechado = await ok(
       s.adm("POST", "/tax-reports/oss/close", {

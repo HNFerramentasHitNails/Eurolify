@@ -1077,7 +1077,7 @@ export const es: Textos = {
   ossDeclarados: "Declarados aparte por el dueño",
   ossDeclaradosAviso:
     "El valor de estos documentos no está en las sumas: declárelo a mano a partir del documento emitido.",
-  ossDeclaradoEm: "decidido el {data}",
+  ossDeclaradoPor: "decidido por {nome} el {data}",
   ossNada: "Nada.",
   ossPaisPorSaber: "país por saber",
   ossLimiarTitulo: "El umbral de las ventas a distancia",

@@ -8,6 +8,7 @@
 -- acrescenta): `a_parte` verdadeiro só com as linhas vazias; falso só com
 -- pelo menos uma linha. As classificações que já existem têm linhas, por
 -- isso ficam `a_parte = false`.
+SET LOCAL lock_timeout = '10s';
 
 ALTER TABLE relatorio_oss_classificacao
   ADD COLUMN a_parte boolean NOT NULL DEFAULT false;

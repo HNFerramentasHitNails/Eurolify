@@ -501,6 +501,19 @@ describe("o relatório OSS (puro)", () => {
       base: 0,
       excluidos: 1,
     });
+    // Uma prova que entretanto ganhe linhas já não está à parte: impede
+    // (revisão do #437, P2-1).
+    const comLinhas = documento("b", "2026-10-02", [linha], {
+      estado: "resolvido",
+    });
+    comLinhas.classificacao = { ...semLinhas.classificacao };
+    const r2 = agregar([comLinhas], "PT", T4, new Set());
+    expect([...r2.impedimentos.keys()]).toEqual(["linhas_desalinhadas"]);
+    expect(r2.declarados).toEqual([]);
+    expect(vendasADistancia([comLinhas], "PT", true)).toEqual({
+      base: 0,
+      excluidos: 1,
+    });
   });
 
   it("as linhas casam uma a uma: quantidade, taxa ou motivo diferentes impedem (revisão do #392, P1-2)", () => {

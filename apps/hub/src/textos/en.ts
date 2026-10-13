@@ -1065,7 +1065,7 @@ export const en: Textos = {
   ossDeclarados: "Declared apart by the owner",
   ossDeclaradosAviso:
     "These documents' value is not in the totals: declare it by hand from the issued document.",
-  ossDeclaradoEm: "decided on {data}",
+  ossDeclaradoPor: "decided by {nome} on {data}",
   ossNada: "Nothing.",
   ossPaisPorSaber: "country unknown",
   ossLimiarTitulo: "The distance sales threshold",

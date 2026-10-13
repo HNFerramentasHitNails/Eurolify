@@ -580,7 +580,8 @@ function Conteudo({
                     {x.numero}
                   </span>{" "}
                   · {diaDe(lingua, x.data)} ·{" "}
-                  {preencher(t.ossDeclaradoEm, {
+                  {preencher(t.ossDeclaradoPor, {
+                    nome: quemFechou(x.decidido_por),
                     data: diaDe(lingua, x.decidido_em),
                   })}
                   {x.alteracao_de === null

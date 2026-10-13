@@ -413,6 +413,11 @@ async function lerDocumentos(
   return rows;
 }
 
+/** Declarado à parte pelo dono, e a prova continua sem linhas (§11). */
+function declaradoAParte(d: DocumentoLido): boolean {
+  return d.classificacao?.a_parte === true && d.linhas.length === 0;
+}
+
 /** As linhas de um documento nos baldes, ou o impedimento. */
 function linhasDe(
   d: DocumentoLido,
@@ -591,16 +596,18 @@ export function agregar(
       continue;
     }
     // Declarado à parte pelo dono (docs/37 §11): fora dos baldes, uma vez
-    // só, e como alteração se o período dele já fechou.
-    if (d.classificacao?.a_parte === true) {
+    // só, e como alteração se o período dele já fechou. Uma prova que
+    // entretanto tenha linhas já não está à parte: `linhasDe` dá
+    // `linhas_desalinhadas` e impede (revisão do #437, P2-1).
+    if (declaradoAParte(d)) {
       declarados.push({
         documento: `inv_${d.id}`,
         tipo: d.tipo,
         numero: d.numero,
         data: d.data,
         alteracao_de: noPeriodo ? null : original,
-        decidido_por: d.classificacao.decidido_por ?? "",
-        decidido_em: d.classificacao.decidido_em ?? "",
+        decidido_por: d.classificacao?.decidido_por ?? "",
+        decidido_em: d.classificacao?.decidido_em ?? "",
       });
       incluidos.push({ id: d.id, periodo_original: original, linhas: [] });
       continue;
@@ -671,7 +678,7 @@ export function vendasADistancia(
     if (
       d.estado === "divergente" ||
       impedimento !== null ||
-      d.classificacao?.a_parte === true
+      declaradoAParte(d)
     ) {
       excluidos += 1;
       continue;
@@ -1168,8 +1175,9 @@ export async function registosOss(
         const sinal = d.tipo === "nota_credito" ? -1 : 1;
         // Uma prova sem linhas declarada à parte: uma linha do documento,
         // com as colunas da linha vazias (docs/37 §11).
-        const daProva: (LinhaDaProva | null)[] =
-          d.classificacao?.a_parte === true ? [null] : d.linhas;
+        const daProva: (LinhaDaProva | null)[] = declaradoAParte(d)
+          ? [null]
+          : d.linhas;
         daProva.forEach((lp, i) => {
           const lb = gravadas[i];
           const expedida = x?.data_expedicao != null;
@@ -1340,7 +1348,9 @@ const CLASSIFICAVEIS: readonly MotivoImpedimento[] = [
  * uma linha sem balde ou uma prova sem data. Escolhe o balde e o país de
  * cada linha da prova (a taxa e os valores vêm sempre da prova) e, só se a
  * prova não tem data, a data. Uma vez por documento; não muda (**C**: que a
- * linha se declara à taxa da fatura emitida, contabilista).
+ * linha se declara à taxa da fatura emitida, contabilista). Uma prova sem
+ * linhas, `resolvido`, declara-se à parte (`a_parte`, docs/37 §11; EL): sai
+ * dos baldes e o valor declara-se à mão (**C**, contabilista).
  */
 export async function classificarOss(
   db: Kysely<BaseDados>,
