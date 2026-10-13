@@ -153,3 +153,4 @@
 - [Envios: encomenda parada perto da data-limite (#393, docs/36 §18, Q4): a 5 dias ou menos, com unidades por expedir, abre um problema «atraso» uma vez só; migração 0085 — 13/10/2026](envios-encomenda-parada-13out2026.md)
 - [Hub, publicar um artigo (#378, pedido #421): as rotas `/hub/` com a versão lida, a página da publicação e as acções na ficha; EJ: fora de venda nada vem marcado; sem a marca «nova» — 13/10/2026](hub-publicar-artigo-13out2026.md)
 - [Hub, publicar um artigo (#378, pedido #421): as rotas `/hub/` com a versão lida, a página da publicação e as acções na ficha; EJ: fora de venda nada vem marcado; a marca «nova» (#427) — 13/10/2026](hub-publicar-artigo-13out2026.md)
+- [A verificação diária da VPS a falhar: causa provável as 38 actualizações e o reinício por fazer (marcados para 13/10, 20:05); o `medir` passa a mostrar o que ela encontrou — 13/10/2026](vps-verificacao-falhada-13out2026.md)

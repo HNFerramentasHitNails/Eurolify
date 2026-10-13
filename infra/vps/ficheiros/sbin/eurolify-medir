@@ -31,6 +31,32 @@ for t in copia reposicao verificacao limpeza; do
     "$(systemctl show "eurolify-$t.service" -p ExecMainExitTimestamp --value 2>/dev/null)"
 done
 
+# O que a verificação diária encontrou na última vez: a secção de cima só diz
+# «failed». São as linhas da lista que o eurolify-verificacao escreve («- …»
+# ou «Sem problemas.»): só o estado da máquina, sem dados de pessoas. Pela
+# invocação da última corrida; sem ela (depois de reiniciar a máquina), as
+# últimas 26 h, só a partir do último arranque da unidade nelas, para não
+# juntar duas corridas (revisão do #428, P3-1).
+seccao "verificação diária (o que encontrou na última vez)"
+if [[ "$(systemctl show eurolify-verificacao.service -p ActiveState --value 2>/dev/null)" == activating ]]; then
+  # A corrida em curso ainda não escreveu a lista (revisão do #428, P3-2).
+  echo "a verificação está a correr agora; medir outra vez daqui a uns minutos"
+else
+  invocacao="$(systemctl show eurolify-verificacao.service -p InvocationID --value 2>/dev/null)"
+  if [[ "$invocacao" =~ ^[0-9a-f]{32}$ ]]; then
+    diario="$(journalctl --no-pager -o cat "_SYSTEMD_INVOCATION_ID=$invocacao" 2>/dev/null)"
+  else
+    diario="$(journalctl --no-pager -o cat -u eurolify-verificacao.service --since "-26 hours" 2>/dev/null |
+      awk '/^Starting eurolify-verificacao/ { n = 0; next } { l[n++] = $0 } END { for (i = 0; i < n; i++) print l[i] }')"
+  fi
+  linhas="$(grep -E '^(- |Sem problemas\.$)' <<<"$diario" | head -n 40)"
+  if [[ -n "$linhas" ]]; then
+    printf '%s\n' "$linhas"
+  else
+    echo "sem registo da última verificação"
+  fi
+fi
+
 seccao "contentores"
 docker ps --all --format '{{.Names}}  {{.Status}}  {{.Image}}' 2>&1
 docker stats --no-stream --format '{{.Name}}  {{.MemUsage}}' 2>&1
