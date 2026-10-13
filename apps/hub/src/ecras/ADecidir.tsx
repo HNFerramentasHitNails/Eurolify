@@ -8,6 +8,11 @@ import {
 import { api, ErroHub, type Eu, type Membros, type Papel } from "../api";
 import { ACarregar, CaixaDeErro, LigacaoInterna, useHub } from "../contexto";
 import { mensagemDeErro, semSessao } from "../erros";
+import {
+  enderecoFaturacao,
+  resumoDaLigacaoComErro,
+  type Faturacao as DadosFaturacao,
+} from "../faturacao";
 import { entradaDe } from "../modulos";
 import {
   consultaDe,
@@ -72,6 +77,26 @@ export function ADecidir({
     null,
   );
   const ultimo = useRef(0);
+  // A entidade, o software e as faturas retidas das ligações com erro
+  // (docs/29 §18, L6): lidos do ecrã Faturação, só quando há casos destes.
+  const [faturacao, setFaturacao] = useState<DadosFaturacao | null>(null);
+  const temLigacoes =
+    pagina?.dados.some((x) => x.fila === "ligacao_faturacao") ?? false;
+  useEffect(() => {
+    if (!valido || !temLigacoes) return;
+    let vivo = true;
+    api.faturacao(comerciante).then(
+      (f) => {
+        if (vivo) setFaturacao(f);
+      },
+      () => {
+        // Sem o resumo, a linha mostra o resto e a ligação para a Faturação.
+      },
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [valido, comerciante, temLigacoes, pagina]);
 
   const carregar = useCallback(
     async (f: FiltroTarefas, q: FilaTarefa | null) => {
@@ -377,6 +402,11 @@ export function ADecidir({
                     <Linha
                       key={x.caso}
                       tarefa={x}
+                      resumoLigacao={
+                        x.fila === "ligacao_faturacao" && faturacao !== null
+                          ? resumoDaLigacaoComErro(t, faturacao, x.caso)
+                          : null
+                      }
                       comerciante={comerciante}
                       fuso={fuso}
                       aberto={aberto?.caso === x.caso ? aberto.modo : null}
@@ -448,6 +478,7 @@ export function ADecidir({
 
 function Linha({
   tarefa: x,
+  resumoLigacao,
   comerciante,
   fuso,
   aberto,
@@ -466,6 +497,8 @@ function Linha({
   haQuanto,
 }: {
   tarefa: Tarefa;
+  /** A entidade, o software e as retidas (fila `ligacao_faturacao`). */
+  resumoLigacao: string | null;
   comerciante: string;
   fuso: string;
   aberto: Modo | null;
@@ -535,6 +568,21 @@ function Linha({
               </span>
             </>
           )}
+          {/* A ligação com erro resolve-se no ecrã Faturação (docs/29 §18, L6). */}
+          {x.fila === "ligacao_faturacao" ? (
+            <>
+              {resumoLigacao === null ? null : (
+                <>
+                  <br />
+                  <span className="secundario">{resumoLigacao}</span>
+                </>
+              )}
+              <br />
+              <LigacaoInterna href={enderecoFaturacao(comerciante)}>
+                {t.decidirAbrirFaturacao}
+              </LigacaoInterna>
+            </>
+          ) : null}
         </td>
         <td data-rotulo={t.colunaMotivo}>{motivoDe(t, x.motivo)}</td>
         <td data-rotulo={t.colunaNaFila}>{haQuanto(x.entrou_em)}</td>

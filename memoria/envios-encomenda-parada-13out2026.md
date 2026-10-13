@@ -16,7 +16,7 @@ desenho é o `docs/36` §18 e completa a Q4 da decisão ED (issue #393).
 - **Onde aparece.** O problema aparece na lista «A decidir», na fila
   «problema». Ao vencer, avisa por e-mail como os outros. Não há fila nova.
 - **Quem decide.** Uma pessoa, sempre: nada se cancela nem reembolsa sozinho.
-- **O código.** Migração 0084: as tabelas `encomenda_parada` (a marca) e
+- **O código.** Migração 0085: as tabelas `encomenda_parada` (a marca) e
   `tarefa_parada` (interna, as candidatas). A volta corre de hora a hora, à
   parte da dos envios e sem depender da `ENVIOS_CHAVE`
   (`src/envios/paradas.ts`, `agendarEncomendasParadas`). Antes de abrir,
@@ -28,7 +28,7 @@ desenho é o `docs/36` §18 e completa a Q4 da decisão ED (issue #393).
   - a marca está numa tabela própria;
   - há uma tabela interna de candidatas, porque o RLS forçado da encomenda
     vale também para o dono das funções.
-- **A numeração.** A 0083 já era do #420, e esta migração passou a 0084.
+- **A numeração.** A 0083 já era do #420 e a 0084 de outro pedido; esta migração passou a 0085.
 
 ## Números (com data e como se contaram)
 

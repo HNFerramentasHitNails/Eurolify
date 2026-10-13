@@ -814,7 +814,7 @@ Aparece na lista «A decidir» do Hub, com o prazo de 2 dias.
 ### 18.5 Como entra no código
 
 Um pedido só, com:
-- a migração 0084 (a 0083 já era do #420): a marca, a função dos dias e a função que lista as
+- a migração 0085 (a 0083 e a 0084 já eram de outros pedidos): a marca, a função dos dias e a função que lista as
   paradas;
 - a volta em `src/envios/`;
 - os testes;
@@ -822,11 +822,11 @@ Um pedido só, com:
 
 Sem ecrã novo: o problema já aparece em «A decidir» e na encomenda.
 
-### 18.6 Em código (13/10/2026; migração 0084)
+### 18.6 Em código (13/10/2026; migração 0085)
 
 | O quê | Onde |
 |---|---|
-| os 5 dias, num sítio só, e a data-limite lida da cópia da encomenda (NULL quando falta ou não é uma data, sem parar a volta) | `envios_dias_de_aviso_parada()`, `envios_data_limite()`, migração 0084 |
+| os 5 dias, num sítio só, e a data-limite lida da cópia da encomenda (NULL quando falta ou não é uma data, sem parar a volta) | `envios_dias_de_aviso_parada()`, `envios_data_limite()`, migração 0085 |
 | a marca «já avisada», com o problema que abriu; só se acrescenta, com o RLS forçado | `encomenda_parada` |
 | as candidatas por comerciante, postas e tiradas pelos gatilhos da encomenda e da marca; as que já existiam entram na migração | `tarefa_parada` (interna) |
 | a decisão, dentro do comerciante: o estado, a data no fuso da loja, sem marca e com unidades que ainda não saíram (uma expedição só criada ainda está no armazém) | `envios_paradas()` |

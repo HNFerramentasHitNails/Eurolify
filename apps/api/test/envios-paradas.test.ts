@@ -15,7 +15,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// A encomenda parada perto da data-limite (docs/36 §18; migração 0084): a 5
+// A encomenda parada perto da data-limite (docs/36 §18; migração 0085): a 5
 // dias ou menos da data-limite que o cliente viu, com unidades que ainda não
 // saíram, abre um problema da pós-venda, uma vez só; o dia é o da loja.
 

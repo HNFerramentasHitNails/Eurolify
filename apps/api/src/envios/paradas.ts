@@ -6,7 +6,7 @@ import { codigoDe, QUEM_DAS_TAREFAS } from "./etiquetas.js";
 import { noEnvios } from "./repositorio.js";
 
 // A encomenda parada perto da data-limite (docs/36 §18; Q4 da decisão ED).
-// Quem decide se está parada é a base (`envios_paradas`, 0084): o estado, a
+// Quem decide se está parada é a base (`envios_paradas`, 0085): o estado, a
 // data-limite copiada na encomenda, os dias de aviso e as unidades que ainda
 // não saíram. Aqui só se abre o problema, uma vez por encomenda, e nunca se
 // cancela nem reembolsa (decide uma pessoa).

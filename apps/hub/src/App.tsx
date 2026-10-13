@@ -190,6 +190,8 @@ export function App() {
     opcoesDoArtigo !== null ||
     daVariante !== null ||
     dePublicar !== null ||
+    // A página do preço também tem «Conta» e «Sair» (revisão do #421).
+    doPreco !== null ||
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
@@ -238,46 +240,48 @@ export function App() {
                             : t.varianteEditarTitulo
                           : dePublicar !== null
                             ? t.publicarTitulo
-                            : local.caminho === "/a-decidir"
-                              ? t.decidirTitulo
-                              : local.caminho === "/faturacao"
-                                ? t.faturacaoTitulo
-                                : local.caminho === "/faturacao/moloni"
-                                  ? t.moloniTitulo
-                                  : local.caminho === "/faturacao/configurar"
-                                    ? t.configurarTitulo
-                                    : local.caminho === "/faturacao/oss"
-                                      ? t.ossTitulo
-                                      : local.caminho === "/envios"
-                                        ? t.enviosTitulo
-                                        : local.caminho === "/envios/nova"
-                                          ? t.enviosNovaTitulo
-                                          : contaDeEnvios !== null
-                                            ? t.enviosContaTitulo
-                                            : local.caminho ===
-                                                "/envios/metodos"
-                                              ? t.metodosTitulo
+                            : doPreco !== null
+                              ? t.precoTitulo
+                              : local.caminho === "/a-decidir"
+                                ? t.decidirTitulo
+                                : local.caminho === "/faturacao"
+                                  ? t.faturacaoTitulo
+                                  : local.caminho === "/faturacao/moloni"
+                                    ? t.moloniTitulo
+                                    : local.caminho === "/faturacao/configurar"
+                                      ? t.configurarTitulo
+                                      : local.caminho === "/faturacao/oss"
+                                        ? t.ossTitulo
+                                        : local.caminho === "/envios"
+                                          ? t.enviosTitulo
+                                          : local.caminho === "/envios/nova"
+                                            ? t.enviosNovaTitulo
+                                            : contaDeEnvios !== null
+                                              ? t.enviosContaTitulo
                                               : local.caminho ===
-                                                  "/envios/metodos/novo"
-                                                ? t.metodosNovoTitulo
-                                                : metodoDeEnvios !== null
-                                                  ? t.metodosMetodoTitulo
-                                                  : local.caminho ===
-                                                      "/envios/embalagem"
-                                                    ? t.embalagemTitulo
+                                                  "/envios/metodos"
+                                                ? t.metodosTitulo
+                                                : local.caminho ===
+                                                    "/envios/metodos/novo"
+                                                  ? t.metodosNovoTitulo
+                                                  : metodoDeEnvios !== null
+                                                    ? t.metodosMetodoTitulo
                                                     : local.caminho ===
-                                                        "/expedir"
-                                                      ? t.expedirTitulo
-                                                      : encomendaAExpedir !==
-                                                          null
-                                                        ? t.expedirEncomendaTitulo
-                                                        : local.caminho ===
-                                                            "/chaves"
-                                                          ? t.chavesTitulo
+                                                        "/envios/embalagem"
+                                                      ? t.embalagemTitulo
+                                                      : local.caminho ===
+                                                          "/expedir"
+                                                        ? t.expedirTitulo
+                                                        : encomendaAExpedir !==
+                                                            null
+                                                          ? t.expedirEncomendaTitulo
                                                           : local.caminho ===
-                                                              "/conta"
-                                                            ? t.contaTitulo
-                                                            : t.inicioTitulo;
+                                                              "/chaves"
+                                                            ? t.chavesTitulo
+                                                            : local.caminho ===
+                                                                "/conta"
+                                                              ? t.contaTitulo
+                                                              : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);

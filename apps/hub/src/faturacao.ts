@@ -15,6 +15,8 @@ export interface EntidadeFaturacao {
   pais: string;
   /** `eurolify`, `sistema_proprio` ou `por_configurar` (docs/29 §15). */
   emissor: string;
+  /** As faturas retidas à espera da ligação (`ligacao_sem_teste`; docs/29 §18). */
+  retidas_sem_ligacao?: number;
 }
 
 export type EstadoLigacao = "por_testar" | "pronta" | "com_erro";
@@ -180,6 +182,33 @@ export function ligacaoDaEntidade(
 
 export const estadoMostrado = (l: LigacaoFaturacao): EstadoMostrado =>
   l.activa ? l.estado : "desligada";
+
+/**
+ * A linha de um caso `ligacao_faturacao` no «A decidir» (docs/29 §18, L6;
+ * revisão do #422, P2-1): a entidade, o software e as faturas retidas, lidos
+ * de `GET /hub/invoicing`. Null se a ligação já não estiver lá.
+ */
+export function resumoDaLigacaoComErro(
+  t: Textos,
+  f: Faturacao,
+  caso: string,
+): string | null {
+  const l = f.ligacoes.find((x) => x.id === caso);
+  if (l === undefined) return null;
+  const e = f.entidades.find((x) => x.id === l.entidade_legal);
+  const retidas = e?.retidas_sem_ligacao ?? 0;
+  const software =
+    (t as Record<string, string>)[`adaptador_${l.adaptador}`] ?? l.adaptador;
+  return [
+    e?.nome ?? l.entidade_legal,
+    software,
+    retidas === 0
+      ? t.faturacaoRetidasNenhuma
+      : retidas === 1
+        ? t.faturacaoRetidasUma
+        : preencher(t.faturacaoRetidas, { n: retidas }),
+  ].join(" · ");
+}
 
 // ------------------------------------------------------------- Os períodos
 

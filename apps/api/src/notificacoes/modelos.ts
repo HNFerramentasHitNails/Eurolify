@@ -31,7 +31,32 @@ export interface DadosDaTarefa {
   fuso: string | null;
 }
 
-type TipoDoReembolso = Exclude<TipoNotificacao, "task.overdue">;
+/**
+ * O aviso da ligação ao software de faturação com erro (docs/29 §18, Q1 A;
+ * migração 0084).
+ */
+export interface DadosDaLigacao {
+  loja?: string;
+  /** O nome da entidade legal do comerciante (a empresa, não um cliente). */
+  entidade?: string;
+  ligacao: string;
+  adaptador: string;
+  /** Um código: `renovacao_recusada`. */
+  motivo: string | null;
+  /**
+   * As faturas retidas por `ligacao_sem_teste` nessa entidade, contadas no
+   * envio (não se guardam na notificação).
+   */
+  retidas?: number;
+  /** AAAA-MM-DD HH:MI, no fuso do comerciante. */
+  desde: string | null;
+  fuso: string | null;
+}
+
+type TipoDoReembolso = Exclude<
+  TipoNotificacao,
+  "task.overdue" | "invoicing.connection_error"
+>;
 
 const data = (iso: string | null, l: Lingua) => {
   if (iso === null) return "?";
@@ -182,6 +207,7 @@ const NOMES_DAS_FILAS: Record<Lingua, Record<FilaTarefa, string>> = {
     livre_resolucao: "pedido de livre resolução",
     problema: "problema numa encomenda",
     reembolso: "reembolso",
+    ligacao_faturacao: "ligação ao software de faturação com erro",
   },
   es: {
     pagamento: "diferencia de pago",
@@ -191,6 +217,7 @@ const NOMES_DAS_FILAS: Record<Lingua, Record<FilaTarefa, string>> = {
     livre_resolucao: "solicitud de desistimiento",
     problema: "incidencia en un pedido",
     reembolso: "reembolso",
+    ligacao_faturacao: "conexión al software de facturación con error",
   },
   en: {
     pagamento: "payment discrepancy",
@@ -200,6 +227,7 @@ const NOMES_DAS_FILAS: Record<Lingua, Record<FilaTarefa, string>> = {
     livre_resolucao: "withdrawal request",
     problema: "order issue",
     reembolso: "refund",
+    ligacao_faturacao: "invoicing software connection with an error",
   },
 };
 
@@ -274,14 +302,101 @@ function textoDaTarefa(
   return { assunto: t.assunto, texto: t.texto.join("\n") };
 }
 
+const NOMES_DOS_ADAPTADORES: Record<string, string> = {
+  moloni: "Moloni",
+  ensaio: "Ensaio",
+};
+
+function textoDaLigacao(
+  d: DadosDaLigacao,
+  l: Lingua,
+  loja: string,
+): Omit<Mensagem, "para"> {
+  const entidade = linha(d.entidade) || "?";
+  const software = NOMES_DOS_ADAPTADORES[d.adaptador] ?? "?";
+  const caso = `isx_${d.ligacao}`;
+  const motivo = codigo(d.motivo);
+  const desde = `${dataHora(d.desde, l)} (${linha(d.fuso ?? undefined) || "?"})`;
+  const retidas =
+    d.retidas !== undefined && Number.isInteger(d.retidas) && d.retidas >= 0
+      ? d.retidas
+      : 0;
+  const t = {
+    pt: {
+      assunto: `Faturação: a ligação ao ${software} de «${entidade}» está com erro`,
+      texto: [
+        "Olá,",
+        "",
+        `Na loja «${loja}», a ligação ${caso} da entidade «${entidade}» ao ${software} está com erro desde ${desde} (motivo: ${motivo}).`,
+        "Enquanto estiver assim, as faturas desta entidade não saem: ficam retidas.",
+        retidas === 0
+          ? "Ainda não há faturas retidas por isto; as próximas ficam retidas até a ligação voltar."
+          : retidas === 1
+            ? "Neste momento há 1 fatura retida por isto."
+            : `Neste momento há ${String(retidas)} faturas retidas por isto.`,
+        "",
+        "Para resolver: no Hub, «Faturação», «Ligar outra vez» e depois «Testar». Pela API: GET /invoicing-connections.",
+        "",
+        "Este aviso vai para quem pode ligar a conta (o dono). Não leva dados de clientes.",
+        "Eurolify",
+      ],
+    },
+    es: {
+      assunto: `Facturación: la conexión a ${software} de «${entidade}» tiene un error`,
+      texto: [
+        "Hola:",
+        "",
+        `En la tienda «${loja}», la conexión ${caso} de la entidad «${entidade}» a ${software} tiene un error desde el ${desde} (motivo: ${motivo}).`,
+        "Mientras siga así, las facturas de esta entidad no se emiten: quedan retenidas.",
+        retidas === 0
+          ? "Aún no hay facturas retenidas por esto; las próximas quedarán retenidas hasta que vuelva la conexión."
+          : retidas === 1
+            ? "En este momento hay 1 factura retenida por esto."
+            : `En este momento hay ${String(retidas)} facturas retenidas por esto.`,
+        "",
+        "Para resolverlo: en el Hub, «Facturación», «Conectar de nuevo» y después «Probar». Por la API: GET /invoicing-connections.",
+        "",
+        "Este aviso se envía a quien puede conectar la cuenta (el propietario). No incluye datos de clientes.",
+        "Eurolify",
+      ],
+    },
+    en: {
+      assunto: `Invoicing: the ${software} connection of "${entidade}" has an error`,
+      texto: [
+        "Hello,",
+        "",
+        `In the shop "${loja}", the connection ${caso} of the entity "${entidade}" to ${software} has had an error since ${desde} (reason: ${motivo}).`,
+        "While it stays like this, this entity's invoices are not issued: they are held.",
+        retidas === 0
+          ? "No invoices are held because of this yet; the next ones will be held until the connection is back."
+          : retidas === 1
+            ? "Right now 1 invoice is held because of this."
+            : `Right now ${String(retidas)} invoices are held because of this.`,
+        "",
+        "To fix it: in the Hub, «Invoicing», «Connect again» and then «Test». Through the API: GET /invoicing-connections.",
+        "",
+        "This notice goes to whoever can connect the account (the owner). It carries no customer data.",
+        "Eurolify",
+      ],
+    },
+  }[l];
+  return { assunto: t.assunto, texto: t.texto.join("\n") };
+}
+
 /** O e-mail de uma notificação, para uma pessoa. */
 export function mensagemDe(
   tipo: TipoNotificacao,
   lingua: Lingua,
-  dados: DadosDoAviso | DadosDaTarefa,
+  dados: DadosDoAviso | DadosDaTarefa | DadosDaLigacao,
   para: { email: string },
 ): Mensagem {
   const loja = linha(dados.loja) || "?";
+  if (tipo === "invoicing.connection_error") {
+    return {
+      ...textoDaLigacao(dados as DadosDaLigacao, lingua, loja),
+      para: para.email,
+    };
+  }
   if (tipo === "task.overdue") {
     return {
       ...textoDaTarefa(dados as DadosDaTarefa, lingua, loja),
