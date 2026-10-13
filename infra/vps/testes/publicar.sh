@@ -116,11 +116,24 @@ fi
 exit "${CURL_FALHA:-0}"
 FALSO
 printf '#!/usr/bin/env bash\nexit 0\n' >"$falsos/sleep"
+# systemctl e journalctl de mentira para a secção da verificação diária
+# (eurolify-medir): a invocação vem de $FALSOS/invocacao e o diário de
+# $FALSOS/diario; os argumentos do journalctl ficam em $FALSOS/journalctl-args.
+cat >"$falsos/systemctl" <<'FALSO'
+#!/usr/bin/env bash
+if [[ "$*" == *InvocationID* ]]; then cat "$FALSOS/invocacao" 2>/dev/null || true; fi
+exit 0
+FALSO
+cat >"$falsos/journalctl" <<'FALSO'
+#!/usr/bin/env bash
+echo "$*" >"$FALSOS/journalctl-args"
+cat "$FALSOS/diario" 2>/dev/null || true
+FALSO
 cat >"$falsos/systemd-run" <<'FALSO'
 #!/usr/bin/env bash
 echo "systemd-run $*" >>"$FALSOS/systemd-run-chamado"
 FALSO
-chmod 755 "$falsos/docker" "$falsos/curl" "$falsos/sleep" "$falsos/systemd-run"
+chmod 755 "$falsos/docker" "$falsos/curl" "$falsos/sleep" "$falsos/systemd-run" "$falsos/systemctl" "$falsos/journalctl"
 export PATH="$falsos:$PATH" FALSOS="$falsos"
 
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
@@ -795,6 +808,36 @@ bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "a API no ar com a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: sim (a variável está no contentor)"
 confere nao "sem o valor da chave" na_saida "segredo"
 rm -f "$falsos/api-ambiente" "$falsos/curl-avisos"
+
+# A verificação diária no medir: o que encontrou na última vez.
+echo "== verificação no medir"
+printf '%032x\n' 7 >"$falsos/invocacao"
+cat >"$falsos/diario" <<'DIARIO'
+Starting eurolify-verificacao.service - Eurolify: verificação diária da VPS (ADR-0027)...
+- 38 actualizações de segurança por aplicar
+- reinício pedido pelas actualizações — fazer fora do horário de trabalho e anunciado (AGENTS.md)
+eurolify-verificacao.service: Main process exited, code=exited, status=1/FAILURE
+DIARIO
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "mostra os problemas que a verificação encontrou" linha_na_saida "- 38 actualizações de segurança por aplicar"
+confere sim "todos" linha_na_saida "- reinício pedido pelas actualizações — fazer fora do horário de trabalho e anunciado (AGENTS.md)"
+confere nao "sem as linhas do systemd" na_saida "Main process exited"
+confere sim "lê só a última corrida" grep -q -- "_SYSTEMD_INVOCATION_ID=$(printf '%032x' 7)" "$falsos/journalctl-args"
+printf 'Sem problemas.\n' >"$falsos/diario"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "sem problemas diz-se" linha_na_saida "Sem problemas."
+: >"$falsos/invocacao"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "sem a invocação, as últimas 26 h da unidade" grep -q -- "-u eurolify-verificacao.service --since -26 hours" "$falsos/journalctl-args"
+: >"$falsos/diario"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "sem registo diz-se" linha_na_saida "sem registo da última verificação"
+printf '%032x\n' 7 >"$falsos/invocacao"
+for i in $(seq 1 60); do echo "- problema $i"; done >"$falsos/diario"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "no máximo 40 linhas" linha_na_saida "- problema 40"
+confere nao "e não mais" linha_na_saida "- problema 41"
+rm -f "$falsos/invocacao" "$falsos/diario" "$falsos/journalctl-args"
 
 rm -rf "$falsos"
 ((falhas == 0))
