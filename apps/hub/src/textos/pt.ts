@@ -1063,6 +1063,10 @@ export const pt = {
   ossAlteracaoDe: "alteração do {periodo}",
   ossSistemaProprio: "Do sistema próprio",
   ossPorEmitir: "Por emitir",
+  ossDeclarados: "Declarados à parte pelo dono",
+  ossDeclaradosAviso:
+    "O valor destes documentos não está nas somas: declare-o à mão a partir do documento emitido.",
+  ossDeclaradoEm: "decidido a {data}",
   ossNada: "Nada.",
   ossPaisPorSaber: "país por saber",
   ossLimiarTitulo: "O limiar das vendas à distância",
@@ -1147,6 +1151,10 @@ export const pt = {
   classificarFaltaMotivo: "Escreva o motivo.",
   classificarJaClassificado: "Este documento já foi classificado.",
   classificarFeito: "Classificado.",
+  classificarSemLinhas:
+    "A prova não tem linhas. Declara-se à parte: sai das somas do relatório e o valor tem de ser declarado à mão a partir do documento emitido.",
+  classificarDeclarar: "Declarar à parte",
+  classificarDeclarado: "Declarado à parte.",
   ossNaoConfirmado:
     "A resposta perdeu-se e o relatório não mostra a mudança. Confira e tente outra vez.",
   // Os envios (docs/22 §29).

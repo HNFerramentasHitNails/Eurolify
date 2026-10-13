@@ -295,7 +295,7 @@ caso que o teste das alterações já cobre, §3).
 - `fechado_por` guarda quem fechou (o identificador da chave ou da pessoa), não o nome
   da pessoa.
 
-**Por fazer:** o ecrã no Hub; os registos de serviços (art. 63.º-C, al. b) e
+**Por fazer:** os registos de serviços (art. 63.º-C, al. b) e
 k) para serviços) quando houver; outras moedas (L6).
 
 ## 11. Uma prova sem linhas: declarada à parte (3.ª revisão do #392, P3-7; EL)
@@ -346,3 +346,27 @@ totais e tem de ser declarado à mão a partir do documento emitido.
 - o limiar a contá-lo nos excluídos;
 - a linha do CSV com `a_parte`;
 - a base a recusar `a_parte` com linhas, e sem `a_parte` com linhas vazias.
+
+**Em código (13/10/2026; migração 0089; #437):**
+- **Migração 0089:** `a_parte` em `relatorio_oss_classificacao`. A restrição
+  `relatorio_oss_classificacao_linhas_check` exige as linhas vazias se e só
+  se `a_parte`.
+- **`src/faturacao/oss.ts`:**
+  - `classificarOss`: `a_parte` ou `linhas`, nunca os dois;
+  - `agregar`: a lista `declarados`;
+  - `vendasADistancia`: os declarados contam nos excluídos;
+  - `registosOss`: a linha sem valores com `classificado=a_parte`.
+- **`src/faturacao/rotas-oss.ts`:** `a_parte` no corpo.
+- **Hub (`RelatorioOss.tsx`):**
+  - a lista «Declarados à parte pelo dono», com o aviso de que o valor não
+    está nas somas;
+  - numa prova sem linhas, o diálogo de classificar explica e o botão diz
+    «Declarar à parte».
+- **Testes:**
+  - 1 sem base (`test/oss.test.ts`);
+  - 1 pela API (`test/documentos-api.test.ts`), que vai até ao fecho do
+    período, aos registos e à restrição da base;
+  - capturas do relatório e do diálogo com dados de exemplo
+    (`scripts/capturas.mjs`).
+- **Fotografias antigas:** as de antes da 0089 não têm `declarados`; o Hub
+  mostra «Nada.».

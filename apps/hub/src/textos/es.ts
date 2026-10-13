@@ -1074,6 +1074,10 @@ export const es: Textos = {
   ossAlteracaoDe: "cambio del {periodo}",
   ossSistemaProprio: "Del sistema propio",
   ossPorEmitir: "Por emitir",
+  ossDeclarados: "Declarados aparte por el dueño",
+  ossDeclaradosAviso:
+    "El valor de estos documentos no está en las sumas: declárelo a mano a partir del documento emitido.",
+  ossDeclaradoEm: "decidido el {data}",
   ossNada: "Nada.",
   ossPaisPorSaber: "país por saber",
   ossLimiarTitulo: "El umbral de las ventas a distancia",
@@ -1163,6 +1167,10 @@ export const es: Textos = {
   classificarFaltaMotivo: "Escriba el motivo.",
   classificarJaClassificado: "Este documento ya se ha clasificado.",
   classificarFeito: "Clasificado.",
+  classificarSemLinhas:
+    "La prueba no tiene líneas. Se declara aparte: sale de las sumas del informe y el valor debe declararse a mano a partir del documento emitido.",
+  classificarDeclarar: "Declarar aparte",
+  classificarDeclarado: "Declarado aparte.",
   ossNaoConfirmado:
     "La respuesta se ha perdido y el informe no muestra el cambio. Compruébelo e inténtelo de nuevo.",
   // Los envíos (docs/22 §29).
