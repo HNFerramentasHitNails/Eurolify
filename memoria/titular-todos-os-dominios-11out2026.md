@@ -54,6 +54,11 @@ com Q1 a Q4 decididas (§15.8; `docs/06`, DU). Pedidos: desenho #369
   declarado de um documento emitido fora), P2-2 (comprador lido do
   documento), P2-3 (índices na 0082 e a procura de contactos com listas,
   para os índices GIN). 2 contraprovas novas, cada uma faz falhar o caso.
+- P3-2 do #411 (Diogo, 13/10/2026, *«sim, avança com os quatro num pedido
+  à parte»*): a exportação traz também as linhas da livre resolução e do
+  reembolso, a decisão de higiene e o seguimento da transportadora (sem o
+  id do evento nem o aviso em bruto). 5 contraprovas (13/10/2026,
+  PostgreSQL 18.6 em Docker): cada uma faz falhar o caso.
 
 ## O que ficou por verificar
 

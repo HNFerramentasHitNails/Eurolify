@@ -1044,6 +1044,8 @@ os campos pessoais passam a marcador e os outros ficam.
 | `pedido_livre_resolucao.contacto` | e-mail | grupo C: «sem e-mail»; grupo B: quando acabar | passa a sair (com a confirmação e o estado) |
 | `pedido_livre_resolucao.motivo_decisao`, `devolucao.motivo`, `problema.descricao` | texto livre | marcador quando acabarem | passam a sair |
 | `reembolso` | montantes, estado, prova (data, referência do banco, quem); o IBAN nunca se guarda | fica (registo financeiro) | passa a sair (sem a prova) |
+| `linha_livre_resolucao`, `linha_reembolso`, `linha_devolucao.decisao_higiene` | que artigos a pessoa quis devolver; de que linhas (e portes) é cada reembolso; a decisão que reembolsa ou recusa um artigo selado aberto | fica (sem texto livre) | passam a sair (Diogo, 13/10/2026; revisão do #411, P3-2) |
+| `evento_seguimento.estado_transportadora` | o estado que a transportadora deu (pode trazer quem recebeu) | marcador (0079) | passa a sair, com o estado normalizado e a data; sem o id do evento da transportadora nem o aviso em bruto (`aviso_transportadora`) (Diogo, 13/10/2026) |
 | `evento_saida` | só identificadores e montantes | fica | não sai |
 
 ### 15.3 Encomendas em curso: aplica-se quando acabarem
@@ -1214,10 +1216,14 @@ fatura emitida fora dá o número declarado e não o motivo do rasto
 aparecem na exportação e no apagamento, as do grupo, as já apagadas e as de
 outro comerciante não, e ficam como estavam (`clientes-titular.test.ts`).
 
-Fica de fora, da revisão do #411: as linhas da livre resolução e do
-reembolso, a decisão de higiene de uma linha devolvida e os eventos de
-seguimento da transportadora não estão na §15.2 e não saem (por decidir,
-P3-2); a lista das fichas parecidas só se vê antes do apagamento pela
+As linhas da livre resolução e do reembolso, a decisão de higiene de uma
+linha devolvida e o seguimento da transportadora passam também a sair
+(`linhas_da_livre_resolucao`, `linhas_dos_reembolsos`,
+`linhas_das_devolucoes.decisao_higiene`, `seguimento_das_expedicoes`;
+revisão do #411, P3-2; Diogo, 13/10/2026: *«sim, avança com os quatro num
+pedido à parte»*), com teste e contraprova de cada um.
+
+Fica de fora, da revisão do #411: a lista das fichas parecidas só se vê antes do apagamento pela
 exportação (P3-3); a exportação lê em READ COMMITTED, dentro da transacção
 da idempotência (P3-5).
 

@@ -1098,6 +1098,15 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         prova_entrega: "recebido pela Ana Silva",
       }),
     );
+    // Um evento de seguimento da transportadora (a expedição de teste não
+    // passa por uma; grava-se como o aviso o gravaria).
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`insert into evento_seguimento (comerciante_id, expedicao_id,
+          origem, id_externo, estado_transportadora, estado_normalizado, em)
+        values (comerciante_actual(), ${String(x["id"]).slice(4)}::uuid,
+          'aviso', 'EVT-EXPORTA-91', 'Entregue a Ana Silva', 'entregue',
+          now())`.execute(trx);
+    });
     // Um problema com reembolso transferido à mão (a prova não sai).
     const prb = await ok(
       s.adm("POST", "/problems", {
@@ -1210,7 +1219,28 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       }),
     ]);
     expect((f["devolucoes"] as Json[]).length).toBe(1);
-    expect((f["linhas_das_devolucoes"] as Json[]).length).toBe(1);
+    expect(f["linhas_das_devolucoes"]).toEqual([
+      expect.objectContaining({ pedida: 1, decisao_higiene: null }),
+    ]);
+    // Os artigos que a pessoa quis devolver, e de que linhas é o reembolso
+    // (Diogo, 13/10/2026; revisão do #411, P3-2).
+    expect(f["linhas_da_livre_resolucao"]).toEqual([
+      expect.objectContaining({
+        linha_encomenda_id: (f["linhas_das_encomendas"] as Json[])[0]?.["id"],
+        quantidade: 1,
+      }),
+    ]);
+    expect(f["linhas_dos_reembolsos"]).toEqual([
+      expect.objectContaining({ posicao: 1, quantidade: 1, montante: "1230" }),
+    ]);
+    // O seguimento da transportadora, com o texto dela; sem o id do evento.
+    expect(f["seguimento_das_expedicoes"]).toEqual([
+      expect.objectContaining({
+        estado_transportadora: "Entregue a Ana Silva",
+        estado_normalizado: "entregue",
+      }),
+    ]);
+    expect(texto).not.toContain("EVT-EXPORTA-91");
     expect(f["problemas"]).toEqual([
       expect.objectContaining({
         descricao: "a Ana Silva diz que o frasco veio partido",
@@ -4722,6 +4752,17 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         decisao === null ? /returns\.immutable/ : /returns\.invalid_transition/,
       );
     }
+    // A exportação do titular traz a decisão que lhe recusou o reembolso
+    // (Diogo, 13/10/2026; revisão do #411, P3-2).
+    const exp = await exportarTitular(s, e.encomenda);
+    expect(
+      (exp["fichas"] as Json[])[0]?.["linhas_das_devolucoes"] as Json[],
+    ).toContainEqual(
+      expect.objectContaining({
+        linha_encomenda_id: String(l1?.["id"]).slice(4),
+        decisao_higiene: "excepcao_higiene",
+      }),
+    );
   });
 
   it("selado por higiene: reembolsar como gesto da loja, e fechar com a excepção; numa devolução comercial não se aplica (H6, H7)", async () => {
