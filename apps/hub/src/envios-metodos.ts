@@ -77,7 +77,8 @@ export function servicosParaOMercado(
   return servicos.filter(
     (s) =>
       paises.every((p) => s.paises.includes(p)) &&
-      s.ponto === (entrega === "ponto"),
+      // Sem `ponto` (uma API mais antiga), o serviço é de morada.
+      ((s.ponto as boolean | undefined) === true) === (entrega === "ponto"),
   );
 }
 

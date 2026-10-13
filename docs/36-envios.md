@@ -1298,8 +1298,8 @@ Dois pedidos, por esta ordem:
 se `carrier_code` é a parte do código do serviço antes de «:» em todas as
 transportadoras da Sendcloud (**W**).
 
-**Por fazer:** o pedido 2 (Hub: o campo no método e o ponto em «Expedir»,
-com capturas), em §21.11.
+**O Hub** (o campo no método e o ponto em «Expedir») é o pedido 2, em
+§21.11.
 
 ### 21.11 O Hub (pedido 2; 13/10/2026)
 
@@ -1310,5 +1310,14 @@ com capturas), em §21.11.
 | em «Expedir», «Quem recebe» mostra o ponto de recolha antes da morada dele e diz que só fica entregue quando o cliente levanta | `src/ecras/Expedir.tsx` |
 | os textos em PT, ES e EN | `src/textos/` |
 | os testes do apoio (o tipo do serviço, o método manual, o PATCH) e as capturas a 375, 768 e 1280 px, claro e escuro, com respostas simuladas (em modo teste a Sendcloud não tem serviços de ponto) | `test/envios-metodos.test.ts`, `scripts/capturas.mjs` |
+
+**Da revisão do agente (#443):**
+- o erro de serviço que não serve fala também da morada ou do ponto (P2-1);
+- sem serviços de ponto na conta, o ecrã diz isso, e não que faltam países
+  (P2-2);
+- um serviço sem `ponto` (uma API antiga) conta como de morada (P3-1);
+- a ajuda de «Onde entrega» fica ligada ao grupo e é anunciada (P3-3);
+- a lista do «Expedir» marca as encomendas para um ponto (P3-5);
+- em ES, «el transportista» (P3-7).
 
 O aspecto vai ao Diogo com as capturas antes de se juntar.

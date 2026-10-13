@@ -1335,6 +1335,8 @@ export const pt = {
     "Só os serviços que entregam em todos os países do mercado. O peso máximo vem do serviço: confirme-o.",
   metodosSemServicosNoMercado:
     "Esta conta não tem serviços para todos os países do mercado. Teste a conta outra vez ou escolha outra.",
+  metodosSemServicosDePonto:
+    "Esta conta não tem serviços que entreguem em pontos de recolha em todos os países do mercado. Escolha «Na morada do cliente» ou outra conta.",
   metodosOndeEntrega: "Onde entrega",
   metodosEntregaMorada: "Na morada do cliente",
   metodosEntregaPonto: "Num ponto de recolha",
@@ -1383,7 +1385,7 @@ export const pt = {
   metodosServicoDesconhecido:
     "A conta não tem este serviço. Teste a conta outra vez para reler os serviços.",
   metodosServicoNaoServe:
-    "O serviço não serve este método: confira se entrega em todos os países do mercado, o peso máximo e se pede telefone.",
+    "O serviço não serve este método: confira se entrega em todos os países do mercado, o peso máximo, se pede telefone e se entrega na morada ou num ponto de recolha.",
   metodosConflito:
     "O método mudou entretanto. O que escreveu continua no formulário; «Tentar outra vez» carrega a versão actual e substitui-o.",
   embalagemTitulo: "Embalagem",
@@ -1498,6 +1500,7 @@ export const pt = {
   expedirSoVer: "O seu papel só vê as expedições: não cria nem muda.",
   expedirQuemRecebe: "Quem recebe",
   expedirPontoRecolha: "Ponto de recolha:",
+  expedirParaPonto: "ponto de recolha",
   expedirPontoAjuda:
     "A transportadora deixa a encomenda no ponto e o cliente levanta-a lá. Só fica entregue quando ele a levanta.",
   expedirTelefone: "Telefone:",

@@ -128,6 +128,32 @@ describe("métodos de entrega no Hub", () => {
         ? null
         : camposMudados(metodo({ conta: "cac_a", servico: "p1" }), ponto),
     ).toMatchObject({ entrega: "ponto" });
+    // De morada para ponto com outro serviço: a conta, o serviço e onde
+    // entrega vão juntos (revisão do #443).
+    const paraPonto = conferirMetodo(
+      formulario({ entrega: "ponto", conta: "cac_a", servico: "p1" }),
+      "pt",
+      2,
+    ).campos;
+    expect(
+      paraPonto === null
+        ? null
+        : camposMudados(metodo({ conta: "cac_a", servico: "s1" }), paraPonto),
+    ).toMatchObject({ conta: "cac_a", servico: "p1", entrega: "ponto" });
+    // De ponto para manual: sem conta nem serviço, e na morada.
+    const manual = conferirMetodo(
+      formulario({ entrega: "ponto" }),
+      "pt",
+      2,
+    ).campos;
+    expect(
+      manual === null
+        ? null
+        : camposMudados(
+            metodo({ conta: "cac_a", servico: "p1", entrega: "ponto" }),
+            manual,
+          ),
+    ).toMatchObject({ conta: null, servico: null, entrega: "morada" });
   });
 
   it("no PATCH só vai o que mudou; a conta e o serviço vão juntos", () => {
@@ -214,6 +240,16 @@ describe("métodos de entrega no Hub", () => {
     expect(
       servicosParaOMercado(todos, ["PT", "ES"], "ponto").map((s) => s.codigo),
     ).toEqual(["ponto-pt-es"]);
+    // Uma API sem `ponto` no serviço: conta como de morada (revisão do #443).
+    const semPonto = {
+      ...servico("antigo", ["PT", "ES"]),
+    } as Partial<ServicoConta>;
+    delete semPonto.ponto;
+    expect(
+      servicosParaOMercado([semPonto as ServicoConta], ["PT", "ES"]).map(
+        (s) => s.codigo,
+      ),
+    ).toEqual(["antigo"]);
   });
 
   it("os erros do servidor dizem-se com o texto deste ecrã", () => {

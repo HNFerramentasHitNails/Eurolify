@@ -1352,11 +1352,13 @@ export const es: Textos = {
     "Solo los servicios que entregan en todos los países del mercado. El peso máximo viene del servicio: confírmelo.",
   metodosSemServicosNoMercado:
     "Esta cuenta no tiene servicios para todos los países del mercado. Pruebe la cuenta otra vez o elija otra.",
+  metodosSemServicosDePonto:
+    "Esta cuenta no tiene servicios que entreguen en puntos de recogida en todos los países del mercado. Elija «En la dirección del cliente» u otra cuenta.",
   metodosOndeEntrega: "Dónde entrega",
   metodosEntregaMorada: "En la dirección del cliente",
   metodosEntregaPonto: "En un punto de recogida",
   metodosEntregaMoradaAjuda:
-    "La transportista entrega en la dirección que el cliente escribe en el checkout.",
+    "El transportista entrega en la dirección que el cliente escribe en el checkout.",
   metodosEntregaPontoAjuda:
     "El cliente elige un punto de recogida o taquilla en el checkout y no escribe la dirección de su casa. Solo los servicios que entregan en puntos.",
   metodosPrazoMax: "Plazo máximo de entrega, en días (1 a 30)",
@@ -1401,7 +1403,7 @@ export const es: Textos = {
   metodosServicoDesconhecido:
     "La cuenta no tiene este servicio. Pruebe la cuenta otra vez para releer los servicios.",
   metodosServicoNaoServe:
-    "El servicio no sirve para este método: compruebe si entrega en todos los países del mercado, el peso máximo y si pide teléfono.",
+    "El servicio no sirve para este método: compruebe si entrega en todos los países del mercado, el peso máximo, si pide teléfono y si entrega en la dirección o en un punto de recogida.",
   metodosConflito:
     "El método cambió mientras tanto. Lo que escribió sigue en el formulario; «Intentar de nuevo» carga la versión actual y lo sustituye.",
   embalagemTitulo: "Embalaje",
@@ -1521,8 +1523,9 @@ export const es: Textos = {
   expedirSoVer: "Su rol solo ve los envíos: no crea ni cambia.",
   expedirQuemRecebe: "Quién recibe",
   expedirPontoRecolha: "Punto de recogida:",
+  expedirParaPonto: "punto de recogida",
   expedirPontoAjuda:
-    "La transportista deja el pedido en el punto y el cliente lo recoge allí. Solo queda entregado cuando lo recoge.",
+    "El transportista deja el pedido en el punto y el cliente lo recoge allí. Solo queda entregado cuando lo recoge.",
   expedirTelefone: "Teléfono:",
   expedirLinhas: "Artículos",
   expedirColunaArtigo: "Artículo",

@@ -182,6 +182,9 @@ export function Expedir({ comerciante }: { comerciante: string | null }) {
                     </td>
                     <td data-rotulo={t.expedirColunaLocalidade}>
                       {e.entrega?.localidade ?? t.metodosNada}
+                      {e.entrega?.ponto === undefined
+                        ? ""
+                        : ` (${t.expedirParaPonto})`}
                     </td>
                   </tr>
                 ))}

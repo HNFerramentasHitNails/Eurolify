@@ -857,7 +857,10 @@ export function MetodoEntregaFormulario({
                 </p>
               </div>
               {f.conta === "" ? null : (
-                <fieldset className="campo">
+                <fieldset
+                  className="campo"
+                  aria-describedby="metodo-entrega-ajuda"
+                >
                   <legend>{t.metodosOndeEntrega}</legend>
                   {(["morada", "ponto"] as const).map((onde) => (
                     <div key={onde}>
@@ -880,7 +883,11 @@ export function MetodoEntregaFormulario({
                       </label>
                     </div>
                   ))}
-                  <p className="secundario">
+                  <p
+                    className="secundario"
+                    id="metodo-entrega-ajuda"
+                    aria-live="polite"
+                  >
                     {f.entrega === "ponto"
                       ? t.metodosEntregaPontoAjuda
                       : t.metodosEntregaMoradaAjuda}
@@ -932,7 +939,9 @@ export function MetodoEntregaFormulario({
                       </select>
                       <p className="secundario" id="metodo-servico-ajuda">
                         {doMercado.length === 0
-                          ? t.metodosSemServicosNoMercado
+                          ? f.entrega === "ponto"
+                            ? t.metodosSemServicosDePonto
+                            : t.metodosSemServicosNoMercado
                           : t.metodosServicoAjuda}
                       </p>
                     </>
