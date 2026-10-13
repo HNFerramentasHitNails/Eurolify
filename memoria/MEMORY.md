@@ -157,3 +157,4 @@
 - [A verificação diária da VPS a falhar: causa provável as 38 actualizações e o reinício por fazer (marcados para 13/10, 20:05); o `medir` passa a mostrar o que ela encontrou — 13/10/2026](vps-verificacao-falhada-13out2026.md)
 - [Aviso das tarefas que param (#233, Q-T1 A): migração 0088 conta a fila do titular e as sessões de checkout por limpar há mais de 1 dia; a verificação das 07:00 avisa, falha só com a categoria](aviso-tarefas-que-param-13out2026.md)
 - [Perfis guardados por obrigação fiscal só para o dono (EM, §15.12): depois do apagamento, o gestor e o apoio não vêem nome, NIF, morada, provas VIES, notas de isenção, anexos; procura por NIF e simulação do IVA fechadas](perfis-guardados-so-dono-13out2026.md)
+- [Cópia fiscal da encomenda só para o dono (EN, §15.13): depois do apagamento, perfil_copia sai null a quem não tem customers:billing em GET /orders/{id} e na confirmação; fatura, PDF e OSS ficam](encomenda-copia-fiscal-so-dono-13out2026.md)

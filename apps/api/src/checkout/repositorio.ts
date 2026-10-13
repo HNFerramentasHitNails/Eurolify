@@ -6,7 +6,11 @@ import type {
   TipoTextoLegal,
 } from "../base/esquema.js";
 import { TIPOS_TEXTO_LEGAL } from "../base/esquema.js";
-import { criarCliente, criarPerfil } from "../clientes/repositorio.js";
+import {
+  criarCliente,
+  criarPerfil,
+  fichaPseudonimizada,
+} from "../clientes/repositorio.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { decidirIva, type Decisao } from "../iva/decisao.js";
 import { carregarTabelas, comercianteParaDecisao } from "../iva/repositorio.js";
@@ -1725,6 +1729,9 @@ export async function lerEncomenda(
     const e = await trx
       .selectFrom("encomenda")
       .selectAll()
+      // A ficha foi pseudonimizada por um pedido de apagamento: a cópia do
+      // perfil de faturação só sai ao dono (docs/23 §15.13, EN).
+      .select(fichaPseudonimizada(sql`encomenda.cliente_id`).as("guardado"))
       .where("id", "=", id)
       .executeTakeFirst();
     if (e === undefined) throw naoExiste("a encomenda");

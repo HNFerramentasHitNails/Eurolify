@@ -1840,6 +1840,56 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     ).rejects.toThrow(/permission denied/);
   });
 
+  it("depois do apagamento, a cópia fiscal da encomenda só sai ao dono (docs/23 §15.13, EN)", async () => {
+    const s = await cenario();
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    const e = await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    const ord = String(e["encomenda"]);
+    // Antes do pedido, quem lê encomendas vê a cópia, como hoje.
+    const antes = await ok(s.adm("GET", `/orders/${ord}`));
+    expect(antes["perfil_copia"]).not.toBeNull();
+    expect(antes["guardado_por_obrigacao_fiscal"]).toBe(false);
+    const nome = String((antes["perfil_copia"] as Json)["nome_documento"]);
+    const { rows } = await sql<{ cliente_id: string }>`
+      select cliente_id from encomenda where id = ${ord.slice(4)}::uuid`.execute(
+      base.dono,
+    );
+    // Em curso (por pagar): a encomenda fica na fila e a cópia fica inteira.
+    await pseudonimizar(s.c, String(rows[0]?.cliente_id));
+    // O gestor e o apoio (orders:read, sem customers:billing): sem a cópia.
+    const gestor = await s.adm("GET", `/orders/${ord}`);
+    expect(gestor.statusCode, gestor.body).toBe(200);
+    // O contacto e a entrega de uma encomenda em curso ficam (a entrega
+    // precisa deles); só a cópia fiscal sai.
+    expect(gestor.json<Json>()).toMatchObject({
+      perfil_copia: null,
+      guardado_por_obrigacao_fiscal: true,
+    });
+    // A confirmação pública (o token) também não a mostra.
+    const publica = await pedir("GET", `/checkout/${k.token}/confirmation`);
+    expect(publica.statusCode, publica.body).toBe(200);
+    expect(publica.json<Json>()["perfil_copia"]).toBeNull();
+    // O dono (customers:billing) lê-a.
+    const dono = (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Dono com faturação",
+        ambitos: ["orders:read", "customers:billing"],
+      })
+    ).segredo;
+    const doDono = await ok(
+      pedir("GET", `/orders/${ord}`, undefined, {
+        authorization: `Bearer ${dono}`,
+      }),
+    );
+    expect((doDono["perfil_copia"] as Json)["nome_documento"]).toBe(nome);
+  });
+
   it("com a marca, só as colunas pessoais abrem; sem ela, nada (revisão do #374, P2-5)", async () => {
     const s = await cenario();
     const enc = await porPagar(s);

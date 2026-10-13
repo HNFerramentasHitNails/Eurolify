@@ -993,7 +993,12 @@ export function rotasDoCheckout(
             // O estado fiscal interno não sai na confirmação pública
             // (revisão do #312, P2-10).
             const publica: Partial<ReturnType<typeof paraEncomenda>> =
-              paraEncomenda(await lerEncomenda(trx, s.comerciante_id, id));
+              // A confirmação é pública (o token): sem a cópia fiscal de
+              // quem pediu o apagamento (§15.13).
+              paraEncomenda(
+                await lerEncomenda(trx, s.comerciante_id, id),
+                false,
+              );
             delete publica.emissor_fiscal;
             delete publica.documento;
             // A conta e o serviço da transportadora são da operação; o
@@ -1405,7 +1410,7 @@ export function rotasDoCheckout(
       config: { ambito: "orders:read" },
       schema: {
         description:
-          "Uma encomenda com as linhas e as cópias (preço, decisão de IVA, versões aceites).",
+          "Uma encomenda com as linhas e as cópias (preço, decisão de IVA, versões aceites). Se a ficha foi pseudonimizada por um pedido de apagamento, `perfil_copia` só sai com customers:billing (docs/23 §15.13).",
         params: Type.Object({ id: IdEncomenda }),
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
@@ -1418,17 +1423,28 @@ export function rotasDoCheckout(
             chaveDo(pedido).comercianteId,
             semPrefixo(pedido.params.id),
           ),
+          chaveDo(pedido).ambitos.includes("customers:billing"),
         ),
       ),
   );
 }
 
-const paraEncomenda = (r: Awaited<ReturnType<typeof lerEncomenda>>) => ({
+/**
+ * Uma encomenda para a resposta. Numa ficha pseudonimizada por um pedido de
+ * apagamento, a cópia do perfil de faturação (nome, NIF, morada fiscal) só
+ * sai a quem tem customers:billing (`comCopiaFiscal`; docs/23 §15.13, EN).
+ */
+const paraEncomenda = (
+  r: Awaited<ReturnType<typeof lerEncomenda>>,
+  comCopiaFiscal: boolean,
+) => ({
   id: `ord_${r.encomenda.id}`,
   estado: r.encomenda.estado,
   cliente: `cus_${r.encomenda.cliente_id}`,
   perfil: `bpf_${r.encomenda.perfil_id}`,
-  perfil_copia: r.encomenda.perfil_copia,
+  perfil_copia:
+    r.encomenda.guardado && !comCopiaFiscal ? null : r.encomenda.perfil_copia,
+  guardado_por_obrigacao_fiscal: r.encomenda.guardado,
   contacto: r.encomenda.contacto,
   entrega: r.encomenda.entrega,
   finalidade: r.encomenda.finalidade,
