@@ -849,7 +849,7 @@ const Exportacao = Type.Object({
   gerada_em: Instante,
   fichas: Type.Array(Type.Unknown(), {
     description:
-      "A ficha e as fundidas nela, cada uma com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas inteiras com as linhas, os pagamentos, as expedições (com a prova de entrega), o histórico de estados (sem os motivos), os documentos fiscais (tipo, número, data, totais e o comprador como está no documento; sem o PDF), a livre resolução, as devoluções, os problemas e os reembolsos (sem a prova), os candidatos a duplicado e a linha do tempo. Não saem as sessões de checkout, os avisos dos prestadores nem os eventos de saída (docs/23 §15.2)",
+      "A ficha e as fundidas nela, cada uma com os perfis, as provas do VIES, as isenções, as etiquetas, os consentimentos, as encomendas inteiras com as linhas, os pagamentos, as expedições (com a prova de entrega e o seguimento da transportadora), o histórico de estados (sem os motivos), os documentos fiscais (tipo, número, data, totais e o comprador como está no documento; sem o PDF), a livre resolução com as linhas, as devoluções com as linhas e a decisão de higiene, os problemas e os reembolsos com as linhas (sem a prova), os candidatos a duplicado e a linha do tempo. Não saem as sessões de checkout, os avisos dos prestadores nem os eventos de saída (docs/23 §15.2)",
   }),
   pedidos_do_titular: Type.Array(Type.Unknown()),
   fichas_com_o_mesmo_contacto: FichasComOMesmoContacto,

@@ -1736,6 +1736,22 @@ export async function exportarCliente(
           "entregue_em",
           "prova_entrega",
         ]),
+        // O seguimento da transportadora: o estado que ela deu (pode trazer
+        // quem recebeu, como a prova de entrega) e o normalizado; sem o id
+        // do evento dela nem o aviso em bruto (Diogo, 13/10/2026; revisão do
+        // #411, P3-2).
+        seguimento_das_expedicoes:
+          idsEncomendas.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select s.id, s.expedicao_id, s.estado_transportadora,
+                       s.estado_normalizado, s.em
+                from evento_seguimento s
+                join expedicao x on x.id = s.expedicao_id
+                where x.encomenda_id = any(${idsEncomendas}::uuid[])
+                order by s.expedicao_id, s.em, s.id`.execute(trx)
+              ).rows,
         // O histórico de estados, sem o motivo nem quem mudou (§15.2).
         estados_das_encomendas: await daEncomenda("transicao_encomenda", [
           "id",
@@ -1810,6 +1826,18 @@ export async function exportarCliente(
             "motivo_decisao",
           ],
         ),
+        // Os artigos e as quantidades que a pessoa quis devolver.
+        linhas_da_livre_resolucao:
+          idsEncomendas.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select l.pedido_id, l.linha_encomenda_id, l.quantidade
+                from linha_livre_resolucao l
+                join pedido_livre_resolucao p on p.id = l.pedido_id
+                where p.encomenda_id = any(${idsEncomendas}::uuid[])
+                order by l.pedido_id, l.linha_encomenda_id`.execute(trx)
+              ).rows,
         devolucoes: await daEncomenda("devolucao", [
           "id",
           "encomenda_id",
@@ -1828,7 +1856,10 @@ export async function exportarCliente(
             : (
                 await sql<Record<string, unknown>>`
                 select l.devolucao_id, l.linha_encomenda_id, l.pedida,
-                       l.recebida, l.aceite, l.estado_artigo
+                       l.recebida, l.aceite, l.estado_artigo,
+                       -- A decisão que reembolsa ou recusa um artigo selado
+                       -- aberto (0065, H6).
+                       l.decisao_higiene
                 from linha_devolucao l
                 join devolucao d on d.id = l.devolucao_id
                 where d.encomenda_id = any(${idsEncomendas}::uuid[])
@@ -1842,6 +1873,19 @@ export async function exportarCliente(
           "estado",
           "criado_em",
         ]),
+        // De que linhas (e dos portes, sem linha) é cada reembolso.
+        linhas_dos_reembolsos:
+          idsEncomendas.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select l.reembolso_id, l.posicao, l.linha_encomenda_id,
+                       l.quantidade, l.montante
+                from linha_reembolso l
+                join reembolso r on r.id = l.reembolso_id
+                where r.encomenda_id = any(${idsEncomendas}::uuid[])
+                order by l.reembolso_id, l.posicao`.execute(trx)
+              ).rows,
         // Os reembolsos sem a prova (data, referência do banco, quem) nem a
         // falha técnica (§15.2).
         reembolsos: await daEncomenda("reembolso", [
