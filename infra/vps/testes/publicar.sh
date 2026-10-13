@@ -99,6 +99,17 @@ if [[ "$*" == */check-status* ]]; then
   printf '%s\nHTTP %s em 0.2 s' "${VIES_CORPO:-$corpo}" "${VIES_HTTP:-200}"
   exit 0
 fi
+# Os avisos (eurolify-medir): só a Sendcloud por POST chega à API.
+if [[ "$*" == */webhooks/* ]]; then
+  echo "$*" >>"$FALSOS/curl-avisos"
+  [[ -z "${AVISOS_FALHA:-}" ]] || exit 7
+  if [[ "$*" == *"-X POST"*/webhooks/carriers/sendcloud/* ]]; then
+    printf '401 application/json; charset=utf-8'
+  else
+    printf '404 text/html'
+  fi
+  exit 0
+fi
 exit "${CURL_FALHA:-0}"
 FALSO
 printf '#!/usr/bin/env bash\nexit 0\n' >"$falsos/sleep"
@@ -756,6 +767,26 @@ bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
 confere sim "a API no ar já o leu" linha_na_saida "VIES_URL na API no ar: sim"
 confere nao "sem o valor do ambiente" na_saida "PATH=/x"
 rm -f /etc/eurolify/api-vies.env "$falsos/api-ambiente"
+
+# Os envios (docs/36 §17.2, ponto 4).
+echo "== envios no medir"
+touch "$falsos/no-ar"
+rm -f "$falsos/curl-avisos"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "a API no ar sem a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: não (os envios estão desligados)"
+confere sim "o aviso da Sendcloud chega à API" linha_na_saida "POST /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 401 application/json; charset=utf-8"
+confere sim "um GET fica no nginx" linha_na_saida "GET /webhooks/carriers/sendcloud/cac_00000000-0000-4000-8000-000000000000: 404 text/html"
+confere sim "os CTT ficam no nginx" linha_na_saida "POST /webhooks/carriers/ctt/cac_00000000-0000-4000-8000-000000000000: 404 text/html"
+confere sim "os pagamentos ficam no nginx" linha_na_saida "POST /webhooks/payments/x: 404 text/html"
+confere sim "pede-os à própria máquina, nunca para fora" grep -q -- "--resolve hub.eurolify.eu:443:127.0.0.1" "$falsos/curl-avisos"
+confere nao "nenhum sai sem o --resolve" grep -qv -- "--resolve hub.eurolify.eu:443:127.0.0.1" "$falsos/curl-avisos"
+AVISOS_FALHA=1 bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "sem resposta diz-se" linha_na_saida "POST /webhooks/payments/x: sem resposta"
+printf 'PATH=/x\nENVIOS_CHAVE=AAAAsegredoAAAA=\n' >"$falsos/api-ambiente"
+bash "$f/sbin/eurolify-medir" >"$falsos/saida" 2>/dev/null || true
+confere sim "a API no ar com a chave dos envios" linha_na_saida "ENVIOS_CHAVE na API no ar: sim"
+confere nao "sem o valor da chave" na_saida "segredo"
+rm -f "$falsos/api-ambiente" "$falsos/curl-avisos"
 
 rm -rf "$falsos"
 ((falhas == 0))
