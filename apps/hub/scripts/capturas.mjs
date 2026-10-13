@@ -6445,6 +6445,10 @@ try {
         }),
       ),
     );
+    await contexto.route(
+      `**/hub/shipments/${EXPEDICAO_SIMULADA}/corrections`,
+      (r) => r.fulfill(json({ dados: [] })),
+    );
     await contexto.route(`**/hub/shipments/${EXPEDICAO_SIMULADA}/events`, (r) =>
       r.fulfill(
         json({
@@ -6533,6 +6537,156 @@ try {
           ),
           fullPage: true,
         });
+      }
+      await c.close();
+    }
+  }
+
+  // Corrigir o peso e mudar o serviço antes da etiqueta (docs/36 §19): a
+  // etiqueta por pedir, com o peso já corrigido uma vez e os serviços que a
+  // API diz que servem a caixa (dados fictícios).
+  const simularCorreccoes = async (contexto) => {
+    await simular(contexto);
+    const json = (corpo) => ({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "private, no-store" },
+      body: JSON.stringify(corpo),
+    });
+    const conta = "cac_0199e000-0000-7000-8000-000000000003";
+    await contexto.route(`**/hub/shipments/${EXPEDICAO_SIMULADA}/label`, (r) =>
+      r.fulfill(
+        json({
+          expedicao: EXPEDICAO_SIMULADA,
+          estado_expedicao: "criada",
+          etiqueta: "por_pedir",
+          tentativa: 0,
+          motivo: null,
+          em: null,
+          conta: null,
+          transportadora: null,
+          servico: null,
+          seguimento: null,
+          url_seguimento: null,
+          peso_g: null,
+          ficheiro: null,
+          peso_corrigido_g: 1450,
+          escolhido: null,
+          versao: 4,
+        }),
+      ),
+    );
+    await contexto.route(
+      `**/hub/shipments/${EXPEDICAO_SIMULADA}/corrections`,
+      (r) =>
+        r.fulfill(
+          json({
+            dados: [
+              {
+                campo: "peso",
+                antes: null,
+                depois: 1450,
+                motivo: "caixa grande, pesada na balança",
+                quem: "pessoa:per_0199e000-0000-7000-8000-000000000009",
+                em: "2026-10-13T09:05:00.000Z",
+              },
+            ],
+          }),
+        ),
+    );
+    await contexto.route(
+      `**/hub/shipments/${EXPEDICAO_SIMULADA}/services`,
+      (r) =>
+        r.fulfill(
+          json({
+            versao: 4,
+            peso_calculado_g: 1290,
+            peso_corrigido_g: 1450,
+            vendido: { conta, servico: "sendcloud:letter" },
+            escolhido: null,
+            escolhido_nao_serve: null,
+            opcoes: [
+              {
+                conta,
+                conta_nome: "Sendcloud",
+                transportadora: "sendcloud",
+                servico: "sendcloud:letter",
+                nome: { pt: "Correio registado" },
+                vendido: true,
+                escolhido: false,
+              },
+              {
+                conta,
+                conta_nome: "Sendcloud",
+                transportadora: "sendcloud",
+                servico: "postnl:standard",
+                nome: { pt: "PostNL Standard" },
+                vendido: false,
+                escolhido: false,
+              },
+            ],
+          }),
+        ),
+    );
+  };
+  for (const tema of ["light", "dark"]) {
+    for (const largura of [375, 768, 1280]) {
+      const c = await navegador.newContext({
+        ignoreHTTPSErrors: true,
+        colorScheme: tema,
+        viewport: { width: largura, height: 900 },
+        storageState: sessao,
+      });
+      await simularCorreccoes(c);
+      const p = await c.newPage();
+      await p.goto(
+        `${ORIGEM}/expedir/${ENCOMENDA_SIMULADA}?comerciante=mer_${comerciante}`,
+      );
+      await p.getByRole("heading", { name: /Encomenda de/ }).waitFor();
+      await p.getByText("Peso corrigido à mão.").waitFor();
+      for (const [nome, botao, espera] of [
+        [
+          "expedir-corrigir-peso",
+          "Corrigir o peso",
+          "Peso da caixa, em gramas",
+        ],
+        ["expedir-mudar-servico", "Mudar o serviço", "PostNL Standard"],
+      ]) {
+        await p.getByRole("button", { name: botao }).click();
+        await p.getByText(espera).first().waitFor();
+        const largo = await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        );
+        confere(
+          !largo,
+          `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
+        );
+        await p.screenshot({
+          path: join(
+            SAIDA,
+            `${nome}-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+          ),
+          fullPage: true,
+        });
+        // O «Cancelar» do formulário, não o da expedição.
+        await p
+          .getByRole("form", { name: botao })
+          .getByRole("button", { name: "Cancelar", exact: true })
+          .click();
+      }
+      // Sem motivo, o ecrã não manda nada e diz porquê.
+      if (largura === 1280 && tema === "light") {
+        await p.getByRole("button", { name: "Corrigir o peso" }).click();
+        await p.getByLabel("Peso da caixa, em gramas").fill("1500");
+        await p.getByRole("button", { name: "Guardar" }).click();
+        await p
+          .getByText("Escreva o motivo, com pelo menos 3 caracteres.")
+          .waitFor();
+        confere(
+          (await p.getByLabel("Motivo").getAttribute("aria-invalid")) ===
+            "true",
+          "corrigir o peso: sem motivo, o campo fica marcado (aria-invalid)",
+        );
       }
       await c.close();
     }

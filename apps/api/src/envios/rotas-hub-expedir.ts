@@ -32,8 +32,24 @@ import {
   listarEventos,
   pedirEtiqueta,
 } from "./etiquetas.js";
+import {
+  correcoesDaExpedicao,
+  corrigirPeso,
+  mudarServico,
+  servicosDaExpedicao,
+} from "./correcoes.js";
 import { ferramentasDoHub } from "./rotas-hub.js";
-import { emEnvios, paraEtiqueta, paraEvento } from "./rotas.js";
+import {
+  CorpoCorrigirPeso,
+  CorpoMudarServico,
+  dadosDoServico,
+  emEnvios,
+  paraCorrecao,
+  paraEtiqueta,
+  paraEvento,
+  paraServicosDaExpedicao,
+  semIaNoServico,
+} from "./rotas.js";
 
 // O ecrã «Expedir» do Hub (docs/22 §33; Diogo, 13/10/2026: «sim, aprovo;
 // avança com o código»): a vista do armazém, as expedições, a etiqueta e o
@@ -154,6 +170,127 @@ export function rotasDeExpedirNoHub(
               semPrefixo(pedido.params.id),
               pedido.body.versao,
               dadosDaMudanca(pedido.body),
+              quem(s.pessoaId),
+            ),
+          ),
+        };
+      }),
+  );
+
+  // Corrigir o peso e mudar o serviço (docs/36 §19): o peso é de quem
+  // expede (fulfilment:write); o serviço muda o custo e a transportadora, por
+  // isso é do dono e do gestor (shipping:write).
+
+  rotas.get(
+    "/hub/shipments/:id/services",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Os serviços que servem esta expedição, de contas prontas, com o vendido e o escolhido; o peso calculado e o corrigido.",
+        params: Expedicao,
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const s = daSessao(pedido, resposta, "fulfilment:read");
+        return paraServicosDaExpedicao(
+          await servicosDaExpedicao(
+            base,
+            s.comercianteId,
+            semPrefixo(pedido.params.id),
+            cfg,
+          ),
+        );
+      }),
+  );
+
+  rotas.get(
+    "/hub/shipments/:id/corrections",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description: "As correcções do peso e do serviço da expedição.",
+        params: Expedicao,
+        response: { 200: Lista, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const s = daSessao(pedido, resposta, "fulfilment:read");
+        return {
+          dados: (
+            await correcoesDaExpedicao(
+              base,
+              s.comercianteId,
+              semPrefixo(pedido.params.id),
+            )
+          ).map(paraCorrecao),
+        };
+      }),
+  );
+
+  rotas.put(
+    "/hub/shipments/:id/weight",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Corrige o peso da caixa pelo Hub (fulfilment:write), com motivo; `null` volta ao calculado.",
+        params: Expedicao,
+        body: CorpoCorrigirPeso,
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const s = daSessao(pedido, resposta, "fulfilment:write");
+        return {
+          versao: await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+            corrigirPeso(
+              trx,
+              s.comercianteId,
+              semPrefixo(pedido.params.id),
+              pedido.body,
+              cfg,
+              quem(s.pessoaId),
+            ),
+          ),
+        };
+      }),
+  );
+
+  rotas.put(
+    "/hub/shipments/:id/service",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Escolhe outro serviço pelo Hub (shipping:write: o dono e o gestor), com motivo; `null` volta ao vendido. Uma IA não o faz.",
+        params: Expedicao,
+        body: CorpoMudarServico,
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const s = daSessao(pedido, resposta, "shipping:write");
+        semIaNoServico();
+        return {
+          versao: await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+            mudarServico(
+              trx,
+              s.comercianteId,
+              semPrefixo(pedido.params.id),
+              dadosDoServico(pedido.body),
+              cfg,
               quem(s.pessoaId),
             ),
           ),

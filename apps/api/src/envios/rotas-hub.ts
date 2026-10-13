@@ -64,7 +64,8 @@ type Ambito =
 const RECUSA: Record<Ambito, string> = {
   "shipping:read": "o papel não vê os envios",
   "shipping:accounts": "o papel não gere as contas de transportadora",
-  "shipping:write": "o papel não muda os métodos de entrega nem a embalagem",
+  "shipping:write":
+    "o papel não muda os métodos de entrega, a embalagem nem o serviço de uma expedição",
   "prices:read": "o papel não vê os mercados",
   "inventory:read": "o papel não vê os armazéns",
   "fulfilment:read": "o papel não vê as expedições",

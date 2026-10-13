@@ -19,7 +19,9 @@ export type CodigoErroEnvios =
   | "shipping.signature_invalid"
   // As contas pelo Hub (docs/22 §29): um método activo impede-o.
   | "shipping.account_in_use"
-  | "shipping.service_in_use";
+  | "shipping.service_in_use"
+  // Uma IA não muda o serviço de uma expedição (docs/36 §19.3).
+  | "shipping.ai_not_allowed";
 
 export const ESTADO_DO_CODIGO: Record<CodigoErroEnvios, number> = {
   "shipping.not_found": 404,
@@ -38,6 +40,7 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroEnvios, number> = {
   "shipping.invalid_transition": 409,
   "shipping.signature_invalid": 401,
   "shipping.account_in_use": 409,
+  "shipping.ai_not_allowed": 403,
   "shipping.service_in_use": 409,
 };
 

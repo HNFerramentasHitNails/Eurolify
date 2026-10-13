@@ -1549,6 +1549,45 @@ export const pt = {
   etiquetaSeguimento: "Seguimento",
   etiquetaPeso: "Peso da caixa",
   etiquetaGramas: "{g} g",
+  escolhidoNaoServe:
+    "O serviço escolhido já não serve esta expedição (o peso, o país ou a conta mudaram). Escolha outro ou volte ao vendido.",
+  etiquetaServicoDesconhecido:
+    "A transportadora já não tem este serviço. O dono ou o gestor escolhe outro em «Mudar o serviço».",
+  corrigirPeso: "Corrigir o peso",
+  corrigirPesoAjuda:
+    "O peso calculado é {g} (as variantes mais a embalagem do armazém). Escreva o que a balança diz.",
+  corrigirPesoSemCalculado:
+    "Uma variante não tem peso: o Eurolify não o calcula. Escreva o que a balança diz.",
+  pesoEmGramas: "Peso da caixa, em gramas",
+  motivoCorreccao: "Motivo",
+  motivoCorreccaoAjuda:
+    "Fica no histórico da expedição. Não escreva dados de clientes.",
+  guardarCorreccao: "Guardar",
+  voltarAoCalculado: "Voltar ao calculado",
+  cancelarCorreccao: "Cancelar",
+  mudarServico: "Mudar o serviço",
+  mudarServicoAjuda:
+    "Só aparecem os serviços de contas prontas que servem esta expedição. O cliente continua a pagar os portes do método que escolheu.",
+  servicoPrazoAviso:
+    "Um serviço mais lento pode falhar a data-limite prometida ao cliente: confirme-a antes.",
+  servicoVendidoMarca: "o vendido",
+  voltarAoVendido: "Voltar ao vendido",
+  semOpcoesDeServico:
+    "Nenhum serviço de uma conta pronta serve esta expedição.",
+  servicoAEscolher: "Serviço",
+  pesoCorrigidoNota: "Peso corrigido à mão.",
+  servicoEscolhidoNota: "Serviço escolhido à mão, em vez do vendido.",
+  pesoInvalido: "Escreva um peso entre 1 e 1 000 000 gramas.",
+  motivoEmFalta: "Escreva o motivo, com pelo menos 3 caracteres.",
+  servicoEmFalta: "Escolha um serviço.",
+  pesoCorrigidoAgora: "O peso ficou corrigido.",
+  servicoMudadoAgora: "O serviço ficou mudado.",
+  iaNaoMudaServico:
+    "Uma IA não muda o serviço de uma expedição: tem de ser uma pessoa.",
+  correccoesTitulo: "Correcções",
+  correccaoPeso: "Peso",
+  correccaoServico: "Serviço",
+  correccaoVoltou: "volta ao calculado ou ao vendido",
   etiquetaPedir: "Pedir a etiqueta",
   etiquetaPedidaAgora: "A etiqueta foi emitida.",
   etiquetaDescarregar: "Descarregar a etiqueta",
@@ -1570,7 +1609,7 @@ export const pt = {
   etiquetaContaNaoPronta:
     "A conta da transportadora deste método não está pronta: teste-a em «Envios», «Contas».",
   etiquetaPedidoRecusado:
-    "O servidor recusou o pedido da etiqueta: confira o peso das variantes e a morada.",
+    "O servidor recusou o pedido da etiqueta: confira o peso (pode corrigi-lo em «Corrigir o peso»), o serviço e a morada.",
   etiquetaSemResposta:
     "A transportadora não respondeu. Tente outra vez daqui a pouco.",
   expedirLinhaNaoEDaEncomenda:

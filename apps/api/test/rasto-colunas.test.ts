@@ -289,6 +289,8 @@ describe.skipIf(URL_BASE === undefined)(
         "alteracao_cliente",
         // A peça 21 (0066; docs/33 §4.2).
         "atribuicao_rasto",
+        // As correcções da expedição (0086; docs/36 §19).
+        "correcao_expedicao",
         "documento_rasto",
         "evento_conta",
         "historico_preco",

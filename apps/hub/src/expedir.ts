@@ -71,6 +71,20 @@ export function conferirQuantidades(
   return { linhas, falta: null };
 }
 
+/** «1450» → 1450; `null` quando não é um peso de 1 g a 1 000 000 g (docs/36 §19). */
+export function pesoDoTexto(texto: string): number | null {
+  const limpo = texto.trim();
+  if (!/^\d{1,7}$/.test(limpo)) return null;
+  const g = Number(limpo);
+  return g >= 1 && g <= 1_000_000 ? g : null;
+}
+
+/** O motivo de uma correcção: pelo menos 3 caracteres, no máximo 500. */
+export const motivoServe = (texto: string) => {
+  const n = texto.trim().length;
+  return n >= 3 && n <= 500;
+};
+
 /** Com conta e serviço, a etiqueta pede-se pelo Eurolify; sem, é «Manual». */
 export const comEtiqueta = (m: MetodoDaEncomenda) =>
   typeof m.conta === "string" && m.conta !== "";
@@ -176,6 +190,8 @@ export const TEXTO_DO_CODIGO: Record<string, keyof Textos> = {
   "shipments.immutable": "expedirImutavel",
   "orders.invalid_transition": "expedirEncomendaNaoEstaParaExpedir",
   "shipping.not_found": "expedirNaoExiste",
+  "shipping.version_conflict": "expedirConflito",
+  "shipping.ai_not_allowed": "iaNaoMudaServico",
   "shipping.retry": "enviosTentarDeNovo",
   "shipping.not_configured": "enviosSemChave",
   "shipping.label_exists": "etiquetaJaExiste",
@@ -183,7 +199,7 @@ export const TEXTO_DO_CODIGO: Record<string, keyof Textos> = {
   "shipping.void_not_allowed": "etiquetaNaoAnula",
   "shipping.invalid_transition": "etiquetaTransicaoImpossivel",
   "shipping.account_not_ready": "etiquetaContaNaoPronta",
-  "shipping.service_unknown": "etiquetaContaNaoPronta",
+  "shipping.service_unknown": "etiquetaServicoDesconhecido",
   "shipping.invalid_field": "etiquetaPedidoRecusado",
   "shipping.carrier_unavailable": "etiquetaSemResposta",
 };

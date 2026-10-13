@@ -1478,6 +1478,10 @@ export interface TabelaExpedicao {
   // A etiqueta (docs/36 §3.3; 0079).
   conta_transportadora_id: ColumnType<string | null, never, string | null>;
   peso_g: ColumnType<number | null, never, number | null>;
+  /** Corrigidos por uma pessoa, com motivo (docs/36 §19, 0086). */
+  peso_corrigido_g: ColumnType<number | null, never, number | null>;
+  conta_escolhida_id: ColumnType<string | null, never, string | null>;
+  servico_escolhido: ColumnType<string | null, never, string | null>;
   etiqueta: ColumnType<EstadoEtiqueta, never, EstadoEtiqueta>;
   etiqueta_tentativa: ColumnType<number, never, number>;
   etiqueta_motivo: ColumnType<string | null, never, string | null>;
@@ -1503,6 +1507,19 @@ export interface TabelaEtiquetaFicheiro {
   formato: ColumnType<"pdf" | "zpl", "pdf" | "zpl", never>;
   conteudo: ColumnType<Buffer, Buffer, never>;
   criado_em: ColumnType<Date, never, never>;
+}
+
+/** O rasto das correcções de uma expedição (docs/36 §19, 0086). */
+export interface TabelaCorrecaoExpedicao {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, never, never>;
+  expedicao_id: ColumnType<string, never, never>;
+  campo: ColumnType<"peso" | "servico", never, never>;
+  antes: ColumnType<unknown, never, never>;
+  depois: ColumnType<unknown, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  quem: ColumnType<string, never, never>;
+  em: ColumnType<Date, never, never>;
 }
 
 /** Uma encomenda parada já avisada (docs/36 §18, 0085): só se acrescenta. */
@@ -1669,6 +1686,7 @@ export interface BaseDados {
   expedicao: TabelaExpedicao;
   etiqueta_ficheiro: TabelaEtiquetaFicheiro;
   encomenda_parada: TabelaEncomendaParada;
+  correcao_expedicao: TabelaCorrecaoExpedicao;
   evento_seguimento: TabelaEventoSeguimento;
   aviso_transportadora: TabelaAvisoTransportadora;
   linha_expedicao: TabelaLinhaExpedicao;

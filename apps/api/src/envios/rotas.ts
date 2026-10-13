@@ -6,6 +6,7 @@ import { ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { TRANSPORTADORAS, type BaseDados } from "../base/esquema.js";
 import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
+import { rastoActual } from "../base/rasto.js";
 import type { ConfigEnvios, ServicoTransportadora } from "./adaptador.js";
 import {
   anularEtiqueta,
@@ -18,6 +19,12 @@ import {
   pedirEtiqueta,
   receberAviso,
 } from "./etiquetas.js";
+import {
+  correcoesDaExpedicao,
+  corrigirPeso,
+  mudarServico,
+  servicosDaExpedicao,
+} from "./correcoes.js";
 import { ErroEnvios, ESTADO_DO_CODIGO } from "./erros.js";
 import {
   criarConta,
@@ -174,6 +181,13 @@ export const paraEtiqueta = (e: Awaited<ReturnType<typeof lerEtiqueta>>) => ({
   url_seguimento: e.url_seguimento,
   peso_g: e.peso_g,
   ficheiro: e.ficheiro,
+  // Corrigidos por uma pessoa, com motivo (docs/36 §19).
+  peso_corrigido_g: e.peso_corrigido_g,
+  escolhido:
+    e.conta_escolhida_id === null || e.servico_escolhido === null
+      ? null
+      : { conta: `cac_${e.conta_escolhida_id}`, servico: e.servico_escolhido },
+  versao: e.versao,
 });
 
 /** Um evento de seguimento, pela chave e pelo Hub. */
@@ -528,6 +542,121 @@ export function rotasDosEnvios(
       }),
   );
 
+  // ------------- Corrigir o peso e mudar o serviço (docs/36 §19, 0086)
+
+  rotas.get(
+    "/shipments/:id/services",
+    {
+      config: { ambito: "fulfilment:read" },
+      schema: {
+        description:
+          "Os serviços que servem esta expedição (o país da morada, o peso, os perigosos e o telefone), de contas prontas, com o vendido e o escolhido marcados; o peso calculado e o corrigido.",
+        params: Expedicao,
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () =>
+        paraServicosDaExpedicao(
+          await servicosDaExpedicao(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+            cfg,
+          ),
+        ),
+      ),
+  );
+
+  rotas.get(
+    "/shipments/:id/corrections",
+    {
+      config: { ambito: "fulfilment:read" },
+      schema: {
+        description:
+          "As correcções do peso e do serviço da expedição, com o valor antigo, o novo, o motivo, quem e quando (só se acrescentam).",
+        params: Expedicao,
+        response: {
+          200: Type.Object({ dados: Type.Array(Livre) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => ({
+        dados: (
+          await correcoesDaExpedicao(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+          )
+        ).map(paraCorrecao),
+      })),
+  );
+
+  rotas.put(
+    "/shipments/:id/weight",
+    {
+      config: { ambito: "fulfilment:write" },
+      schema: {
+        description:
+          "Corrige o peso da caixa, com motivo, na versão lida (`peso_g: null` volta ao calculado). Só com a expedição criada e sem etiqueta viva (anula-se primeiro). A etiqueta usa-o em vez da soma.",
+        params: Expedicao,
+        body: CorpoCorrigirPeso,
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        emEnvios(resposta, async () => ({
+          versao: await corrigirPeso(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body,
+            cfg,
+            `chave:key_${chave.chaveId}`,
+          ),
+        })),
+      ),
+  );
+
+  rotas.put(
+    "/shipments/:id/service",
+    {
+      config: { ambito: "shipping:write" },
+      schema: {
+        description:
+          "Escolhe outro serviço para a etiqueta, com motivo, na versão lida (`conta` e `servico` a `null` voltam ao vendido). O vendido não muda (o preço, a data-limite, o método). Só um serviço de uma conta pronta que sirva esta expedição; só com a expedição criada e sem etiqueta viva. Uma chave de agente de IA não muda o serviço.",
+        params: Expedicao,
+        body: CorpoMudarServico,
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        emEnvios(resposta, async () => {
+          semIaNoServico(chave.agenteIa);
+          return {
+            versao: await mudarServico(
+              trx,
+              chave.comercianteId,
+              semPrefixo(pedido.params.id),
+              dadosDoServico(pedido.body),
+              cfg,
+              `chave:key_${chave.chaveId}`,
+            ),
+          };
+        }),
+      ),
+  );
+
   rotas.put(
     "/warehouses/:id/packaging",
     {
@@ -607,4 +736,87 @@ export function rotasDosEnvios(
     );
     pronto();
   });
+}
+
+// ---------------- Corrigir o peso e mudar o serviço (docs/36 §19): comuns
+
+const Motivo = Type.String({ minLength: 3, maxLength: 500 });
+
+export const CorpoCorrigirPeso = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1 }),
+    peso_g: Type.Union([
+      Type.Integer({ minimum: 1, maximum: 1_000_000 }),
+      Type.Null(),
+    ]),
+    motivo: Motivo,
+  },
+  { additionalProperties: false },
+);
+
+export const CorpoMudarServico = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1 }),
+    conta: Type.Union([IdConta, Type.Null()]),
+    servico: Type.Union([
+      Type.String({ pattern: "^[0-9A-Za-z_.:/-]{1,100}$" }),
+      Type.Null(),
+    ]),
+    motivo: Motivo,
+  },
+  { additionalProperties: false },
+);
+
+export const dadosDoServico = (b: {
+  versao: number;
+  conta: string | null;
+  servico: string | null;
+  motivo: string;
+}) => ({ ...b, conta: b.conta === null ? null : semPrefixo(b.conta) });
+
+/**
+ * Uma IA não muda o serviço (muda o custo e a transportadora): nem uma chave
+ * de agente, nem um pedido com a IA declarada (como o R11 do docs/33).
+ */
+export function semIaNoServico(agenteIa = false) {
+  if (agenteIa || rastoActual()?.ia !== undefined) {
+    throw new ErroEnvios(
+      "shipping.ai_not_allowed",
+      "uma IA não muda o serviço de uma expedição (docs/36 §19.3)",
+    );
+  }
+}
+
+export function paraServicosDaExpedicao(
+  r: Awaited<ReturnType<typeof servicosDaExpedicao>>,
+) {
+  const servico = (x: { conta: string; servico: string } | null) =>
+    x === null ? null : { conta: `cac_${x.conta}`, servico: x.servico };
+  return {
+    versao: r.versao,
+    peso_calculado_g: r.peso_calculado_g,
+    peso_corrigido_g: r.peso_corrigido_g,
+    vendido: servico(r.vendido),
+    escolhido: servico(r.escolhido),
+    escolhido_nao_serve: r.escolhido_nao_serve,
+    opcoes: r.opcoes.map((o) => ({ ...o, conta: `cac_${o.conta}` })),
+  };
+}
+
+export function paraCorrecao(
+  c: Awaited<ReturnType<typeof correcoesDaExpedicao>>[number],
+) {
+  const conta = (v: unknown) => {
+    if (v === null || typeof v !== "object") return v;
+    const o = v as { conta?: string; servico?: string };
+    return { conta: `cac_${String(o.conta)}`, servico: o.servico };
+  };
+  return {
+    campo: c.campo,
+    antes: c.campo === "servico" ? conta(c.antes) : c.antes,
+    depois: c.campo === "servico" ? conta(c.depois) : c.depois,
+    motivo: c.motivo,
+    quem: c.quem,
+    em: c.em.toISOString(),
+  };
 }

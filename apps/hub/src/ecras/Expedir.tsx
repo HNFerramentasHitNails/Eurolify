@@ -11,8 +11,10 @@ import {
   type EncomendaParaExpedir,
   type Eu,
   type EtiquetaExpedicao,
+  type CorrecaoExpedicao,
   type EventoSeguimento,
   type ExpedicaoResumo,
+  type ServicosDaExpedicao,
 } from "../api";
 import { ACarregar, CaixaDeErro, LigacaoInterna, useHub } from "../contexto";
 import {
@@ -27,7 +29,9 @@ import {
   comEtiqueta,
   conferirQuantidades,
   erroDeExpedir,
+  motivoServe,
   nomeDoMetodo,
+  pesoDoTexto,
   porExpedir,
   quantidadesPorOmissao,
   TEXTO_DO_ESTADO_DA_ENCOMENDA,
@@ -240,6 +244,9 @@ export function ExpedirEncomenda({
   const erro: MensagemDeErro | null =
     falha === null ? null : mensagemDeErro(erroDeExpedir(falha), t, lingua);
   const expede = ambitoDe(dados?.eu, c, "fulfilment:write");
+  // Mudar o serviço muda o custo e a transportadora: o dono e o gestor
+  // (shipping:write; docs/36 §19).
+  const mudaServico = ambitoDe(dados?.eu, c, "shipping:write");
   const e = dados?.encomenda;
 
   return (
@@ -325,6 +332,7 @@ export function ExpedirEncomenda({
                     expedicao={x}
                     comConta={comEtiqueta(e.metodo_entrega)}
                     expede={expede}
+                    mudaServico={mudaServico}
                     depois={carregar}
                   />
                 ))}
@@ -490,6 +498,7 @@ function Expedicao({
   expedicao: x,
   comConta,
   expede,
+  mudaServico,
   depois,
 }: {
   comerciante: string;
@@ -497,12 +506,14 @@ function Expedicao({
   expedicao: ExpedicaoResumo;
   comConta: boolean;
   expede: boolean;
+  mudaServico: boolean;
   depois: () => Promise<void>;
 }) {
   const { t, lingua, navegar } = useHub();
   const data = useData();
   const [etiqueta, setEtiqueta] = useState<EtiquetaExpedicao | null>(null);
   const [eventos, setEventos] = useState<EventoSeguimento[] | null>(null);
+  const [correccoes, setCorreccoes] = useState<CorrecaoExpedicao[]>([]);
   const [falha, setFalha] = useState<unknown>(null);
   const [sucesso, setSucesso] = useState<keyof Textos | null>(null);
   const [conflito, setConflito] = useState(false);
@@ -517,12 +528,14 @@ function Expedicao({
   const lerEtiqueta = useCallback(async () => {
     if (!comConta) return;
     try {
-      const [e, ev] = await Promise.all([
+      const [e, ev, cr] = await Promise.all([
         api.etiqueta(comerciante, x.id),
         api.eventosSeguimento(comerciante, x.id),
+        api.correcoesDaExpedicao(comerciante, x.id),
       ]);
       setEtiqueta(e);
       setEventos(ev.dados);
+      setCorreccoes(cr.dados);
     } catch (e) {
       if (semSessao(e)) {
         navegar("/entrar", { substituir: true });
@@ -564,7 +577,8 @@ function Expedicao({
       }
       setConflito(
         mostrar instanceof ErroHub &&
-          mostrar.codigo === "inventory.version_conflict",
+          (mostrar.codigo === "inventory.version_conflict" ||
+            mostrar.codigo === "shipping.version_conflict"),
       );
       setFalha(erroDeExpedir(mostrar));
     } finally {
@@ -716,6 +730,15 @@ function Expedicao({
                   </>
                 )}
               </dl>
+              {etiqueta.peso_corrigido_g == null ? null : (
+                <p className="secundario">{t.pesoCorrigidoNota}</p>
+              )}
+              {etiqueta.escolhido == null ? null : (
+                <p className="secundario">
+                  {t.servicoEscolhidoNota}{" "}
+                  <code translate="no">{etiqueta.escolhido.servico}</code>
+                </p>
+              )}
               <div className="accoes">
                 {expede && accoes.pedir ? (
                   <button
@@ -775,6 +798,47 @@ function Expedicao({
               </div>
               {etiqueta.ficheiro === null ? null : (
                 <p className="secundario">{t.etiquetaFicheiroApaga}</p>
+              )}
+              {expede && accoes.pedir ? (
+                <Correccoes
+                  comerciante={comerciante}
+                  expedicao={x.id}
+                  mudaServico={mudaServico}
+                  ocupado={ocupado !== null}
+                  concluido={async (texto) => {
+                    setFalha(null);
+                    setConflito(false);
+                    setSucesso(texto);
+                    await depois();
+                    await lerEtiqueta();
+                  }}
+                />
+              ) : null}
+              {correccoes.length === 0 ? null : (
+                <>
+                  <h4>{t.correccoesTitulo}</h4>
+                  <ol className="eventos">
+                    {correccoes.map((cr, i) => (
+                      <li key={`${cr.em}-${String(i)}`}>
+                        {data(cr.em)} —{" "}
+                        {cr.campo === "peso"
+                          ? t.correccaoPeso
+                          : t.correccaoServico}
+                        :{" "}
+                        {cr.depois === null
+                          ? t.correccaoVoltou
+                          : cr.campo === "peso"
+                            ? preencher(t.etiquetaGramas, {
+                                g: Number(cr.depois),
+                              })
+                            : String(
+                                (cr.depois as { servico?: string }).servico,
+                              )}
+                        {cr.motivo === null ? "" : ` (${cr.motivo})`}
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
               <h4>{t.etiquetaEventos}</h4>
               {eventos === null || eventos.length === 0 ? (
@@ -912,5 +976,304 @@ function Expedicao({
         )}
       </section>
     </li>
+  );
+}
+
+// --------------------------- Corrigir o peso e mudar o serviço (§19)
+
+/**
+ * Antes de pedir a etiqueta: o peso que a balança diz e outro serviço, cada
+ * um com motivo (docs/36 §19). A API decide que serviços servem a caixa; o
+ * ecrã só mostra os que ela devolve.
+ */
+function Correccoes({
+  comerciante,
+  expedicao,
+  mudaServico,
+  ocupado,
+  concluido,
+}: {
+  comerciante: string;
+  expedicao: string;
+  mudaServico: boolean;
+  ocupado: boolean;
+  /** Depois de gravar: o texto do sucesso, e a expedição relida. */
+  concluido: (texto: keyof Textos) => Promise<void>;
+}) {
+  const { t, lingua, navegar } = useHub();
+  const [aGravar, setAGravar] = useState(false);
+  const tituloRef = useRef<HTMLHeadingElement>(null);
+  const [aberto, setAberto] = useState<"peso" | "servico" | null>(null);
+  const [info, setInfo] = useState<ServicosDaExpedicao | null>(null);
+  const [falha, setFalha] = useState<unknown>(null);
+  const [peso, setPeso] = useState("");
+  const [servico, setServico] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [invalido, setInvalido] = useState<keyof Textos | null>(null);
+  const id = `correccao-${expedicao}`;
+  // Ao abrir, o foco vai para o título do formulário (o botão que o abriu
+  // desaparece; revisão do #429, P3-4).
+  useEffect(() => {
+    if (aberto !== null) tituloRef.current?.focus();
+  }, [aberto]);
+
+  async function abrir(qual: "peso" | "servico") {
+    setAberto(qual);
+    setInfo(null);
+    setFalha(null);
+    setInvalido(null);
+    setMotivo("");
+    try {
+      const r = await api.servicosDaExpedicao(comerciante, expedicao);
+      setInfo(r);
+      setPeso(r.peso_corrigido_g === null ? "" : String(r.peso_corrigido_g));
+      const actual =
+        r.opcoes.find((o) => o.escolhido) ?? r.opcoes.find((o) => o.vendido);
+      setServico(
+        actual === undefined ? "" : `${actual.conta}|${actual.servico}`,
+      );
+    } catch (e) {
+      setFalha(erroDeExpedir(e));
+    }
+  }
+
+  function fechar() {
+    setAberto(null);
+    setInfo(null);
+  }
+
+  /** Grava; numa recusa o formulário fica aberto, com o que se escreveu. */
+  async function gravar(fn: () => Promise<unknown>, texto: keyof Textos) {
+    setAGravar(true);
+    setFalha(null);
+    try {
+      await fn();
+      fechar();
+      await concluido(texto);
+    } catch (e) {
+      const mostrar = await falhaDeAccao(e);
+      if (mostrar === null) {
+        navegar("/entrar", { substituir: true });
+        return;
+      }
+      setFalha(erroDeExpedir(mostrar));
+    } finally {
+      setAGravar(false);
+    }
+  }
+
+  function guardar(evento: SyntheticEvent, voltar = false) {
+    evento.preventDefault();
+    if (info === null || aberto === null) return;
+    if (!motivoServe(motivo)) {
+      setInvalido("motivoEmFalta");
+      return;
+    }
+    if (aberto === "peso") {
+      const g = voltar ? null : pesoDoTexto(peso);
+      if (!voltar && g === null) {
+        setInvalido("pesoInvalido");
+        return;
+      }
+      void gravar(
+        () =>
+          api.corrigirPeso(comerciante, expedicao, {
+            versao: info.versao,
+            peso_g: g,
+            motivo: motivo.trim(),
+          }),
+        "pesoCorrigidoAgora",
+      );
+      return;
+    }
+    // O valor é «cac_…|CÓDIGO»; voltar ao vendido manda os dois a null.
+    const barra = servico.indexOf("|");
+    if (!voltar && barra <= 0) {
+      setInvalido("servicoEmFalta");
+      return;
+    }
+    const conta = voltar ? null : servico.slice(0, barra);
+    const codigo = voltar ? null : servico.slice(barra + 1);
+    void gravar(
+      () =>
+        api.mudarServico(comerciante, expedicao, {
+          versao: info.versao,
+          conta,
+          servico: codigo,
+          motivo: motivo.trim(),
+        }),
+      "servicoMudadoAgora",
+    );
+  }
+
+  if (aberto === null) {
+    return (
+      <div className="accoes">
+        <button
+          type="button"
+          disabled={ocupado}
+          onClick={() => void abrir("peso")}
+        >
+          {t.corrigirPeso}
+        </button>
+        {mudaServico ? (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => void abrir("servico")}
+          >
+            {t.mudarServico}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const titulo = aberto === "peso" ? t.corrigirPeso : t.mudarServico;
+  return (
+    <form
+      className="cartao"
+      aria-labelledby={`${id}-titulo`}
+      onSubmit={(e) => {
+        guardar(e);
+      }}
+    >
+      <h4 id={`${id}-titulo`} ref={tituloRef} tabIndex={-1}>
+        {titulo}
+      </h4>
+      {falha === null ? null : (
+        <CaixaDeErro erro={mensagemDeErro(falha, t, lingua)} />
+      )}
+      {info === null ? (
+        falha === null ? (
+          <ACarregar />
+        ) : null
+      ) : aberto === "peso" ? (
+        <>
+          <p className="secundario">
+            {info.peso_calculado_g === null
+              ? t.corrigirPesoSemCalculado
+              : preencher(t.corrigirPesoAjuda, {
+                  g: preencher(t.etiquetaGramas, { g: info.peso_calculado_g }),
+                })}
+          </p>
+          <div className="campo">
+            <label htmlFor={`${id}-peso`}>{t.pesoEmGramas}</label>
+            <input
+              id={`${id}-peso`}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={1_000_000}
+              value={peso}
+              {...(invalido === "pesoInvalido"
+                ? { "aria-invalid": true, "aria-describedby": `${id}-erro` }
+                : {})}
+              onChange={(ev) => {
+                setPeso(ev.target.value);
+                setInvalido(null);
+              }}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="secundario">{t.mudarServicoAjuda}</p>
+          {info.escolhido_nao_serve === null ? null : (
+            <p className="aviso" role="note">
+              {t.escolhidoNaoServe}
+            </p>
+          )}
+          <p className="aviso" role="note">
+            {t.servicoPrazoAviso}
+          </p>
+          {info.opcoes.length === 0 ? (
+            <p>{t.semOpcoesDeServico}</p>
+          ) : (
+            <fieldset
+              {...(invalido === "servicoEmFalta"
+                ? { "aria-describedby": `${id}-erro` }
+                : {})}
+            >
+              <legend>{t.servicoAEscolher}</legend>
+              {info.opcoes.map((o) => {
+                const valor = `${o.conta}|${o.servico}`;
+                const nome =
+                  o.nome[lingua] ?? o.nome["pt"] ?? Object.values(o.nome)[0];
+                return (
+                  <div key={valor}>
+                    <label className="opcao">
+                      <input
+                        type="radio"
+                        name={`${id}-servico`}
+                        value={valor}
+                        checked={servico === valor}
+                        onChange={() => {
+                          setServico(valor);
+                          setInvalido(null);
+                        }}
+                      />
+                      <span>
+                        {o.conta_nome} — {nome ?? o.servico}{" "}
+                        <code translate="no">{o.servico}</code>
+                        {o.vendido ? ` (${t.servicoVendidoMarca})` : ""}
+                      </span>
+                    </label>
+                  </div>
+                );
+              })}
+            </fieldset>
+          )}
+        </>
+      )}
+      {info === null ? null : (
+        <div className="campo">
+          <label htmlFor={`${id}-motivo`}>{t.motivoCorreccao}</label>
+          <textarea
+            id={`${id}-motivo`}
+            maxLength={500}
+            rows={2}
+            value={motivo}
+            aria-describedby={`${id}-motivo-ajuda${invalido === "motivoEmFalta" ? ` ${id}-erro` : ""}`}
+            {...(invalido === "motivoEmFalta" ? { "aria-invalid": true } : {})}
+            onChange={(ev) => {
+              setMotivo(ev.target.value);
+              setInvalido(null);
+            }}
+          />
+          <p id={`${id}-motivo-ajuda`} className="secundario">
+            {t.motivoCorreccaoAjuda}
+          </p>
+        </div>
+      )}
+      {invalido === null ? null : (
+        <p id={`${id}-erro`} className="erro-campo" role="alert">
+          {t[invalido]}
+        </p>
+      )}
+      <div className="accoes">
+        {info === null ? null : (
+          <button type="submit" className="principal" disabled={aGravar}>
+            {aGravar ? t.aCarregar : t.guardarCorreccao}
+          </button>
+        )}
+        {info !== null &&
+        ((aberto === "peso" && info.peso_corrigido_g !== null) ||
+          (aberto === "servico" && info.escolhido !== null)) ? (
+          <button
+            type="button"
+            disabled={aGravar}
+            onClick={(e) => {
+              guardar(e, true);
+            }}
+          >
+            {aberto === "peso" ? t.voltarAoCalculado : t.voltarAoVendido}
+          </button>
+        ) : null}
+        <button type="button" onClick={fechar}>
+          {t.cancelarCorreccao}
+        </button>
+      </div>
+    </form>
   );
 }

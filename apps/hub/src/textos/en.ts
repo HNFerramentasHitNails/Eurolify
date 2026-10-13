@@ -1556,6 +1556,44 @@ export const en: Textos = {
   etiquetaSeguimento: "Tracking",
   etiquetaPeso: "Parcel weight",
   etiquetaGramas: "{g} g",
+  escolhidoNaoServe:
+    "The chosen service no longer serves this shipment (the weight, the country or the account changed). Choose another or go back to the one sold.",
+  etiquetaServicoDesconhecido:
+    "The carrier no longer has this service. The owner or the manager chooses another in «Change the service».",
+  corrigirPeso: "Correct the weight",
+  corrigirPesoAjuda:
+    "The calculated weight is {g} (the variants plus the warehouse packaging). Enter what the scale shows.",
+  corrigirPesoSemCalculado:
+    "A variant has no weight, so Eurolify cannot calculate it. Enter what the scale shows.",
+  pesoEmGramas: "Parcel weight, in grams",
+  motivoCorreccao: "Reason",
+  motivoCorreccaoAjuda:
+    "It stays in the shipment history. Do not enter customer data.",
+  guardarCorreccao: "Save",
+  voltarAoCalculado: "Back to the calculated weight",
+  cancelarCorreccao: "Cancel",
+  mudarServico: "Change the service",
+  mudarServicoAjuda:
+    "Only services from ready accounts that serve this shipment are shown. The customer still pays the shipping of the method they chose.",
+  servicoPrazoAviso:
+    "A slower service may miss the delivery deadline promised to the customer: check it first.",
+  servicoVendidoMarca: "the one sold",
+  voltarAoVendido: "Back to the service sold",
+  semOpcoesDeServico: "No service from a ready account serves this shipment.",
+  servicoAEscolher: "Service",
+  pesoCorrigidoNota: "Weight corrected by hand.",
+  servicoEscolhidoNota: "Service chosen by hand, instead of the one sold.",
+  pesoInvalido: "Enter a weight between 1 and 1,000,000 grams.",
+  motivoEmFalta: "Enter the reason, at least 3 characters.",
+  servicoEmFalta: "Choose a service.",
+  pesoCorrigidoAgora: "The weight was corrected.",
+  servicoMudadoAgora: "The service was changed.",
+  iaNaoMudaServico:
+    "An AI does not change a shipment’s service: it has to be a person.",
+  correccoesTitulo: "Corrections",
+  correccaoPeso: "Weight",
+  correccaoServico: "Service",
+  correccaoVoltou: "back to the calculated weight or the service sold",
   etiquetaPedir: "Request the label",
   etiquetaPedidaAgora: "The label was issued.",
   etiquetaDescarregar: "Download the label",
@@ -1578,7 +1616,7 @@ export const en: Textos = {
   etiquetaContaNaoPronta:
     "This method's carrier account is not ready: test it in «Shipping», «Accounts».",
   etiquetaPedidoRecusado:
-    "The server refused the label request: check the variants' weight and the address.",
+    "The server refused the label request: check the weight (you can fix it in «Correct the weight»), the service and the address.",
   etiquetaSemResposta: "The carrier did not respond. Try again in a moment.",
   expedirLinhaNaoEDaEncomenda:
     "One of the items is not from this order. Reload the page.",
