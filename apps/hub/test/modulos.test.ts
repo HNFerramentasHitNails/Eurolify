@@ -51,7 +51,7 @@ describe("os módulos de cada papel", () => {
     ]);
   });
 
-  it("o gestor e o apoio vêem «Expedir», os envios e a faturação, não as chaves; o armazém vê «Expedir» e os envios, não a faturação (docs/22 §29.3, §30.3, §32.1)", () => {
+  it("o gestor e o apoio vêem «Expedir», os envios e a faturação, não as chaves; o armazém vê «Expedir» e os envios, não a faturação (docs/22 §29.3, §30.3, §33.1)", () => {
     for (const papel of ["gestor", "apoio"] as const) {
       expect(ids(modulosDe(comerciante("a", papel))), papel).toEqual([
         "equipa",

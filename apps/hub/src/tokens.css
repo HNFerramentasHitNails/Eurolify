@@ -106,7 +106,7 @@
   /* O estado de um método de entrega (docs/22 §31.3). */
   --estado-metodo-activo: var(--estado-sucesso);
   --estado-metodo-arquivado: var(--texto-secundario);
-  /* Expedir (docs/22 §32.3): a encomenda, a expedição e a etiqueta. */
+  /* Expedir (docs/22 §33.3): a encomenda, a expedição e a etiqueta. */
   --estado-encomenda-paga: var(--estado-aviso);
   --estado-encomenda-em-curso: var(--texto-secundario);
   --estado-expedicao-criada: var(--estado-aviso);

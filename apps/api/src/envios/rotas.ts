@@ -156,7 +156,7 @@ export function contaParaApi(cfg: ConfigEnvios | undefined) {
   });
 }
 
-/** A etiqueta como a API a mostra, pela chave e pelo Hub (docs/22 §32). */
+/** A etiqueta como a API a mostra, pela chave e pelo Hub (docs/22 §33). */
 export const paraEtiqueta = (e: Awaited<ReturnType<typeof lerEtiqueta>>) => ({
   expedicao: `shp_${e.id}`,
   estado_expedicao: e.estado,

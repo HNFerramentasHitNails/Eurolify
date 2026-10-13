@@ -38,7 +38,7 @@ import {
 import { entradaDe } from "../modulos";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
-// O ecrã «Expedir» do Hub (docs/22 §32; Diogo, 13/10/2026: «sim, aprovo;
+// O ecrã «Expedir» do Hub (docs/22 §33; Diogo, 13/10/2026: «sim, aprovo;
 // avança com o código»): o trabalho do armazém, da encomenda paga à caixa
 // com a etiqueta. O dono, o gestor e o armazém expedem (`fulfilment:write`);
 // o apoio só vê. A vista não tem preços, NIF nem e-mail; o nome, o telefone
@@ -388,7 +388,7 @@ function NovaExpedicao({
         }
         // Sem resposta, relê-se em vez de repetir. O servidor só recusa um
         // segundo pedido quando passa do que falta: uma expedição parcial
-        // repetida seria aceite (docs/22 §32.2; revisão do #418, P2-2).
+        // repetida seria aceite (docs/22 §33.2; revisão do #418, P2-2).
         setFalha(
           mostrar instanceof ErroHub &&
             (mostrar.estado === 0 || mostrar.estado >= 500)

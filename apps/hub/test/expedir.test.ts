@@ -14,7 +14,7 @@ import {
 import { ESTADO_DO_CODIGO as DOS_ENVIOS } from "../../api/src/envios/erros";
 import { ESTADO_DO_CODIGO as DO_STOCK } from "../../api/src/stock/erros";
 
-// O apoio do ecrã «Expedir» (docs/22 §32): o que falta, o que se envia e
+// O apoio do ecrã «Expedir» (docs/22 §33): o que falta, o que se envia e
 // o que a etiqueta deixa fazer. O servidor confere tudo outra vez.
 
 const encomenda: EncomendaParaExpedir = {

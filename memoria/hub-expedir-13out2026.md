@@ -1,7 +1,7 @@
 # Hub: o ecrã «Expedir» (13/10/2026)
 
 Pedido do Diogo, 13/10/2026: *«sim, aprovo; avança com o código»*, sobre o
-desenho do `docs/22` §32 (issue #393, pedido #418).
+desenho do `docs/22` §33 (issue #393, pedido #418).
 
 ## O que se fez
 

@@ -9,7 +9,7 @@ import {
 import { ErroDoEcra } from "./erros";
 import type { Textos } from "./textos";
 
-// Apoio do ecrã «Expedir» (docs/22 §32). A API decide tudo: o que falta
+// Apoio do ecrã «Expedir» (docs/22 §33). A API decide tudo: o que falta
 // expedir, se a etiqueta se pode pedir, o lote que sai. Aqui só se conta o
 // que se mostra, se confere o mínimo e se escolhe o texto.
 

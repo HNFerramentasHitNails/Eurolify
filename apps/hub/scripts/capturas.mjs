@@ -32,6 +32,41 @@ const PORTA_API = 8181;
 const ORIGEM = `https://localhost:${String(PORTA_HUB)}`;
 const SENHA = "so-para-testes";
 
+/** Uma ligação de exemplo para o ecrã «Configurar» (só nas capturas). */
+const LIGACAO_DAS_CAPTURAS = "isx_00000000-0000-7000-8000-000000000001";
+const OPCOES_DAS_CAPTURAS = {
+  listas: {
+    series: [{ id: "77", nome: "Loja online 2026" }],
+    taxas: [
+      { id: "11", nome: "Taxa Normal", valor: 2300, zona: "PT" },
+      { id: "14", nome: "Taxa Normal antiga", valor: 2300, zona: "PT" },
+      { id: "12", nome: "Taxa Reduzida", valor: 600, zona: "PT" },
+      { id: "13", nome: "IVA normal ES", valor: 2100, zona: "ES" },
+    ],
+    isencoes: [{ id: "M16", nome: "Artigo 14.º do RITI" }],
+    metodos_pagamento: [{ id: "31", nome: "MB WAY" }],
+    linguas: [{ id: "1", nome: "Português", codigo: "pt" }],
+    vencimentos: [{ id: "41", nome: "Pronto pagamento", dias: 0 }],
+    unidades: [{ id: "51", nome: "Unidade", abreviatura: "Un." }],
+    categorias: [],
+  },
+  necessario: {
+    taxas: [
+      { pais: "PT", taxa: 2300 },
+      { pais: "PT", taxa: 600 },
+    ],
+    isencoes: [{ pais: "PT", codigo: "M16" }],
+    meios: ["mb_way"],
+  },
+  ligacao: {
+    versao: 2,
+    serie: null,
+    taxas: [{ pais: "PT", taxa: 2300, emissor: "11" }],
+    isencoes: [],
+    config: {},
+  },
+};
+
 if (URL_BASE === undefined) {
   console.error("falta BASE_DADOS_URL (superutilizador da base de testes)");
   process.exit(1);
@@ -5906,7 +5941,7 @@ try {
     await c.close();
   }
 
-  // «Expedir» (docs/22 §32): a lista vazia contra a API verdadeira; a
+  // «Expedir» (docs/22 §33): a lista vazia contra a API verdadeira; a
   // encomenda e a expedição com respostas simuladas da API, porque o ensaio
   // não tem uma encomenda paga (pedi-la passa pelo checkout e por um
   // prestador de pagamentos). Os dados são fictícios.
@@ -6169,6 +6204,11 @@ try {
       "Embalagem",
     ],
     ["faturacao", `/faturacao?comerciante=mer_${comerciante}`, "Faturação"],
+    [
+      "faturacao-configurar",
+      `/faturacao/configurar?comerciante=mer_${comerciante}&ligacao=${LIGACAO_DAS_CAPTURAS}`,
+      "Configurar a ligação ao Moloni",
+    ],
     ["recuperar", "/recuperar", "Recuperar a conta"],
   ];
   for (const tema of ["light", "dark"]) {
@@ -6179,6 +6219,11 @@ try {
         viewport: { width: largura, height: 900 },
         storageState: sessao,
       });
+      // As capturas não têm Moloni: as listas do ecrã «Configurar» (docs/22
+      // §32) vêm de um exemplo, servido só neste navegador.
+      await c.route("**/hub/invoicing-connections/*/issuer-options", (r) =>
+        r.fulfill({ json: OPCOES_DAS_CAPTURAS }),
+      );
       const p = await c.newPage();
       for (const [nome, caminho, titulo] of ecras) {
         await p.goto(`${ORIGEM}${caminho}`);

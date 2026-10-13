@@ -133,10 +133,15 @@ a {
   color: var(--accao-principal);
 }
 
-label {
+label,
+.rotulo {
   display: block;
   font-weight: 600;
   margin-bottom: var(--espaco-1);
+}
+
+.rotulo {
+  margin-top: 0;
 }
 
 input,
@@ -1195,7 +1200,7 @@ textarea {
   }
 }
 
-/* Expedir (docs/22 §32.3): um estado, uma cor, por token. */
+/* Expedir (docs/22 §33.3): um estado, uma cor, por token. */
 .estado-encomenda,
 .estado-expedicao,
 .estado-etiqueta {

@@ -26,6 +26,7 @@ import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
 import { Entrar } from "./ecras/Entrar";
 import { Equipa } from "./ecras/Equipa";
+import { ConfigurarFaturacao } from "./ecras/ConfigurarFaturacao";
 import { Faturacao, RegressoMoloni } from "./ecras/Faturacao";
 import { RelatorioOss } from "./ecras/RelatorioOss";
 import { Inicio } from "./ecras/Inicio";
@@ -54,7 +55,7 @@ import {
 // /artigos/{prd_…}/opcoes, /artigos/{prd_…}/variantes/{var_…},
 // /artigos/{prd_…}/variantes/nova,
 // /artigos/{prd_…}/precos/{prl_…}/{var_…}, /a-decidir, /faturacao,
-// /faturacao/moloni, /faturacao/oss, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
+// /faturacao/moloni, /faturacao/configurar, /faturacao/oss, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
@@ -190,6 +191,7 @@ export function App() {
     local.caminho === "/a-decidir" ||
     local.caminho === "/faturacao" ||
     local.caminho === "/faturacao/moloni" ||
+    local.caminho === "/faturacao/configurar" ||
     local.caminho === "/faturacao/oss" ||
     local.caminho === "/envios" ||
     local.caminho === "/envios/nova" ||
@@ -235,35 +237,37 @@ export function App() {
                               ? t.faturacaoTitulo
                               : local.caminho === "/faturacao/moloni"
                                 ? t.moloniTitulo
-                                : local.caminho === "/faturacao/oss"
-                                  ? t.ossTitulo
-                                  : local.caminho === "/envios"
-                                    ? t.enviosTitulo
-                                    : local.caminho === "/envios/nova"
-                                      ? t.enviosNovaTitulo
-                                      : contaDeEnvios !== null
-                                        ? t.enviosContaTitulo
-                                        : local.caminho === "/envios/metodos"
-                                          ? t.metodosTitulo
-                                          : local.caminho ===
-                                              "/envios/metodos/novo"
-                                            ? t.metodosNovoTitulo
-                                            : metodoDeEnvios !== null
-                                              ? t.metodosMetodoTitulo
-                                              : local.caminho ===
-                                                  "/envios/embalagem"
-                                                ? t.embalagemTitulo
-                                                : local.caminho === "/expedir"
-                                                  ? t.expedirTitulo
-                                                  : encomendaAExpedir !== null
-                                                    ? t.expedirEncomendaTitulo
-                                                    : local.caminho ===
-                                                        "/chaves"
-                                                      ? t.chavesTitulo
+                                : local.caminho === "/faturacao/configurar"
+                                  ? t.configurarTitulo
+                                  : local.caminho === "/faturacao/oss"
+                                    ? t.ossTitulo
+                                    : local.caminho === "/envios"
+                                      ? t.enviosTitulo
+                                      : local.caminho === "/envios/nova"
+                                        ? t.enviosNovaTitulo
+                                        : contaDeEnvios !== null
+                                          ? t.enviosContaTitulo
+                                          : local.caminho === "/envios/metodos"
+                                            ? t.metodosTitulo
+                                            : local.caminho ===
+                                                "/envios/metodos/novo"
+                                              ? t.metodosNovoTitulo
+                                              : metodoDeEnvios !== null
+                                                ? t.metodosMetodoTitulo
+                                                : local.caminho ===
+                                                    "/envios/embalagem"
+                                                  ? t.embalagemTitulo
+                                                  : local.caminho === "/expedir"
+                                                    ? t.expedirTitulo
+                                                    : encomendaAExpedir !== null
+                                                      ? t.expedirEncomendaTitulo
                                                       : local.caminho ===
-                                                          "/conta"
-                                                        ? t.contaTitulo
-                                                        : t.inicioTitulo;
+                                                          "/chaves"
+                                                        ? t.chavesTitulo
+                                                        : local.caminho ===
+                                                            "/conta"
+                                                          ? t.contaTitulo
+                                                          : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -384,6 +388,15 @@ export function App() {
     );
   else if (local.caminho === "/faturacao/moloni")
     ecra = <RegressoMoloni fragmento={regressoMoloni} />;
+  else if (local.caminho === "/faturacao/configurar")
+    ecra = (
+      <ConfigurarFaturacao
+        // Outra ligação, outro ecrã: nada do anterior fica.
+        key={local.consulta}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        ligacao={new URLSearchParams(local.consulta).get("ligacao")}
+      />
+    );
   else if (local.caminho === "/faturacao/oss")
     ecra = (
       <RelatorioOss

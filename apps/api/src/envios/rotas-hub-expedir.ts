@@ -35,7 +35,7 @@ import {
 import { ferramentasDoHub } from "./rotas-hub.js";
 import { emEnvios, paraEtiqueta, paraEvento } from "./rotas.js";
 
-// O ecrã «Expedir» do Hub (docs/22 §32; Diogo, 13/10/2026: «sim, aprovo;
+// O ecrã «Expedir» do Hub (docs/22 §33; Diogo, 13/10/2026: «sim, aprovo;
 // avança com o código»): a vista do armazém, as expedições, a etiqueta e o
 // seguimento, com as mesmas funções das rotas da chave (docs/27 §7.2,
 // docs/36 §7.1) e o mesmo âmbito. Quem escreve fica `pessoa:per_…`.
@@ -57,7 +57,7 @@ export function rotasDeExpedirNoHub(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "As encomendas por expedir pelo Hub (docs/22 §32), na vista do armazém: sem perfil de faturação, NIF, e-mail nem preços. As 100 mais antigas.",
+          "As encomendas por expedir pelo Hub (docs/22 §33), na vista do armazém: sem perfil de faturação, NIF, e-mail nem preços. As 100 mais antigas.",
         response: { 200: Lista, ...RESPOSTA_DE_ERRO },
       },
     },

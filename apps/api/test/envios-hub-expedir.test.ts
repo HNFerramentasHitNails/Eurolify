@@ -12,7 +12,7 @@ import { eupagoFalso } from "./eupago-falso.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 import { transportadoraFalsa } from "./transportadora-falsa.js";
 
-// O ecrã «Expedir» pelo Hub (docs/22 §32): a vista do armazém sem preços,
+// O ecrã «Expedir» pelo Hub (docs/22 §33): a vista do armazém sem preços,
 // NIF nem e-mail; a expedição criada pela pessoa; a etiqueta, o ficheiro,
 // anular e consultar; o seguimento; marcar como expedida. O dono, o gestor e
 // o armazém escrevem; o apoio só vê; outro comerciante não chega. Quem

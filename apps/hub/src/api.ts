@@ -5,7 +5,10 @@
 import type {
   DocumentoAClassificar,
   Faturacao,
+  OpcoesDoEmissor,
+  paraGravar,
   RelatorioOss,
+  ResultadoNoEmissor,
 } from "./faturacao";
 import type { OpcaoArtigo } from "./opcoes";
 import type { CorpoPreco, PrecoLido } from "./preco";
@@ -908,6 +911,39 @@ export const api = {
       `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/authorize/complete`,
       { comerciante, corpo: { codigo, estado } },
     ),
+  // Criar e configurar a ligação ao Moloni (docs/22 §32).
+  criarLigacao: (comerciante: string, entidade: string) =>
+    pedir<{ id: string }>("POST", "/hub/invoicing-connections", {
+      comerciante,
+      corpo: { entidade_legal: entidade },
+    }),
+  opcoesDoEmissor: (comerciante: string, ligacao: string) =>
+    pedir<OpcoesDoEmissor>(
+      "GET",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/issuer-options`,
+      { comerciante },
+    ),
+  pesquisarNoEmissor: (
+    comerciante: string,
+    ligacao: string,
+    tipo: "artigo" | "cliente",
+    q: string,
+  ) =>
+    pedir<{ dados: ResultadoNoEmissor[] }>(
+      "GET",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}/issuer-search?${new URLSearchParams({ tipo, q }).toString()}`,
+      { comerciante },
+    ),
+  configurarLigacao: (
+    comerciante: string,
+    ligacao: string,
+    corpo: ReturnType<typeof paraGravar>,
+  ) =>
+    pedir<{ versao: number; estado: string }>(
+      "PATCH",
+      `/hub/invoicing-connections/${encodeURIComponent(ligacao)}`,
+      { comerciante, corpo },
+    ),
   testarLigacao: (comerciante: string, ligacao: string) =>
     pedir<{ estado: string; erro: string | null }>(
       "POST",
@@ -1050,7 +1086,7 @@ export const api = {
       comerciante,
       corpo,
     }),
-  // Expedir (docs/22 §32): as mesmas rotas da chave.
+  // Expedir (docs/22 §33): as mesmas rotas da chave.
   paraExpedir: (comerciante: string) =>
     pedir<{ dados: EncomendaParaExpedir[] }>("GET", "/hub/fulfilment/orders", {
       comerciante,
