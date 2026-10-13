@@ -1745,7 +1745,7 @@ volta com «Publicado em Loja online · Portugal.» e a `ENS-041-B` à venda.
   que se publica sem a pessoa a ver. O corpo leva as activas que o ecrã
   mostrou; uma activa do artigo que não esteja lá dá **409
   `catalog.version_conflict`**, sem escrever, e o ecrã relê (a nova vem por
-  marcar). Confere-se dentro de `publicar`, depois da fila do artigo, onde
+  marcar e diz «nova», também num par sem publicação; revisão do #436, P2). Confere-se dentro de `publicar`, depois da fila do artigo, onde
   entra quem cria uma variante. Uma vista que entretanto foi arquivada não
   impede.
 - **As regras são as do Catálogo, sem cópia no Hub**: a verificação (C2) é

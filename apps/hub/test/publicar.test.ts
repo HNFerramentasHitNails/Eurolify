@@ -3,6 +3,7 @@ import type { ParDeVenda, PublicacaoArtigo } from "../src/api";
 import {
   chaveDaEscolha,
   escolhaDepoisDeRecarregar,
+  variantesQueApareceram,
   escolhaInicial,
   marcaDaVariante,
   linhasDosImpedimentos,
@@ -64,6 +65,14 @@ describe("as variantes que vêm marcadas", () => {
     expect(escolhaDepoisDeRecarregar([A], [A, B])).toEqual([A]);
     // Uma que deixou de ser activa sai das escolhas.
     expect(escolhaDepoisDeRecarregar([A, B], [B])).toEqual([B]);
+  });
+
+  it("as que apareceram ao reler juntam-se às que já tinham aparecido", () => {
+    expect(variantesQueApareceram([], [A, B], [A, B, C])).toEqual([C]);
+    // Outra releitura sem mudanças não as esquece; sem repetidas.
+    expect(variantesQueApareceram([C], [A, B, C], [A, B, C])).toEqual([C]);
+    // Sem mudanças, nenhuma.
+    expect(variantesQueApareceram([], [A], [A])).toEqual([]);
   });
 });
 
