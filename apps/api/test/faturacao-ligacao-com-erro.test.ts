@@ -27,7 +27,7 @@ import { hubDeTeste } from "./hub-de-teste.js";
 import { moloniFalso } from "./moloni-falso.js";
 
 // O aviso ao dono quando a ligação ao software de faturação fica com erro
-// (docs/29 §18; docs/06, EJ): a fila `ligacao_faturacao` do «A decidir» e,
+// (docs/29 §18; docs/06, EK): a fila `ligacao_faturacao` do «A decidir» e,
 // na renovação recusada, um e-mail logo aos donos (Q1 A). Os testes da L8.
 
 type Json = Record<string, unknown>;

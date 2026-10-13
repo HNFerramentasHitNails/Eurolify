@@ -451,10 +451,62 @@ export interface PublicacaoArtigo {
   /** O nome da loja da publicação; vazio se não se encontrar (§19.1). */
   loja_nome: string | null;
   estado: "rascunho" | "publicado" | "arquivado";
+  /** As variantes (var_…) que não se vendem neste par (docs/22 §27). */
+  variantes_fora: string[];
   verificado_em: string | null;
   publicado_em: string | null;
   arquivado_em: string | null;
   motivo_arquivo: (typeof MOTIVOS_ARQUIVO)[number] | null;
+  /** A versão lida: publicar e retirar levam-na (docs/22 §27.2). */
+  versao: number;
+  /** A do último pedido de publicação, também se foi recusado; null se não houve. */
+  ultima_verificacao: {
+    impedimentos: ImpedimentoApi[];
+    nao_verificado: string[];
+  } | null;
+}
+
+/** Um par canal × mercado onde o canal vende (GET /hub/sales-pairs). */
+export interface ParDeVenda {
+  canal: string;
+  canal_nome: string;
+  canal_estado: string;
+  mercado: string;
+  mercado_nome: string;
+  mercado_estado: string;
+  loja_nome: string;
+}
+
+/**
+ * Um impedimento da verificação (docs/22 §27.3): o código e, conforme o caso,
+ * os SKU das variantes, as línguas, a media ou o que falta.
+ */
+export interface ImpedimentoApi {
+  codigo: string;
+  variantes?: string[];
+  linguas?: string[];
+  media?: string[];
+  falta?: string[];
+  familias?: string[];
+}
+
+/** A verificação «pode publicar?» (C2). */
+export interface VerificacaoApi {
+  impedimentos: ImpedimentoApi[];
+  nao_verificado: string[];
+}
+
+/** O corpo de verificar e de publicar: o par e as variantes que ficam fora. */
+export interface EscolhaDePublicacao {
+  canal: string;
+  mercado: string;
+  variantes_fora: string[];
+}
+
+export interface RespostaPublicar {
+  publicada: boolean;
+  verificacao: VerificacaoApi;
+  publicacao: PublicacaoArtigo | null;
 }
 
 /** Um preço de uma variante numa lista (o `PrecoEsquema` da API). */
@@ -1246,6 +1298,42 @@ export const api = {
       `/hub/products/${artigo}/publications`,
       { comerciante },
     ),
+  // Publicar pelo Hub (docs/22 §27.2): os pares onde se pode publicar, a
+  // verificação e as escritas, cada uma com a `versao` lida da publicação
+  // (`null` quando ainda não existe nesse par).
+  paresDeVenda: (comerciante: string) =>
+    pedir<{ dados: ParDeVenda[] }>("GET", "/hub/sales-pairs", { comerciante }),
+  verificarPublicacao: (
+    comerciante: string,
+    artigo: string,
+    corpo: EscolhaDePublicacao,
+  ) =>
+    pedir<VerificacaoApi>(
+      "POST",
+      `/hub/products/${artigo}/publications/check`,
+      {
+        comerciante,
+        corpo,
+      },
+    ),
+  publicar: (
+    comerciante: string,
+    artigo: string,
+    corpo: EscolhaDePublicacao & { versao: number | null },
+  ) =>
+    pedir<RespostaPublicar>("POST", `/hub/products/${artigo}/publications`, {
+      comerciante,
+      corpo,
+    }),
+  retirarPublicacao: (
+    comerciante: string,
+    publicacao: string,
+    versao: number,
+  ) =>
+    pedir<PublicacaoArtigo>("POST", `/hub/publications/${publicacao}/archive`, {
+      comerciante,
+      corpo: { versao },
+    }),
   /** Os preços do artigo nas listas activas (docs/22 §17), 25 listas de cada vez. */
   precosDoArtigo: (
     comerciante: string,

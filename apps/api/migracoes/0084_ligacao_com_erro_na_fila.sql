@@ -1,6 +1,6 @@
 -- O aviso ao dono quando a ligação ao software de faturação fica com erro
 -- (docs/29 §18; issue #310; Diogo, 13/10/2026: «sim, aprovo o desenho com a
--- Q1 em A»; docs/06, EJ). Ex.: no sábado, o Moloni recusa renovar os tokens da
+-- Q1 em A»; docs/06, EK). Ex.: no sábado, o Moloni recusa renovar os tokens da
 -- «Loja Exemplo»; a ligação fica `com_erro`, entra na fila
 -- `ligacao_faturacao` do «A decidir» e sai logo um e-mail aos donos.
 --

@@ -789,7 +789,7 @@ Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho do aviso ao
 dono»*). É o ponto que o §14 deixou aberto: «o aviso ao dono quando a
 autorização morre ainda não é uma tarefa da fila». **Aprovado pelo Diogo a
 13/10/2026**, com a Q1 em A (*«sim, aprovo o desenho com a Q1 em A»*;
-`docs/06`, EJ).
+`docs/06`, EK).
 
 Skills: `platform-architect` (tarefas sobre um registo; uma regra num sítio),
 `observability-security` (tarefas automáticas que não param em silêncio),

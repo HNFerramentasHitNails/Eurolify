@@ -59,7 +59,7 @@
 
 ### O que se fez
 - Desenho no `docs/29` §18, aprovado pelo Diogo com a Q1 em A (`docs/06`,
-  EJ): a oitava fila do «A decidir», `ligacao_faturacao` (só o dono decide,
+  EK): a oitava fila do «A decidir», `ligacao_faturacao` (só o dono decide,
   1 dia), e um e-mail logo aos donos quando o Moloni recusa renovar.
 - Código na migração **0084** (a 0083 entrou com o #420): `docs/29` §18.6.
 - Revisão de um agente (Sonnet 5.5; 0 P0, 2 P1, 5 P2, 6 P3), publicada no

@@ -446,7 +446,7 @@ const Impedimento = Type.Object(
       "Um impedimento da verificação C2 (docs/14 §5): o código e, conforme o caso, as variantes (SKU), as línguas ou o que falta",
   },
 );
-const Verificacao = Type.Object({
+export const Verificacao = Type.Object({
   impedimentos: Type.Array(Impedimento),
   nao_verificado: Type.Array(NaoVerificado, {
     description:
@@ -486,7 +486,7 @@ export const RespostaPublicacoes = Type.Object({
   dados: Type.Array(PublicacaoEsquema),
 });
 
-const PedidoVerificar = Type.Object(
+export const PedidoVerificar = Type.Object(
   {
     canal: idCom("chn", "chn_…"),
     mercado: idCom("mkt", "mkt_…"),
@@ -905,7 +905,7 @@ export const PedidoVersao = Type.Object(ComVersao, {
   additionalProperties: false,
 });
 
-const PedidoPublicar = Type.Object(
+export const PedidoPublicar = Type.Object(
   {
     canal: idCom("chn", "chn_…"),
     mercado: idCom("mkt", "mkt_…"),
@@ -916,9 +916,9 @@ const PedidoPublicar = Type.Object(
   { additionalProperties: false },
 );
 
-const ParametroPublicacao = Type.Object({ id: idCom("pub", "pub_…") });
+export const ParametroPublicacao = Type.Object({ id: idCom("pub", "pub_…") });
 
-const RespostaPublicar = Type.Object({
+export const RespostaPublicar = Type.Object({
   publicada: Type.Boolean({
     description:
       "Falso com impedimentos: nada muda além da verificação guardada (docs/14 §4.2)",
@@ -1015,7 +1015,7 @@ function verificacaoGuardada(valor: unknown) {
   return { impedimentos, nao_verificado: naoVerificado };
 }
 
-function paraPublicacao(p: Publicacao) {
+export function paraPublicacao(p: Publicacao) {
   return {
     id: `pub_${p.id}`,
     artigo: `prd_${p.artigo_id}`,

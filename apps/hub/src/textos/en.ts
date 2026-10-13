@@ -1386,6 +1386,82 @@ export const en: Textos = {
     "This market no longer exists. Reload the page and choose another.",
   embalagemNaoExiste:
     "This warehouse no longer exists or does not belong to this merchant.",
+
+  // Publishing a product (docs/22 §27).
+  publicarTitulo: "Publish the product",
+  publicarRever: "Review the publication",
+  publicarReverAria: "Review the publication for {canal} · {mercado}",
+  publicarRetirar: "Withdraw",
+  publicarRetirarAria: "Withdraw from {canal} · {mercado}",
+  publicarConfirmarRetirar:
+    "Withdraw {artigo} from {canal} · {mercado}? It will no longer be on sale in this store.",
+  publicarRetirado: "Withdrawn from {canal} · {mercado}.",
+  publicarNoutraLoja: "Publish in another store",
+  publicarForaUma: "1 variant left out",
+  publicarForaVarias: "{n} variants left out",
+  publicarPublicado: "Published in {canal} · {mercado}.",
+  publicarSemPublicacao: "Not yet published in this pair.",
+  publicarVariantes: "Variants on sale",
+  publicarVariantesAjuda:
+    "Tick the variants you want to put on sale in this store. Those left unticked are not sold here.",
+  publicarSemVariantes: "This product has no active variants.",
+  publicarForaMarca: "left out",
+  publicarVerificar: "Check",
+  publicarAVerificar: "Checking…",
+  publicarPublicar: "Publish",
+  publicarPublicarOutraVez: "Publish again",
+  publicarAPublicar: "Publishing…",
+  publicarResultado: "Result of the check",
+  publicarPodePublicar: "Ready to publish",
+  publicarImpedimentos: "Not ready to publish yet:",
+  publicarPedirOutra: "You changed the choices: check again before publishing.",
+  publicarConformidade: "The product's compliance is not checked yet.",
+  publicarTraducaoMedia:
+    "The translation of the images' alternative text is not checked yet.",
+  publicarNovosImpedimentos:
+    "Not published: a blocker has appeared in the meantime and nothing changed.",
+  publicarConflito: "Someone else changed this publication in the meantime.",
+  publicarConflitoActual:
+    "Below are the current status and variants; your choices stay ticked. Check again before publishing.",
+  publicarSemResposta:
+    "The connection failed and we could not find the change. Check the status below and try again.",
+  publicarParNaoExiste:
+    "This store no longer sells in this market, or this pair does not exist.",
+  publicarIrFicha: "Open the product page",
+  publicarIrEditarArtigo: "Edit the product",
+  publicarIrEditarVariante: "Edit {sku}",
+  publicarIrPreco: "Set the price of {sku}",
+  publicarIrImagens: "See the images on the product page",
+  impedimento_artigo_nao_activo: "The product is not active.",
+  impedimento_canal_ou_mercado:
+    "The market (or the channel) is not active, or the channel no longer sells in this market.",
+  impedimento_sem_variantes_a_venda: "Choose at least one variant.",
+  impedimento_categoria_fiscal_em_falta:
+    "The product's tax category is missing.",
+  impedimento_peso_em_falta: "The weight of {sku} is missing.",
+  impedimento_peso_em_falta_generico: "The weight of a variant is missing.",
+  impedimento_preco_em_falta_generico:
+    "A variant has no price in the base list of {mercado}.",
+  publicarRetiradaSemResposta:
+    "The connection failed and we could not find the change. Check the status of the publications and try again.",
+  impedimento_preco_em_falta:
+    "{sku} has no price in the base list of {mercado}.",
+  impedimento_traducao_em_falta:
+    "The name translation in {linguas} is missing.",
+  impedimento_traducao_desactualizada:
+    "The name translation in {linguas} is out of date.",
+  impedimento_classificacao_em_falta: "The product is not classified yet.",
+  impedimento_natureza_incompativel:
+    "The product's nature does not fit its product type.",
+  impedimento_familia_restrita:
+    "The product belongs to a restricted family ({familias}).",
+  impedimento_data_ou_local_em_falta: "Missing on the product: {falta}.",
+  impedimento_falta_data: "the date",
+  impedimento_falta_local: "the place",
+  impedimento_falta_modo: "the mode",
+  impedimento_texto_alternativo_em_falta:
+    "Some images have no alternative text.",
+  impedimento_desconhecido: "Blocker: {codigo}.",
   // Expedir (docs/22 §33).
   modulo_expedir: "Ship orders",
   termos_expedir: "orders shipments labels warehouse tracking ship",
