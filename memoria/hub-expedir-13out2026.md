@@ -27,6 +27,11 @@ desenho do `docs/22` §33 (issue #393, pedido #418).
     contra o servidor.
   - Com conta, a expedição saía sem a etiqueta emitida.
 
+- **Aspecto aprovado** pelo Diogo a 13/10/2026, depois de ver 7 capturas
+  (*«aprovo; junta quando ficar verde»*). O #418 entrou no `main` com os
+  testes do GitHub verdes; o desenho passou a §33 do `docs/22` (o §32 é o
+  do Moloni, #412).
+
 ## Números (com data e como se contaram)
 
 - 13/10/2026, local:
