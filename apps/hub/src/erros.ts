@@ -29,6 +29,7 @@ const POR_CODIGO: Record<string, keyof Textos> = {
   "invite.used": "erroConviteUsado",
   "invite.not_found": "erroConviteUsado",
   "invite.invalid_email": "erroEmail",
+  "invite.email_not_allowed": "erroEmailDeEnsaio",
   "invite.invalid_role": "erroPapel",
   "member.merchant_inactive": "erroComercianteInactivo",
   "auth.reauthentication_required": "erroRecente",

@@ -1,4 +1,5 @@
 import { AMBITOS, type Ambito } from "./chaves.js";
+import { DOMINIO_DE_TESTE } from "./dominios-de-ensaio.js";
 
 // O comando do operador (docs/19 §6): criar um comerciante, a primeira chave
 // de servidor dele e o convite do primeiro dono (§6.0), fora da API pública. O pedido chega numa linha, pelo
@@ -82,15 +83,6 @@ function emailDe(codificado: string): string {
   }
   return email;
 }
-
-// REDE TEMPORÁRIA (revisão do #165, P2-1): enquanto o ensaio está no Reino
-// Unido e não recebe dados pessoais (ADR-0018/0019), o convite do operador só
-// aceita e-mails de domínios reservados para testes (RFC 2606 e 6761). É a
-// mesma lista do fluxo «operar»; aqui fica com testes. FIM: na migração para
-// Paris, no máximo a 31/03/2027 (ADR-0019) — então decide-se, com o Diogo ou
-// o Bruno, o que a substitui (docs/19 §6.0).
-const DOMINIO_DE_TESTE =
-  /@([a-z0-9-]+\.)*([a-z0-9-]+\.(test|example|invalid)|example\.(com|net|org))$/;
 
 /** Lê e valida um pedido; lança um erro com o motivo, sem repetir o pedido. */
 export function lerPedido(linha: string): PedidoOperador {

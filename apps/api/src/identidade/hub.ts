@@ -17,6 +17,7 @@ import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { sessaoDo } from "./autenticacao.js";
 import { AMBITOS, type Ambito } from "./chaves.js";
+import { emailAceiteNoConviteDoHub } from "./dominios-de-ensaio.js";
 import { PAPEIS } from "./papeis.js";
 import {
   COOKIE_SESSAO,
@@ -815,7 +816,7 @@ export function rotasDoHub(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Convidar (com autenticação recente): o dono com qualquer papel, o gestor só armazém ou apoio. O segredo da ligação só aparece nesta resposta; o dono envia-a (CB). Vale uma vez, 7 dias.",
+          "Convidar (com autenticação recente): o dono com qualquer papel, o gestor só armazém ou apoio. O segredo da ligação só aparece nesta resposta; o dono envia-a (CB). Vale uma vez, 7 dias. No ensaio, só endereços de domínios de teste ou de @eurolify.eu (422 invite.email_not_allowed; rede temporária até à migração para Paris, ADR-0019).",
         headers: CabecalhoComerciante,
         body: Type.Object(
           {
@@ -837,6 +838,13 @@ export function rotasDoHub(
     },
     async (pedido, resposta) => {
       const sessao = sessaoDo(pedido);
+      // Antes de tudo: um endereço de alguém nunca chega à base do ensaio
+      // (dominios-de-ensaio.ts; ADR-0019). Por isso dá 422 antes do 403 da
+      // autenticação recente ou do papel, que a base confere: a regra é
+      // pública, não revela nada (revisão do #417, P3-1).
+      if (!emailAceiteNoConviteDoHub(pedido.body.email)) {
+        throw erroConta("invite.email_not_allowed");
+      }
       const segredo = segredoNovo("euc");
       const id = await traduzindoConta(() =>
         comComerciante(base, sessao.comercianteId ?? "", async (trx) => {
