@@ -1422,6 +1422,7 @@ export const es: Textos = {
     "Marque las variantes que quiere poner a la venta en esta tienda. Las que queden sin marcar no se venden aquí.",
   publicarSemVariantes: "Este artículo no tiene variantes activas.",
   publicarForaMarca: "fuera",
+  publicarNovaMarca: "nueva",
   publicarVerificar: "Verificar",
   publicarAVerificar: "Verificando…",
   publicarPublicar: "Publicar",

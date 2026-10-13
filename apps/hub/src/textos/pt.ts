@@ -1402,6 +1402,7 @@ export const pt = {
     "Marque as variantes que quer pôr à venda nesta loja. As que ficam por marcar não se vendem aqui.",
   publicarSemVariantes: "Este artigo não tem variantes activas.",
   publicarForaMarca: "fora",
+  publicarNovaMarca: "nova",
   publicarVerificar: "Verificar",
   publicarAVerificar: "A verificar…",
   publicarPublicar: "Publicar",
