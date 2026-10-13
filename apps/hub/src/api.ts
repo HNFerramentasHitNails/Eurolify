@@ -1057,7 +1057,9 @@ export const api = {
     comerciante: string,
     corpo: {
       documento: string;
-      linhas: { balde: string; pais: string }[];
+      /** Uma por linha da prova; ou `a_parte`, numa prova sem linhas. */
+      linhas?: { balde: string; pais: string }[];
+      a_parte?: true;
       data?: string;
       motivo: string;
     },

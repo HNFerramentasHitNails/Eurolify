@@ -567,6 +567,33 @@ function Conteudo({
             ))}
           </ul>
         )}
+        <h3>{t.ossDeclarados}</h3>
+        {(r.a_parte.declarados ?? []).length === 0 ? (
+          <p className="secundario">{t.ossNada}</p>
+        ) : (
+          <>
+            <p className="aviso">{t.ossDeclaradosAviso}</p>
+            <ul className="lista-oss">
+              {(r.a_parte.declarados ?? []).map((x) => (
+                <li key={x.documento}>
+                  <span translate="no" title={x.documento}>
+                    {x.numero}
+                  </span>{" "}
+                  · {diaDe(lingua, x.data)} ·{" "}
+                  {preencher(t.ossDeclaradoPor, {
+                    nome: quemFechou(x.decidido_por),
+                    data: diaDe(lingua, x.decidido_em),
+                  })}
+                  {x.alteracao_de === null
+                    ? ""
+                    : ` · ${preencher(t.ossAlteracaoDe, {
+                        periodo: nomeDoPeriodo(t, x.alteracao_de),
+                      })}`}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         <h3>{t.ossPorEmitir}</h3>
         {r.a_parte.por_emitir.length === 0 ? (
           <p className="secundario">{t.ossNada}</p>
@@ -783,9 +810,12 @@ function DialogoClassificar({
     setEscolhas((l) => l.map((e, j) => (j === i ? { ...e, ...nova } : e)));
   };
 
+  // Uma prova sem linhas declara-se à parte (docs/37 §11).
+  const semLinhas = doc !== null && doc.linhas.length === 0;
+
   async function gravar() {
     if (doc === null) return;
-    const linhas = linhasAClassificar(escolhas);
+    const linhas = semLinhas ? [] : linhasAClassificar(escolhas);
     if (linhas === null) {
       setErro(t.classificarFaltaLinhas);
       return;
@@ -803,12 +833,12 @@ function DialogoClassificar({
     try {
       await api.classificarOss(comerciante, {
         documento,
-        linhas,
+        ...(semLinhas ? { a_parte: true as const } : { linhas }),
         ...(doc.data_prova === null ? { data } : {}),
         motivo: motivo.trim(),
       });
       await reler();
-      aoFechar(t.classificarFeito);
+      aoFechar(semLinhas ? t.classificarDeclarado : t.classificarFeito);
     } catch (e) {
       if (semSessao(e)) {
         navegar("/entrar", { substituir: true });
@@ -830,7 +860,7 @@ function DialogoClassificar({
           r !== null &&
           !r.impedimentos.some((i) => i.documentos.includes(documento))
         ) {
-          aoFechar(t.classificarFeito);
+          aoFechar(semLinhas ? t.classificarDeclarado : t.classificarFeito);
           return;
         }
         setErro(t.ossNaoConfirmado);
@@ -890,7 +920,11 @@ function DialogoClassificar({
                   data: diaDe(lingua, doc.data_prova),
                 })}
           </p>
-          <p className="so-leitores">{t.classificarLinhas}</p>
+          {semLinhas ? (
+            <p className="aviso">{t.classificarSemLinhas}</p>
+          ) : (
+            <p className="so-leitores">{t.classificarLinhas}</p>
+          )}
           {doc.linhas.map((l, i) => {
             const e = escolhas[i] ?? {
               balde: "" as const,
@@ -1039,7 +1073,11 @@ function DialogoClassificar({
           {erro === null ? null : <CaixaDeErro erro={{ texto: erro }} />}
           <div className="accoes-tarefa">
             <button type="submit" className="principal" disabled={aGravar}>
-              {aGravar ? t.aCarregar : t.classificarGravar}
+              {aGravar
+                ? t.aCarregar
+                : semLinhas
+                  ? t.classificarDeclarar
+                  : t.classificarGravar}
             </button>
             <button
               type="button"

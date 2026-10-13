@@ -1236,11 +1236,11 @@ Dois pedidos, por esta ordem:
 2. **Hub**: o campo no método e o ponto em «Expedir», com capturas para o
    OK do aspecto.
 
-### 21.10 Em código (13/10/2026; migração 0089)
+### 21.10 Em código (13/10/2026; migração 0090)
 
 | O quê | Onde |
 |---|---|
-| o método ganha `entrega` (`morada` ou `ponto`; um `ponto` tem sempre conta e serviço); a sessão conta as procuras (`procuras_pontos`, no máximo 20) | migração 0089 |
+| o método ganha `entrega` (`morada` ou `ponto`; um `ponto` tem sempre conta e serviço); a sessão conta as procuras (`procuras_pontos`, no máximo 20) | migração 0090 |
 | o contrato: o serviço diz se é de ponto (`ponto`); `procurarPontos` e `pontoDisponivel` (opcionais); a etiqueta leva o `ponto` | `src/envios/adaptador.ts` |
 | a Sendcloud: um serviço com `is_service_point_required` passa a ser de ponto (deixa de ficar de fora, D3); `GET /service-points` com `country_code`, `address_postal_code`, `carrier_code` (a parte do código do serviço antes de «:») e `limit`; `POST /service-points/{id}/check-availability`; `to_service_point.id` no anúncio | `src/envios/sendcloud.ts` |
 | o método e o serviço dizem o mesmo sobre onde entregam (criar e mudar um método; mudar o serviço de uma expedição, §19; pedir a etiqueta) | `src/checkout/repositorio.ts` (`conferirEnviosDoMetodo`), `src/envios/correcoes.ts` (`porQueNaoServeACaixa`) |

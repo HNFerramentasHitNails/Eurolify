@@ -31,14 +31,16 @@
   `it`). O CSV tem quatro colunas novas no fim (`classificado`,
   `data_decidida`, `classificado_por`, `classificado_em`). O identificador da
   pessoa fica no CSV (Diogo, 13/10/2026); não verificado com jurista.
+- 13/10/2026 (#437, P3-7, EL): uma prova sem linhas declara-se à parte
+  (`a_parte`, migração 0089; `docs/37` §11). O valor declara-se à mão; **C**,
+  contabilista.
 
 ## O que ficou por verificar
 
 - **C (contabilista):** a taxa da fatura emitida numa linha classificada à mão;
   o período pela data do documento; GR ou EL; o limiar com vendas tributadas
   na origem (art. 59.º-C não lido no `eur-lex`).
-- **Por fazer:** o P3-7 da 3.ª revisão (prova sem linhas e sem data bloqueia
-  o fecho; precisa de decisão de negócio); o ecrã no Hub; os registos de
+- **Por fazer:** os registos de
   serviços; outras moedas.
 - **Lição:** a cada junção do `main`, confirmar os números livres das
   migrações e das letras do `docs/06` (houve três colisões no mesmo dia).

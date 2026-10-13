@@ -2554,6 +2554,145 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(resposta.body).toContain("sinal_inesperado");
   });
 
+  it("relatório OSS: uma prova sem linhas declara-se à parte, fecha o período e sai nos registos sem valores (docs/37 §11, P3-7)", async () => {
+    const s = await cenario();
+    const conta = `c-${randomUUID()}`;
+    await ligar(s, conta);
+    // O emissor devolve uma fatura de 15/09 sem linhas.
+    ensaio.conta(conta).aoFechar = (doc) => ({
+      ...doc,
+      data: "2026-09-15",
+      linhas: [],
+    });
+    const e = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    delete ensaio.conta(conta).aoFechar;
+    let d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("divergente");
+    const aParte = {
+      documento: d["id"],
+      a_parte: true,
+      motivo: "linhas no PDF, declaradas à mão",
+    };
+    const classificar = (corpo: Json) =>
+      codigo(s.adm("POST", "/tax-reports/oss/classifications", corpo));
+    // Por resolver: não (P3-2).
+    expect(await classificar(aParte)).toEqual([
+      409,
+      "tax_reports.not_classifiable",
+    ]);
+    await ok(
+      s.adm("POST", `/invoices/${String(d["id"])}/resolve`, {
+        versao: d["versao"],
+        motivo: "aceite: a fatura saiu sem linhas",
+      }),
+    );
+    d = (await documentoDe(s, e.encomenda)) as Json;
+    expect(d["estado"]).toBe("resolvido");
+    const antes = await relatorio(s, "2026-T3");
+    expect(antes["impedimentos"]).toContainEqual({
+      motivo: "linhas_desalinhadas",
+      documentos: [d["id"]],
+    });
+    // As linhas e à parte ao mesmo tempo, nenhum dos dois, linhas numa
+    // prova sem linhas, ou uma data numa prova que já a tem: 400.
+    for (const corpo of [
+      { ...aParte, linhas: [{ balde: "nacional", pais: "PT" }] },
+      { documento: d["id"], motivo: "x" },
+      {
+        documento: d["id"],
+        motivo: "x",
+        linhas: [{ balde: "nacional", pais: "PT" }],
+      },
+      { ...aParte, data: hojeEmLisboa() },
+    ]) {
+      expect(await classificar(corpo)).toEqual([400, "tax_reports.invalid"]);
+    }
+    // Uma prova com linhas não se declara à parte.
+    const e2 = await paga(s, [[s.v1, 1]]);
+    await ateParar();
+    const d2 = (await documentoDe(s, e2.encomenda)) as Json;
+    expect(await classificar({ ...aParte, documento: d2["id"] })).toEqual([
+      409,
+      "tax_reports.not_classifiable",
+    ]);
+    const feito = await ok(
+      s.adm("POST", "/tax-reports/oss/classifications", aParte),
+    );
+    expect(feito["classificacao"]).toEqual({
+      linhas: [],
+      data: null,
+      a_parte: true,
+    });
+    // Sai dos impedimentos e fica na lista à parte.
+    const t3 = await relatorio(s, "2026-T3");
+    expect(t3["impedimentos"]).toEqual([]);
+    const declarados = (t3["a_parte"] as Json)["declarados"] as Json[];
+    expect(declarados).toEqual([
+      expect.objectContaining({
+        documento: d["id"],
+        data: "2026-09-15",
+        alteracao_de: null,
+        decidido_em: hojeEmLisboa(),
+      }),
+    ]);
+    expect(
+      (t3["baldes"] as Json[]).every(
+        (b) => (b["linhas"] as Json[]).length === 0,
+      ),
+    ).toBe(true);
+    // No limiar, continua nos excluídos: o valor não se conhece (revisão
+    // do #437, P2-2).
+    expect((t3["limiar"] as Json)["documentos_excluidos"]).toBe(
+      (antes["limiar"] as Json)["documentos_excluidos"],
+    );
+    // Fecha-se o T3 com ele; a fotografia guarda a lista à parte.
+    const fechado = await ok(
+      s.adm("POST", "/tax-reports/oss/close", {
+        entidade: `lgl_${s.entidade}`,
+        periodo: "2026-T3",
+      }),
+    );
+    expect((fechado["a_parte"] as Json)["declarados"]).toEqual(declarados);
+    // Nos registos: uma linha, sem valores, marcada à parte.
+    const csv = await s.adm(
+      "GET",
+      `/tax-reports/oss/records?entidade=lgl_${s.entidade}&periodo=2026-T3`,
+    );
+    expect(csv.statusCode).toBe(200);
+    const [cabecalho, ...linhas] = csv.body
+      .slice(1)
+      .trim()
+      .split("\r\n")
+      .map(celulasCsv);
+    expect(linhas).toHaveLength(1);
+    const linha = Object.fromEntries(
+      (cabecalho ?? []).map((c, i) => [c, linhas[0]?.[i]]),
+    );
+    expect(linha).toMatchObject({
+      numero: (d["prova"] as Json)["numero"],
+      balde: "",
+      descricao: "",
+      valor_tributavel: "",
+      iva: "",
+      classificado: "a_parte",
+    });
+    // A base guarda as duas formas e mais nenhuma.
+    for (const [aParteNaBase, linhasNaBase] of [
+      [true, '[{"balde":"nacional","pais":"PT"}]'],
+      [false, "[]"],
+    ] as const) {
+      await expect(
+        sql`insert into relatorio_oss_classificacao
+          (comerciante_id, documento_id, linhas, a_parte, motivo, decidido_por)
+          values (${s.c}::uuid, ${String(d2["id"]).slice(4)}::uuid,
+            ${linhasNaBase}::jsonb, ${aParteNaBase}, 'x', 'teste')`.execute(
+          base.dono,
+        ),
+      ).rejects.toThrow(/relatorio_oss_classificacao_linhas_check/);
+    }
+  });
+
   it("relatório OSS: as vendas emitidas fora do Eurolify ficam à parte, com o número declarado (Q-F3)", async () => {
     const s = await cenario();
     const { d } = await pagaAntesDeEscolher(s);

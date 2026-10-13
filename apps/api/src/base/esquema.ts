@@ -1064,7 +1064,7 @@ export interface TabelaMetodoEntrega {
     number | null | undefined,
     number | null
   >;
-  /** Onde entrega: na morada ou num ponto de recolha (docs/36 §21; 0089). */
+  /** Onde entrega: na morada ou num ponto de recolha (docs/36 §21; 0090). */
   entrega: ColumnType<
     "morada" | "ponto",
     "morada" | "ponto" | undefined,
@@ -1154,7 +1154,7 @@ export interface TabelaSessaoCheckout {
   criado_em: ColumnType<Date, never, never>;
   actualizado_em: ColumnType<Date, never, never>;
   concluida_em: ColumnType<Date | null, never, Date | null>;
-  /** As procuras de pontos de recolha nesta sessão (docs/36 §21; 0089). */
+  /** As procuras de pontos de recolha nesta sessão (docs/36 §21; 0090). */
   procuras_pontos: ColumnType<number, never, number>;
   versao: ColumnType<number, never, never>;
 }
@@ -2149,6 +2149,8 @@ export interface TabelaRelatorioOssClassificacao {
   motivo: ColumnType<string, string, never>;
   decidido_por: ColumnType<string, string, never>;
   decidido_em: ColumnType<Date, never, never>;
+  /** Uma prova sem linhas declarada à parte (docs/37 §11; 0089). */
+  a_parte: ColumnType<boolean, boolean | undefined, never>;
 }
 
 export interface TabelaRelatorioOssDocumento {

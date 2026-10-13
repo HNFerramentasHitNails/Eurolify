@@ -13,7 +13,7 @@ import { eupagoFalso } from "./eupago-falso.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 import { CHAVE_BOA, transportadoraFalsa } from "./transportadora-falsa.js";
 
-// Entrega num ponto de recolha ou cacifo (docs/36 §21; migração 0089): o
+// Entrega num ponto de recolha ou cacifo (docs/36 §21; migração 0090): o
 // método `ponto`, a procura e a escolha no checkout (só o país e o código
 // postal saem; a morada guardada é a da transportadora), o ponto conferido
 // antes do botão final, a morada fiscal que nunca é a do ponto, a etiqueta

@@ -8,7 +8,7 @@ Esta parte usa só a Sendcloud: os CTT continuam sem especificação (§11, V1).
 ## O que se fez
 
 - **O método de entrega diz onde entrega:** na `morada` ou num `ponto`
-  (migração 0089). Um método `ponto` só aceita um serviço que a
+  (migração 0090). Um método `ponto` só aceita um serviço que a
   transportadora declare para pontos, e o contrário também.
 - **No checkout:**
   - o cliente escolhe o método `ponto`, escreve o código postal e recebe até
