@@ -121,6 +121,21 @@ Os registos ficam **10 anos** (L7; o mesmo prazo do art. 52.º do CIVA,
 `docs/29` §6). Exportam-se em CSV, com o cabeçalho em português, e nunca vão
 para os registos do servidor (têm dados pessoais: `eu-gdpr-privacy`).
 
+No fim de cada linha, quatro colunas dizem o que não veio da prova
+(3.ª revisão do #392, P3-6): `classificado` (`sim` quando o balde e o país
+foram decididos pelo dono, §10), `data_decidida` (a data que o dono deu a uma
+prova sem data), `classificado_por` e `classificado_em` (o dia, em Lisboa).
+Ficam no fim para as colunas de antes não mudarem.
+
+`classificado_por` é o identificador de quem decidiu: `chave:key_…` por uma
+chave da API, ou `pessoa:per_…` por uma pessoa da equipa do comerciante no
+Hub — um identificador pseudónimo, nunca o nome nem o motivo escrito
+(`eu-gdpr-privacy`, minimização). Finalidade: provar quem decidiu um balde ou
+uma data que não veio da prova; fica com os registos (os 10 anos acima).
+`fechado_por`, no fecho, segue a mesma regra. **Decisão do Diogo (13/10/2026: *«sim, mantém o identificador no CSV»*):**
+sai no ficheiro, porque sem ele a decisão à mão não tem autor. **C**: não
+verificado com um jurista.
+
 ## 5. A API
 
 | Rota | Âmbito |
@@ -190,7 +205,7 @@ Eventos: `tax_report.closed`. Erros novos: `tax_reports.not_closable`
 | `relatorio_oss_fecho` e `relatorio_oss_documento`: só se acrescentam (a base recusa mudar e apagar), RLS forçado; o evento `tax_report.closed` | migração 0078 |
 | os registos do art. 63.º-C em CSV (com a protecção contra fórmulas) | `src/faturacao/oss.ts` (`registosOss`) |
 | as rotas `GET /tax-reports/oss`, `POST /tax-reports/oss/close`, `POST /tax-reports/oss/classifications`, `GET /tax-reports/oss/records` | `src/faturacao/rotas-oss.ts` |
-| 10 testes da classificação sem base; 6 pela API | `test/oss.test.ts`, `test/documentos-api.test.ts` |
+| 12 testes do relatório sem base; 7 pela API (contados a 13/10/2026: os `it` de `test/oss.test.ts` e os «relatório OSS» de `test/documentos-api.test.ts`) | `test/oss.test.ts`, `test/documentos-api.test.ts` |
 
 **Desvios do desenho:**
 - **As rotas** levam a entidade e o período na consulta (`?entidade=&periodo=`)
@@ -257,13 +272,27 @@ só fotografia da base (P2-2); os erros saem com os códigos do relatório
 (`tax_reports.*`, P3-6); um documento sem data conta uma vez só nos
 excluídos do limiar (P3-3).
 
+**Testes acrescentados (3.ª revisão do #392, P3-8):** um documento
+classificado que fica divergente continua a impedir e sai do limiar; o limiar
+com documentos classificados (o OSS do dono conta; o nacional para outro país
+fica excluído); uma prova com montantes negativos e sem data não se
+classifica, nem depois de resolvida. **Não se testam**, e porquê:
+classificar ao mesmo tempo que se fecha (os dois não partilham bloqueio, e
+não precisam: só se classifica um documento que impede o fecho — um sem data
+entra na leitura de todos os períodos —, e o fecho recusa com qualquer
+impedimento; ou o fecho o lê por classificar e recusa, ou já classificado e
+conta-o; lido no código, `classificarOss` e `fecharOss`, não medido); e uma data do dono num período
+já fechado (a data dele entra em `lerDocumentos` como a da prova, e um
+documento com data num período fechado entra como alteração do seguinte,
+caso que o teste das alterações já cobre, §3).
+
 **Limites que ficam:**
 - As vendas com sistema próprio não têm documento no Eurolify: mostram-se
   pela captura do pagamento e **não têm alteração** se o pagamento for
   capturado depois do fecho.
 - O código de país é o do Eurolify (ISO 3166, `GR`); a declaração OSS usa
   `EL` para a Grécia — **não verifiquei** se o portal da AT pede um ou outro.
-- `fechado_por` guarda a chave que fechou (o identificador dela), não o nome
+- `fechado_por` guarda quem fechou (o identificador da chave ou da pessoa), não o nome
   da pessoa.
 
 **Por fazer:** o ecrã no Hub; os registos de serviços (art. 63.º-C, al. b) e
