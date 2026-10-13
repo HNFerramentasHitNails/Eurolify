@@ -61,7 +61,7 @@
 |---|---|
 | troca e carteira (crédito em vez de reembolso) | Fase 2 (`docs/05`; ADR-0022); a carteira com o contabilista (`eu-vat-oss-ioss`, Dir. (UE) 2016/1065, **C**) |
 | garantia legal (reparação, substituição, redução do preço; +12 meses com reparação) | fatia própria (`consumer-rights-eu`, «Garantia legal e reparação») |
-| etiqueta de devolução pela transportadora | parte 2 da fatia 9 (adaptadores); aqui a transportadora e o seguimento da volta escrevem-se à mão |
+| etiqueta de devolução pela transportadora | `docs/36` §22 (13/10/2026): pedida pela API, a devolução fica com a transportadora e o seguimento dela; sem etiqueta, escrevem-se à mão |
 | o envio da confirmação por e-mail | fatia de Notificações (como a confirmação da encomenda, `docs/25` Q4): aqui guarda-se o documento e devolve-se ao cliente |
 | disputas e estornos do prestador | `payments-psd2-sca`, «Disputas»; fatia própria |
 | conteúdos digitais e serviços | `digital-products-eu` (fatia 12, desligada) |

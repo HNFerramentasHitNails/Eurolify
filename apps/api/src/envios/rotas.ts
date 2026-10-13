@@ -27,6 +27,13 @@ import {
 } from "./correcoes.js";
 import { ErroEnvios, ESTADO_DO_CODIGO } from "./erros.js";
 import {
+  anularEtiquetaDevolucao,
+  ficheiroEtiquetaDevolucao,
+  lerEtiquetaDevolucao,
+  pedirEtiquetaDevolucao,
+  type EtiquetaDaDevolucao,
+} from "./devolucoes.js";
+import {
   criarConta,
   definirCredenciais,
   listarContas,
@@ -74,6 +81,23 @@ export async function emEnvios<T>(
 
 export const IdConta = idCom("cac", "cac_…");
 export const IdExpedicao = idCom("shp", "shp_…");
+const IdDevolucao = idCom("rma", "rma_…");
+
+/** A etiqueta de uma devolução como a API a mostra (docs/36 §22). */
+export const paraEtiquetaDevolucao = (e: EtiquetaDaDevolucao) => ({
+  devolucao: `rma_${e.devolucao}`,
+  estado: e.estado,
+  tentativa: e.tentativa,
+  conta: `cac_${e.conta}`,
+  transportadora: e.transportadora,
+  servico: e.servico,
+  peso_g: e.peso_g,
+  motivo: e.motivo,
+  seguimento: e.seguimento,
+  url_seguimento: e.url_seguimento,
+  em: e.em.toISOString(),
+  ficheiro: e.ficheiro ? "pdf" : null,
+});
 const IdArmazem = idCom("whs", "whs_…");
 export const Versao = Type.Integer({ minimum: 1 });
 const iso = (d: Date | null) => (d === null ? null : d.toISOString());
@@ -486,6 +510,137 @@ export function rotasDosEnvios(
             chaveDo(pedido).comercianteId,
             semPrefixo(pedido.params.id),
             cfg,
+            quemDo(pedido),
+          ),
+        ),
+      ),
+  );
+
+  // A etiqueta de devolução (docs/36 §22).
+  const Devolucao = Type.Object({ id: IdDevolucao });
+
+  rotas.post(
+    "/returns/:id/label",
+    {
+      config: { ambito: "returns:write" },
+      schema: {
+        description:
+          "Pede a etiqueta de devolução à transportadora (docs/36 §22): numa devolução à espera, com a conta e um serviço de morada que sirva o país do cliente. Vai o nome e a morada de entrega do cliente, a morada de recolha da conta e o peso das linhas mais a embalagem. A etiqueta é paga pela conta do comerciante. Sem resposta, fica «incerta» e não se pede outra até uma pessoa confirmar no painel da transportadora e a anular aqui.",
+        params: Devolucao,
+        body: Type.Object(
+          {
+            conta: IdConta,
+            servico: Type.String({ pattern: "^[0-9A-Za-z_.:/-]{1,100}$" }),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () =>
+        paraEtiquetaDevolucao(
+          await pedirEtiquetaDevolucao(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+            {
+              conta: semPrefixo(pedido.body.conta),
+              servico: pedido.body.servico,
+            },
+            cfg,
+            quemDo(pedido),
+          ),
+        ),
+      ),
+  );
+
+  rotas.get(
+    "/returns/:id/label",
+    {
+      config: { ambito: "returns:read" },
+      schema: {
+        description:
+          "O estado da etiqueta de devolução: a conta, o serviço, o peso, o seguimento e se há ficheiro (docs/36 §22).",
+        params: Devolucao,
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () =>
+        paraEtiquetaDevolucao(
+          await lerEtiquetaDevolucao(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+          ),
+        ),
+      ),
+  );
+
+  rotas.get(
+    "/returns/:id/label/file",
+    {
+      config: { ambito: "returns:read" },
+      schema: {
+        description:
+          "O ficheiro da etiqueta de devolução, para mandar ao cliente, enquanto existir: apaga-se 30 dias depois de a devolução acabar, ou logo num apagamento do titular (docs/36 §22, Q7).",
+        params: Devolucao,
+        response: {
+          200: {
+            description: "A etiqueta",
+            content: {
+              "application/pdf": {
+                schema: { type: "string", format: "binary" },
+              },
+              "text/plain": { schema: { type: "string" } },
+            },
+          },
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const f = await ficheiroEtiquetaDevolucao(
+          base,
+          chaveDo(pedido).comercianteId,
+          semPrefixo(pedido.params.id),
+        );
+        return resposta
+          .header(
+            "content-type",
+            f.formato === "pdf" ? "application/pdf" : "text/plain",
+          )
+          .header("x-content-type-options", "nosniff")
+          .header("cache-control", "no-store")
+          .send(f.conteudo);
+      }),
+  );
+
+  rotas.post(
+    "/returns/:id/label/void",
+    {
+      config: { ambito: "returns:write" },
+      schema: {
+        description:
+          "Anula a etiqueta de devolução emitida ou incerta (docs/36 §22): é quem a pede a dizer que a anulou no painel da transportadora, ou que a incerta não existe lá. O Eurolify não a anula na transportadora. O ficheiro apaga-se e pode pedir-se outra.",
+        params: Devolucao,
+        body: Type.Object(
+          { motivo: Type.String({ minLength: 3, maxLength: 500 }) },
+          { additionalProperties: false },
+        ),
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () =>
+        paraEtiquetaDevolucao(
+          await anularEtiquetaDevolucao(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.motivo,
             quemDo(pedido),
           ),
         ),

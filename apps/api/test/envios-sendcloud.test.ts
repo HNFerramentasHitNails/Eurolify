@@ -439,4 +439,55 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
       ).toEqual([]);
     }
   });
+
+  it("a etiqueta de devolução (§22): só o que a volta precisa, sem e-mails ao cliente; a referência repetida fica incerta; sem etiqueta ainda, incerta", async () => {
+    const f = sendcloudFalsa();
+    const a = adaptadorSendcloud(f.buscar);
+    const pedidoDevolucao = {
+      ...pedido("rma_1-1"),
+      remetente: pedido("x").destinatario,
+      destinatario: pedido("x").remetente,
+    };
+    const r = await a.pedirEtiquetaDevolucao?.(CRED, pedidoDevolucao);
+    expect(r).toMatchObject({
+      estado: "emitida",
+      seguimento: "RT7001",
+      urlSeguimento: "https://tracking.exemplo/RT7001",
+    });
+    expect(f.estado.devolucoes.at(-1)?.corpo).toMatchObject({
+      external_reference: "rma_1-1",
+      send_tracking_emails: false,
+      delivery_option: "drop_off_point",
+      from_address: { name: "Rui", postal_code: "4000-001" },
+      to_address: { name: "Armazém" },
+    });
+    // A mesma referência outra vez: existe e não se sabe qual.
+    await expect(
+      a.pedirEtiquetaDevolucao?.(CRED, pedidoDevolucao),
+    ).rejects.toBeInstanceOf(ErroDeRede);
+    f.estado.devolver = "recusar";
+    expect(
+      await a.pedirEtiquetaDevolucao?.(CRED, {
+        ...pedidoDevolucao,
+        chaveIdempotencia: "rma_1-2",
+      }),
+    ).toEqual({ estado: "recusada", motivo: "Invalid postal code." });
+    f.estado.devolver = "sem_etiqueta";
+    await expect(
+      a.pedirEtiquetaDevolucao?.(CRED, {
+        ...pedidoDevolucao,
+        chaveIdempotencia: "rma_1-3",
+      }),
+    ).rejects.toBeInstanceOf(ErroDeRede);
+    // Em modo teste, outro serviço nem chega à Sendcloud.
+    const antes = f.estado.devolucoes.length;
+    expect(
+      await a.pedirEtiquetaDevolucao?.(CRED, {
+        ...pedidoDevolucao,
+        servico: "postnl:standard",
+        chaveIdempotencia: "rma_1-4",
+      }),
+    ).toMatchObject({ estado: "recusada" });
+    expect(f.estado.devolucoes.length).toBe(antes);
+  });
 });

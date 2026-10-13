@@ -1093,6 +1093,8 @@ export interface ResultadoVolta {
   falhas: number;
   erros: Record<string, number>;
   avisosResumidos: number;
+  /** Os ficheiros das etiquetas de devolução apagados (docs/36 §22, Q7). */
+  devolucoesApagadas: number;
 }
 
 /**
@@ -1111,6 +1113,7 @@ export async function correrTrabalho(
     falhas: 0,
     erros: {},
     avisosResumidos: 0,
+    devolucoesApagadas: 0,
   };
   const falhou = (erro: unknown) => {
     r.falhas += 1;
@@ -1122,6 +1125,14 @@ export async function correrTrabalho(
       n: number;
     }>`select envios_avisos_resumir() as n`.execute(db);
     r.avisosResumidos = rows[0]?.n ?? 0;
+  } catch (erro) {
+    falhou(erro);
+  }
+  try {
+    const { rows } = await sql<{
+      n: number;
+    }>`select envios_devolucao_ficheiros_apagar() as n`.execute(db);
+    r.devolucoesApagadas = rows[0]?.n ?? 0;
   } catch (erro) {
     falhou(erro);
   }
@@ -1221,7 +1232,11 @@ export function agendarTrabalhoEnvios(
         .then((r) => {
           if (r.falhas > 0) {
             registo.error(r, "envios: a volta correu com falhas");
-          } else if (r.feitos > 0 || r.avisosResumidos > 0) {
+          } else if (
+            r.feitos > 0 ||
+            r.avisosResumidos > 0 ||
+            r.devolucoesApagadas > 0
+          ) {
             registo.info(r, "envios: a volta correu");
           }
         })

@@ -160,6 +160,15 @@ export interface AdaptadorTransportadora {
     credenciais: CredenciaisTransportadora,
     pedido: PedidoEtiqueta,
   ): Promise<ResultadoEtiqueta>;
+  /**
+   * A etiqueta de devolução (docs/36 §22): `remetente` é o cliente e
+   * `destinatario` a morada de recolha da conta. Lança `ErroDeRede` quando
+   * não se sabe se ela existe: fica `incerta` e só uma pessoa a resolve.
+   */
+  pedirEtiquetaDevolucao?(
+    credenciais: CredenciaisTransportadora,
+    pedido: PedidoEtiqueta,
+  ): Promise<ResultadoEtiqueta>;
   /** A etiqueta pela nossa referência: existe (com o ficheiro) ou não. */
   consultarEtiqueta(
     credenciais: CredenciaisTransportadora,
