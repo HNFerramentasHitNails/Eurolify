@@ -12,6 +12,7 @@ import { Artigos } from "./ecras/Artigos";
 import { Historico } from "./ecras/Historico";
 import { OpcoesEditar } from "./ecras/OpcoesEditar";
 import { PrecoDaVariante } from "./ecras/PrecoDaVariante";
+import { PublicarArtigo } from "./ecras/PublicarArtigo";
 import { VarianteEditar } from "./ecras/VarianteEditar";
 import { VarianteNova } from "./ecras/VarianteNova";
 import { Chaves } from "./ecras/Chaves";
@@ -52,7 +53,8 @@ import {
 // /artigos/{prd_…}/editar, /artigos/{prd_…}/historico,
 // /artigos/{prd_…}/opcoes, /artigos/{prd_…}/variantes/{var_…},
 // /artigos/{prd_…}/variantes/nova,
-// /artigos/{prd_…}/precos/{prl_…}/{var_…}, /a-decidir, /faturacao,
+// /artigos/{prd_…}/precos/{prl_…}/{var_…},
+// /artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}, /a-decidir, /faturacao,
 // /faturacao/moloni, /faturacao/oss, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
@@ -63,6 +65,7 @@ const CAMINHO_HISTORICO = /^\/artigos\/([^/]+)\/historico$/;
 const CAMINHO_OPCOES = /^\/artigos\/([^/]+)\/opcoes$/;
 const CAMINHO_VARIANTE = /^\/artigos\/([^/]+)\/variantes\/([^/]+)$/;
 const CAMINHO_PRECO = /^\/artigos\/([^/]+)\/precos\/([^/]+)\/([^/]+)$/;
+const CAMINHO_PUBLICAR = /^\/artigos\/([^/]+)\/publicacoes\/([^/]+)\/([^/]+)$/;
 const CAMINHO_CONTA_ENVIOS = /^\/envios\/(cac_[^/]+)$/;
 const CAMINHO_METODO_ENVIOS = /^\/envios\/metodos\/(shm_[^/]+)$/;
 
@@ -172,6 +175,7 @@ export function App() {
   const opcoesDoArtigo = CAMINHO_OPCOES.exec(local.caminho)?.[1] ?? null;
   const daVariante = CAMINHO_VARIANTE.exec(local.caminho);
   const doPreco = CAMINHO_PRECO.exec(local.caminho);
+  const dePublicar = CAMINHO_PUBLICAR.exec(local.caminho);
   const contaDeEnvios = CAMINHO_CONTA_ENVIOS.exec(local.caminho)?.[1] ?? null;
   const metodoDeEnvios = CAMINHO_METODO_ENVIOS.exec(local.caminho)?.[1] ?? null;
   const comSessao =
@@ -181,6 +185,7 @@ export function App() {
     historico !== null ||
     opcoesDoArtigo !== null ||
     daVariante !== null ||
+    dePublicar !== null ||
     local.caminho === "/" ||
     local.caminho === "/equipa" ||
     local.caminho === "/artigos" ||
@@ -224,35 +229,37 @@ export function App() {
                           ? daVariante[2] === "nova"
                             ? t.varianteNovaTitulo
                             : t.varianteEditarTitulo
-                          : local.caminho === "/a-decidir"
-                            ? t.decidirTitulo
-                            : local.caminho === "/faturacao"
-                              ? t.faturacaoTitulo
-                              : local.caminho === "/faturacao/moloni"
-                                ? t.moloniTitulo
-                                : local.caminho === "/faturacao/oss"
-                                  ? t.ossTitulo
-                                  : local.caminho === "/envios"
-                                    ? t.enviosTitulo
-                                    : local.caminho === "/envios/nova"
-                                      ? t.enviosNovaTitulo
-                                      : contaDeEnvios !== null
-                                        ? t.enviosContaTitulo
-                                        : local.caminho === "/envios/metodos"
-                                          ? t.metodosTitulo
-                                          : local.caminho ===
-                                              "/envios/metodos/novo"
-                                            ? t.metodosNovoTitulo
-                                            : metodoDeEnvios !== null
-                                              ? t.metodosMetodoTitulo
-                                              : local.caminho ===
-                                                  "/envios/embalagem"
-                                                ? t.embalagemTitulo
-                                                : local.caminho === "/chaves"
-                                                  ? t.chavesTitulo
-                                                  : local.caminho === "/conta"
-                                                    ? t.contaTitulo
-                                                    : t.inicioTitulo;
+                          : dePublicar !== null
+                            ? t.publicarTitulo
+                            : local.caminho === "/a-decidir"
+                              ? t.decidirTitulo
+                              : local.caminho === "/faturacao"
+                                ? t.faturacaoTitulo
+                                : local.caminho === "/faturacao/moloni"
+                                  ? t.moloniTitulo
+                                  : local.caminho === "/faturacao/oss"
+                                    ? t.ossTitulo
+                                    : local.caminho === "/envios"
+                                      ? t.enviosTitulo
+                                      : local.caminho === "/envios/nova"
+                                        ? t.enviosNovaTitulo
+                                        : contaDeEnvios !== null
+                                          ? t.enviosContaTitulo
+                                          : local.caminho === "/envios/metodos"
+                                            ? t.metodosTitulo
+                                            : local.caminho ===
+                                                "/envios/metodos/novo"
+                                              ? t.metodosNovoTitulo
+                                              : metodoDeEnvios !== null
+                                                ? t.metodosMetodoTitulo
+                                                : local.caminho ===
+                                                    "/envios/embalagem"
+                                                  ? t.embalagemTitulo
+                                                  : local.caminho === "/chaves"
+                                                    ? t.chavesTitulo
+                                                    : local.caminho === "/conta"
+                                                      ? t.contaTitulo
+                                                      : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -341,6 +348,17 @@ export function App() {
         artigo={doPreco[1] ?? ""}
         lista={doPreco[2] ?? ""}
         variante={doPreco[3] ?? ""}
+        consulta={local.consulta}
+      />
+    );
+  else if (dePublicar !== null)
+    ecra = (
+      <PublicarArtigo
+        key={`${dePublicar[1] ?? ""} ${dePublicar[2] ?? ""} ${dePublicar[3] ?? ""} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        artigo={dePublicar[1] ?? ""}
+        canal={dePublicar[2] ?? ""}
+        mercado={dePublicar[3] ?? ""}
         consulta={local.consulta}
       />
     );

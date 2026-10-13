@@ -14,14 +14,24 @@ import {
   TIPOS_DE_IMAGEM,
   type FichaArtigo,
   type ImagemArtigo,
+  type ParDeVenda,
   type PublicacaoArtigo,
   type VarianteArtigo,
 } from "../api";
 import { ACarregar, CaixaDeErro, useHub } from "../contexto";
 import { PrecosDoArtigo } from "./PrecosDoArtigo";
 import { celulaDoCanal, celulaDoMercado, type Celula } from "../publicacoes";
+import {
+  paresSemPublicacao,
+  quantasFora,
+  respostaPerdida,
+  retiradaConfere,
+  rotuloDoPar,
+  textoDaCelula,
+  variantesActivas,
+} from "../publicar";
 import { linhaDasOpcoes, valorDaVariante, type OpcaoArtigo } from "../opcoes";
-import { mensagemDeErro, semSessao } from "../erros";
+import { ErroDoEcra, mensagemDeErro, semSessao } from "../erros";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
 
 // A ficha do artigo (docs/22 §12.2): o artigo com as variantes, as imagens
@@ -82,6 +92,13 @@ export function Artigo({
   const [podeVerHistorico, setPodeVerHistorico] = useState(false);
   // Definir e tirar preços (docs/22 §25): só com prices:write.
   const [podeEscreverPrecos, setPodeEscreverPrecos] = useState(false);
+  // Publicar e retirar (docs/22 §27): só com catalog:publish.
+  const [podePublicar, setPodePublicar] = useState(false);
+  // Os pares canal × mercado onde se pode publicar (só se lêem com
+  // catalog:publish, para «Publicar noutra loja»).
+  const [pares, setPares] = useState<Parte<ParDeVenda[]>>({
+    tipo: "a_carregar",
+  });
   // Uma acção de cada vez; o erro dela fica à vista até à seguinte.
   const [ocupado, setOcupado] = useState(false);
   // Mover uma imagem que gravou uma parte e falhou na outra.
@@ -103,6 +120,8 @@ export function Artigo({
     // Um preço definido ou tirado (docs/22 §25.3).
     if (q.get("preco") === "guardado") return "precoGuardado";
     if (q.get("preco") === "tirado") return "precoTirado";
+    // Publicado a partir da página da publicação (docs/22 §27.3).
+    if (q.get("publicado") === "1") return "publicado";
     return q.get("guardado") === "1" ? "guardado" : null;
   });
   // O SKU da variante acrescentada, para o aviso (revisão do #331, P2-1).
@@ -110,6 +129,14 @@ export function Artigo({
   const [skuDoAviso] = useState(() => {
     const q = new URLSearchParams(consulta);
     return q.get("skuCriado") ?? q.get("skuPreco") ?? "";
+  });
+  // O canal e o mercado da publicação feita ou retirada, para o aviso (§27.3).
+  const [parDoAviso, setParDoAviso] = useState(() => {
+    const q = new URLSearchParams(consulta);
+    return {
+      canal: q.get("canalPub") ?? "",
+      mercado: q.get("mercadoPub") ?? "",
+    };
   });
   // A lista do preço definido ou tirado, para o aviso (§25.3).
   const [listaDoAviso] = useState(
@@ -143,6 +170,7 @@ export function Artigo({
   const ultimasImagens = useRef(0);
   const ultimasPublicacoes = useRef(0);
   const ultimasOpcoes = useRef(0);
+  const ultimosPares = useRef(0);
 
   // `manter`: depois de uma acção, recarrega sem tirar a parte do ecrã, para
   // o foco e as miniaturas ficarem (revisão do #217, P2-2 e P3-8).
@@ -186,6 +214,26 @@ export function Artigo({
     [valido, comerciante, artigo, aoFalhar],
   );
 
+  // Os pares onde se pode publicar; uma falha só tira «Publicar noutra loja».
+  const carregarPares = useCallback(
+    async (manter = false) => {
+      if (!valido) return;
+      const este = ++ultimosPares.current;
+      if (!manter) setPares({ tipo: "a_carregar" });
+      try {
+        const r = await api.paresDeVenda(comerciante);
+        if (este !== ultimosPares.current) return;
+        if (montado.current) setPares({ tipo: "pronto", dados: r.dados });
+      } catch (e) {
+        if (este !== ultimosPares.current) return;
+        aoFalhar(e, (erro) => {
+          setPares({ tipo: "erro", erro });
+        });
+      }
+    },
+    [valido, comerciante, aoFalhar],
+  );
+
   // Recarregam com a ficha: uma variante nova ou arquivada muda os valores.
   const carregarOpcoes = useCallback(
     async (manter = false) => {
@@ -223,7 +271,10 @@ export function Artigo({
         setPodeEscrever(ambitos.includes("catalog:write"));
         setPodeVerHistorico(ambitos.includes("catalog:history"));
         setPodeEscreverPrecos(ambitos.includes("prices:write"));
+        const publica = ambitos.includes("catalog:publish");
+        setPodePublicar(publica);
         setFicha({ tipo: "pronto", dados });
+        if (publica) void carregarPares(manter);
         void carregarImagens(manter);
         void carregarPublicacoes(manter);
         void carregarOpcoes(manter);
@@ -242,6 +293,7 @@ export function Artigo({
       carregarImagens,
       carregarPublicacoes,
       carregarOpcoes,
+      carregarPares,
     ],
   );
 
@@ -257,7 +309,8 @@ export function Artigo({
       q.get("guardado") === null &&
       q.get("criado") === null &&
       q.get("variante") === null &&
-      q.get("preco") === null
+      q.get("preco") === null &&
+      q.get("publicado") === null
     )
       return;
     q.delete("guardado");
@@ -267,6 +320,9 @@ export function Artigo({
     q.delete("preco");
     q.delete("skuPreco");
     q.delete("listaPreco");
+    q.delete("publicado");
+    q.delete("canalPub");
+    q.delete("mercadoPub");
     window.history.replaceState(
       window.history.state,
       "",
@@ -356,6 +412,53 @@ export function Artigo({
       // Arquivar arquiva as publicações (§4.1).
       void carregarPublicacoes(true);
     });
+  }
+
+  /**
+   * Retira uma publicação publicada, com a pergunta antes (docs/22 §27.3), e
+   * manda a versão lida. Um conflito diz-o e recarrega as publicações; uma
+   * resposta perdida relê-as e dá a retirada por feita se a publicação está
+   * arquivada com outra versão (§27.2).
+   */
+  function retirarPublicacao(p: PublicacaoArtigo) {
+    if (ficha.tipo !== "pronto" || !valido || publicacoes.tipo !== "pronto") {
+      return;
+    }
+    const contexto = publicacoes.dados;
+    const canal = textoDaCelula(celulaDoCanal(contexto, p));
+    const mercado = textoDaCelula(celulaDoMercado(contexto, p));
+    if (
+      !window.confirm(
+        preencher(t.publicarConfirmarRetirar, {
+          artigo: ficha.dados.nome,
+          canal,
+          mercado,
+        }),
+      )
+    ) {
+      return;
+    }
+    void agir(async () => {
+      try {
+        await api.retirarPublicacao(comerciante, p.id, p.versao);
+      } catch (e) {
+        if (!(e instanceof ErroHub)) throw e;
+        if (e.codigo === "catalog.version_conflict") {
+          void carregarPublicacoes(true);
+          throw new ErroDoEcra("publicarConflito");
+        }
+        if (!respostaPerdida(e.estado, e.codigo)) throw e;
+        const agora = await api.publicacoesDoArtigo(comerciante, artigo);
+        const dela = agora.dados.find((x) => x.id === p.id) ?? null;
+        if (!retiradaConfere(dela, p.versao)) {
+          void carregarPublicacoes(true);
+          throw e;
+        }
+      }
+      if (!montado.current) return;
+      setParDoAviso({ canal, mercado });
+      await carregarPublicacoes(true);
+    }, "publicacaoRetirada");
   }
 
   function arquivarVariante(v: VarianteArtigo) {
@@ -573,6 +676,8 @@ export function Artigo({
               {preencher(t[TEXTO_DO_AVISO[aviso]], {
                 sku: skuDoAviso,
                 lista: listaDoAviso,
+                canal: parDoAviso.canal,
+                mercado: parDoAviso.mercado,
               })}
             </p>
           )}
@@ -744,8 +849,34 @@ export function Artigo({
           ) : publicacoes.dados.length === 0 ? (
             <p className="secundario">{t.artigoSemPublicacoes}</p>
           ) : (
-            <Publicacoes publicacoes={publicacoes.dados} data={data} />
+            <Publicacoes
+              publicacoes={publicacoes.dados}
+              data={data}
+              activas={variantesActivas(ficha.dados.variantes)}
+              accoes={
+                podePublicar
+                  ? {
+                      ocupado: ocupadoNaFicha,
+                      destino: (p) =>
+                        `/artigos/${artigo}/publicacoes/${p.canal}/${p.mercado}?${voltar.toString()}`,
+                      aoRetirar: retirarPublicacao,
+                    }
+                  : null
+              }
+            />
           )}
+          {podePublicar ? (
+            <PublicarNoutraLoja
+              pares={pares}
+              publicacoes={
+                publicacoes.tipo === "pronto" ? publicacoes.dados : null
+              }
+              destino={(p) =>
+                `/artigos/${artigo}/publicacoes/${p.canal}/${p.mercado}?${voltar.toString()}`
+              }
+              aoTentar={() => void carregarPares()}
+            />
+          ) : null}
         </>
       )}
     </section>
@@ -1029,7 +1160,9 @@ type Aviso =
   | "varianteCriadaFora"
   | "varianteCriadaTalvezFora"
   | "precoGuardado"
-  | "precoTirado";
+  | "precoTirado"
+  | "publicado"
+  | "publicacaoRetirada";
 const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   guardado: "artigoGuardado",
   criado: "artigoCriado",
@@ -1041,6 +1174,8 @@ const TEXTO_DO_AVISO: Record<Aviso, keyof Textos> = {
   varianteCriadaTalvezFora: "varianteCriadaTalvezFora",
   precoGuardado: "precoGuardado",
   precoTirado: "precoTirado",
+  publicado: "publicarPublicado",
+  publicacaoRetirada: "publicarRetirado",
 };
 
 /** O erro de um envio, em linguagem comum (docs/22 §15.4). */
@@ -1596,14 +1731,27 @@ function Miniatura({
   );
 }
 
+/** As acções de cada publicação, para quem tem catalog:publish (§27.3). */
+interface AccoesDasPublicacoes {
+  ocupado: boolean;
+  destino: (p: PublicacaoArtigo) => string;
+  aoRetirar: (p: PublicacaoArtigo) => void;
+}
+
 function Publicacoes({
   publicacoes,
   data,
+  activas,
+  accoes,
 }: {
   publicacoes: PublicacaoArtigo[];
   data: (iso: string) => string;
+  /** As variantes activas, para dizer quantas a publicação deixa fora. */
+  activas: string[];
+  /** null para quem não tem catalog:publish: nenhuma acção. */
+  accoes: AccoesDasPublicacoes | null;
 }) {
-  const { t } = useHub();
+  const { t, navegar } = useHub();
   // A data do estado em que está: publicada, arquivada ou verificada.
   const quando = (p: PublicacaoArtigo) =>
     p.estado === "arquivado"
@@ -1622,11 +1770,15 @@ function Publicacoes({
           <th scope="col">{t.colunaEstado}</th>
           <th scope="col">{t.colunaData}</th>
           <th scope="col">{t.colunaMotivo}</th>
+          {accoes === null ? null : <th scope="col">{t.colunaAccoes}</th>}
         </tr>
       </thead>
       <tbody>
         {publicacoes.map((p) => {
           const d = quando(p);
+          const fora = quantasFora(p, activas);
+          const canal = textoDaCelula(celulaDoCanal(publicacoes, p));
+          const mercado = textoDaCelula(celulaDoMercado(publicacoes, p));
           return (
             <tr key={p.id}>
               {/* O nome; a loja ou o identificador por baixo só quando o
@@ -1639,6 +1791,16 @@ function Publicacoes({
               </td>
               <td data-rotulo={t.colunaEstado}>
                 {textoDe(t, `estadoPublicacao_${p.estado}`, p.estado)}
+                {p.estado === "publicado" && fora > 0 ? (
+                  <>
+                    <br />
+                    <span className="secundario">
+                      {fora === 1
+                        ? t.publicarForaUma
+                        : preencher(t.publicarForaVarias, { n: fora })}
+                    </span>
+                  </>
+                ) : null}
               </td>
               <td data-rotulo={t.colunaData}>{d === null ? "—" : data(d)}</td>
               <td data-rotulo={t.colunaMotivo}>
@@ -1650,6 +1812,41 @@ function Publicacoes({
                       p.motivo_arquivo,
                     )}
               </td>
+              {accoes === null ? null : (
+                <td data-rotulo={t.colunaAccoes}>
+                  <span className="accoes-variante">
+                    <a
+                      className="botao"
+                      href={accoes.destino(p)}
+                      aria-label={preencher(t.publicarReverAria, {
+                        canal,
+                        mercado,
+                      })}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navegar(accoes.destino(p));
+                      }}
+                    >
+                      {t.publicarRever}
+                    </a>
+                    {p.estado === "publicado" ? (
+                      <button
+                        type="button"
+                        disabled={accoes.ocupado}
+                        aria-label={preencher(t.publicarRetirarAria, {
+                          canal,
+                          mercado,
+                        })}
+                        onClick={() => {
+                          accoes.aoRetirar(p);
+                        }}
+                      >
+                        {t.publicarRetirar}
+                      </button>
+                    ) : null}
+                  </span>
+                </td>
+              )}
             </tr>
           );
         })}
@@ -1690,4 +1887,50 @@ function CelulaPublicacao({ celula }: { celula: Celula }) {
         </>
       );
   }
+}
+
+/**
+ * «Publicar noutra loja» (docs/22 §27.3): os pares onde o canal vende e o
+ * artigo ainda não tem publicação; escolher um abre a página desse par. Sem
+ * pares, a ligação não aparece.
+ */
+function PublicarNoutraLoja({
+  pares,
+  publicacoes,
+  destino,
+  aoTentar,
+}: {
+  pares: Parte<ParDeVenda[]>;
+  /** null enquanto as publicações não chegaram. */
+  publicacoes: PublicacaoArtigo[] | null;
+  destino: (p: ParDeVenda) => string;
+  aoTentar: () => void;
+}) {
+  const { t, navegar } = useHub();
+  if (publicacoes === null || pares.tipo === "a_carregar") return null;
+  if (pares.tipo === "erro") {
+    return <ErroDaParte erro={pares.erro} aoTentar={aoTentar} />;
+  }
+  const livres = paresSemPublicacao(pares.dados, publicacoes);
+  if (livres.length === 0) return null;
+  return (
+    <details className="publicar-noutra-loja">
+      <summary>{t.publicarNoutraLoja}</summary>
+      <ul>
+        {livres.map((p) => (
+          <li key={`${p.canal}/${p.mercado}`}>
+            <a
+              href={destino(p)}
+              onClick={(e) => {
+                e.preventDefault();
+                navegar(destino(p));
+              }}
+            >
+              {rotuloDoPar(pares.dados, p)}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
