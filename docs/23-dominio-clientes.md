@@ -1349,11 +1349,32 @@ de «Pseudonimizado»; revisão do #440, P3-2).
 - **o dono** lê tudo, como hoje.
 
 **Atenção (revisão do #440, P2-1):** esta regra fecha os perfis e o que se
-pendura neles (`clientes/` e a simulação do `iva/`). O mesmo NIF, nome e
-morada continuam na cópia da encomenda, na fatura e no relatório OSS, que o
-gestor e o apoio lêem. «Só o dono lê» vale para o perfil, não para essas
-cópias, até haver a outra decisão.
+pendura neles (`clientes/` e a simulação do `iva/`). A cópia na encomenda
+fecha-se na §15.13; a fatura e o relatório OSS ficam (§15.13).
 
 **Por onde pode sair errado:** uma rota nova que leia perfis sem passar pela
 mesma função; por isso a regra vive num só sítio em `clientes/` e o teste
 percorre as seis rotas com uma chave sem `customers:billing`.
+
+### 15.13 A cópia fiscal da encomenda, só para o dono (desenho de 13/10/2026)
+
+Decisão do Diogo, 13/10/2026 (*«A»*; `docs/06` EN), ao que ficou de fora
+na §15.12: depois de um pedido de apagamento, **a cópia do perfil de
+faturação na encomenda** (`perfil_copia`: nome, NIF e morada fiscal) só sai
+a quem tem `customers:billing` (o dono). Ex.: a Rita pediu o apagamento; o
+apoio abre a encomenda dela de março e vê as linhas, os totais, o estado e a
+entrega, mas `perfil_copia: null` e `guardado_por_obrigacao_fiscal: true`.
+
+| Onde | Sem `customers:billing`, numa ficha pseudonimizada |
+|---|---|
+| `GET /orders/{id}` (`orders:read`) | `perfil_copia: null`; o campo novo `guardado_por_obrigacao_fiscal` diz porquê (para o dono também, com a cópia) |
+| `GET /checkout/{token}/confirmation` (público, pelo token) | `perfil_copia: null` (quem tem o token não tem âmbito); sem o campo `guardado_por_obrigacao_fiscal`, que é da operação |
+
+- **A mesma regra** da §15.12 (`fichaPseudonimizada`), lida em
+  `lerEncomenda`; `GET /orders` em lista não traz a cópia.
+- **Fica como está:** o contacto e a entrega (a encomenda em curso precisa
+  deles para entregar; a acabada já os tem limpos, §15.10); a emissão do
+  documento fiscal, que lê a cópia no servidor; **a fatura, o PDF e o
+  relatório OSS** (`invoices:read`, `tax:read`): são os documentos fiscais
+  que se entregam e se declaram (Diogo, 13/10/2026, «A»).
+- **Fonte:** a mesma da §15.12 (RGPD, art. 25.º, n.º 2); **C**, jurista.
