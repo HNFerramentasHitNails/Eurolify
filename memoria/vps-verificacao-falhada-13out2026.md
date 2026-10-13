@@ -34,10 +34,15 @@ que ela encontrou).
   último arranque da unidade; sem a mensagem da verificação a correr. Os outros nove
   testes da VPS, todos certos. `shellcheck` 0.10.0 sem avisos.
 
+- Medido a 13/10/2026 às 13:22 UTC, com o `medir` novo instalado pelo
+  `aplicar-script` às 13:18 UTC (#428; execução 38404342253): a verificação
+  de 13/10 às 07:00 encontrou **um** problema só, «- reinício pedido pelas
+  actualizações — fazer fora do horário de trabalho e anunciado
+  (AGENTS.md)». As 38 actualizações não contam como «de segurança» para o
+  `apt-check` (não estão na lista). Confirma a causa.
+
 ## O que ficou por verificar
 
-- A lista exacta da verificação de 13/10 às 07:00: só se vê depois de o
-  `medir` novo estar na máquina (o `aplicar-script` instala-o ao juntar).
 - Se a verificação de 14/10 às 07:00 passa depois das actualizações e do
   reinício de 13/10 às 20:05.
 - Se o `InvocationID` da unidade fica guardado depois de uma corrida, com
