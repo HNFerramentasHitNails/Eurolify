@@ -32,6 +32,7 @@ import { Faturacao, RegressoMoloni } from "./ecras/Faturacao";
 import { RelatorioOss } from "./ecras/RelatorioOss";
 import { Inicio } from "./ecras/Inicio";
 import { Recuperar } from "./ecras/Recuperar";
+import { paginaDe, type PaginaAberta } from "./paginas";
 import {
   aplicarTema,
   guardarTema,
@@ -50,28 +51,11 @@ import {
   type Lingua,
 } from "./textos";
 
-// As páginas do Hub (docs/22 §2, §9 e §11): /entrar, /recuperar, /convite,
-// /equipa, /artigos, /artigos/novo, /artigos/{prd_…},
-// /artigos/{prd_…}/editar, /artigos/{prd_…}/historico,
-// /artigos/{prd_…}/opcoes, /artigos/{prd_…}/variantes/{var_…},
-// /artigos/{prd_…}/variantes/nova,
-// /artigos/{prd_…}/precos/{prl_…}/{var_…},
-// /artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}, /a-decidir, /faturacao,
-// /faturacao/moloni, /faturacao/configurar, /faturacao/oss, /chaves, /conta e /. Nunca debaixo de /hub/, que é da API.
+// As páginas do Hub, com a sessão e o título de cada uma, estão em
+// paginas.ts.
 
 // O segredo do convite lê-se uma vez, ao abrir a página, e sai logo da
 // barra de endereço (docs/22 §2).
-const CAMINHO_ARTIGO = /^\/artigos\/([^/]+)$/;
-const CAMINHO_EDITAR = /^\/artigos\/([^/]+)\/editar$/;
-const CAMINHO_HISTORICO = /^\/artigos\/([^/]+)\/historico$/;
-const CAMINHO_OPCOES = /^\/artigos\/([^/]+)\/opcoes$/;
-const CAMINHO_VARIANTE = /^\/artigos\/([^/]+)\/variantes\/([^/]+)$/;
-const CAMINHO_PRECO = /^\/artigos\/([^/]+)\/precos\/([^/]+)\/([^/]+)$/;
-const CAMINHO_PUBLICAR = /^\/artigos\/([^/]+)\/publicacoes\/([^/]+)\/([^/]+)$/;
-const CAMINHO_CONTA_ENVIOS = /^\/envios\/(cac_[^/]+)$/;
-const CAMINHO_METODO_ENVIOS = /^\/envios\/metodos\/(shm_[^/]+)$/;
-const CAMINHO_EXPEDIR = /^\/expedir\/(ord_[^/]+)$/;
-
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
 
@@ -168,353 +152,22 @@ export function App() {
     [t, lingua, navegar, definirGuarda, opaco],
   );
 
-  // «/artigos/novo» é o ecrã de criar, não a ficha de um artigo «novo».
-  const novo = local.caminho === "/artigos/novo";
-  const artigo = novo
-    ? null
-    : (CAMINHO_ARTIGO.exec(local.caminho)?.[1] ?? null);
-  const editar = CAMINHO_EDITAR.exec(local.caminho)?.[1] ?? null;
-  const historico = CAMINHO_HISTORICO.exec(local.caminho)?.[1] ?? null;
-  const opcoesDoArtigo = CAMINHO_OPCOES.exec(local.caminho)?.[1] ?? null;
-  const daVariante = CAMINHO_VARIANTE.exec(local.caminho);
-  const doPreco = CAMINHO_PRECO.exec(local.caminho);
-  const dePublicar = CAMINHO_PUBLICAR.exec(local.caminho);
-  const contaDeEnvios = CAMINHO_CONTA_ENVIOS.exec(local.caminho)?.[1] ?? null;
-  const encomendaAExpedir = CAMINHO_EXPEDIR.exec(local.caminho)?.[1] ?? null;
-  const metodoDeEnvios = CAMINHO_METODO_ENVIOS.exec(local.caminho)?.[1] ?? null;
-  const comSessao =
-    novo ||
-    artigo !== null ||
-    editar !== null ||
-    historico !== null ||
-    opcoesDoArtigo !== null ||
-    daVariante !== null ||
-    dePublicar !== null ||
-    // A página do preço também tem «Conta» e «Sair» (revisão do #421).
-    doPreco !== null ||
-    local.caminho === "/" ||
-    local.caminho === "/equipa" ||
-    local.caminho === "/artigos" ||
-    local.caminho === "/a-decidir" ||
-    local.caminho === "/faturacao" ||
-    local.caminho === "/faturacao/moloni" ||
-    local.caminho === "/faturacao/configurar" ||
-    local.caminho === "/faturacao/oss" ||
-    local.caminho === "/envios" ||
-    local.caminho === "/envios/nova" ||
-    contaDeEnvios !== null ||
-    local.caminho === "/envios/metodos" ||
-    local.caminho === "/envios/metodos/novo" ||
-    metodoDeEnvios !== null ||
-    local.caminho === "/envios/embalagem" ||
-    local.caminho === "/expedir" ||
-    encomendaAExpedir !== null ||
-    local.caminho === "/chaves" ||
-    local.caminho === "/conta";
-
-  // O título da janela diz a página (WCAG 2.4.2; revisão do #158, P3-6).
-  const tituloDaPagina =
-    local.caminho === "/entrar"
-      ? t.entrarTitulo
-      : local.caminho === "/recuperar"
-        ? t.recuperarTitulo
-        : local.caminho === "/convite"
-          ? t.conviteTitulo
-          : local.caminho === "/equipa"
-            ? t.equipaTitulo
-            : local.caminho === "/artigos"
-              ? t.artigosTitulo
-              : novo
-                ? t.artigoNovoTitulo
-                : artigo !== null
-                  ? t.artigoTitulo
-                  : editar !== null
-                    ? t.artigoEditarTitulo
-                    : historico !== null
-                      ? t.historicoTitulo
-                      : opcoesDoArtigo !== null
-                        ? t.opcoesTitulo
-                        : daVariante !== null
-                          ? daVariante[2] === "nova"
-                            ? t.varianteNovaTitulo
-                            : t.varianteEditarTitulo
-                          : dePublicar !== null
-                            ? t.publicarTitulo
-                            : doPreco !== null
-                              ? t.precoTitulo
-                              : local.caminho === "/a-decidir"
-                                ? t.decidirTitulo
-                                : local.caminho === "/faturacao"
-                                  ? t.faturacaoTitulo
-                                  : local.caminho === "/faturacao/moloni"
-                                    ? t.moloniTitulo
-                                    : local.caminho === "/faturacao/configurar"
-                                      ? t.configurarTitulo
-                                      : local.caminho === "/faturacao/oss"
-                                        ? t.ossTitulo
-                                        : local.caminho === "/envios"
-                                          ? t.enviosTitulo
-                                          : local.caminho === "/envios/nova"
-                                            ? t.enviosNovaTitulo
-                                            : contaDeEnvios !== null
-                                              ? t.enviosContaTitulo
-                                              : local.caminho ===
-                                                  "/envios/metodos"
-                                                ? t.metodosTitulo
-                                                : local.caminho ===
-                                                    "/envios/metodos/novo"
-                                                  ? t.metodosNovoTitulo
-                                                  : metodoDeEnvios !== null
-                                                    ? t.metodosMetodoTitulo
-                                                    : local.caminho ===
-                                                        "/envios/embalagem"
-                                                      ? t.embalagemTitulo
-                                                      : local.caminho ===
-                                                          "/expedir"
-                                                        ? t.expedirTitulo
-                                                        : encomendaAExpedir !==
-                                                            null
-                                                          ? t.expedirEncomendaTitulo
-                                                          : local.caminho ===
-                                                              "/chaves"
-                                                            ? t.chavesTitulo
-                                                            : local.caminho ===
-                                                                "/conta"
-                                                              ? t.contaTitulo
-                                                              : t.inicioTitulo;
+  const pagina = paginaDe(local.caminho);
+  // «Conta» e «Sair» e o título da janela (WCAG 2.4.2) vêm da tabela das
+  // páginas; um caminho que nenhuma serve mostra o início, sem sessão.
+  const comSessao = pagina?.sessao ?? false;
+  const tituloDaPagina = t[pagina?.titulo ?? "inicioTitulo"];
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
 
-  let ecra;
-  if (local.caminho === "/entrar") ecra = <Entrar />;
-  else if (local.caminho === "/recuperar") ecra = <Recuperar />;
-  else if (local.caminho === "/convite")
-    ecra = <Convite segredo={segredoInicial} />;
-  else if (local.caminho === "/equipa")
-    ecra = (
-      <Equipa
-        // Outro comerciante, outro ecrã: os membros de um nunca ficam por
-        // baixo do título de outro (revisão do #219, P2-2).
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (local.caminho === "/artigos")
-    ecra = (
-      <Artigos
-        // Outro comerciante, outro ecrã: nada do anterior fica.
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        consulta={local.consulta}
-      />
-    );
-  else if (novo)
-    ecra = (
-      <ArtigoNovo
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (editar !== null)
-    ecra = (
-      <ArtigoEditar
-        key={`${editar} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={editar}
-        consulta={local.consulta}
-      />
-    );
-  else if (historico !== null)
-    ecra = (
-      <Historico
-        key={`${historico} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={historico}
-        consulta={local.consulta}
-      />
-    );
-  else if (opcoesDoArtigo !== null)
-    ecra = (
-      <OpcoesEditar
-        key={`${opcoesDoArtigo} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={opcoesDoArtigo}
-        consulta={local.consulta}
-      />
-    );
-  else if (daVariante?.[2] === "nova")
-    ecra = (
-      <VarianteNova
-        key={`${daVariante[1] ?? ""} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={daVariante[1] ?? ""}
-        consulta={local.consulta}
-      />
-    );
-  else if (daVariante !== null)
-    ecra = (
-      <VarianteEditar
-        key={`${daVariante[1] ?? ""} ${daVariante[2] ?? ""} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={daVariante[1] ?? ""}
-        variante={daVariante[2] ?? ""}
-        consulta={local.consulta}
-      />
-    );
-  else if (doPreco !== null)
-    ecra = (
-      <PrecoDaVariante
-        key={`${doPreco[1] ?? ""} ${doPreco[2] ?? ""} ${doPreco[3] ?? ""} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={doPreco[1] ?? ""}
-        lista={doPreco[2] ?? ""}
-        variante={doPreco[3] ?? ""}
-        consulta={local.consulta}
-      />
-    );
-  else if (dePublicar !== null)
-    ecra = (
-      <PublicarArtigo
-        key={`${dePublicar[1] ?? ""} ${dePublicar[2] ?? ""} ${dePublicar[3] ?? ""} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={dePublicar[1] ?? ""}
-        canal={dePublicar[2] ?? ""}
-        mercado={dePublicar[3] ?? ""}
-        consulta={local.consulta}
-      />
-    );
-  else if (artigo !== null)
-    ecra = (
-      <Artigo
-        // Outro artigo ou outro comerciante, outra ficha: nada da anterior.
-        key={`${artigo} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        artigo={artigo}
-        consulta={local.consulta}
-      />
-    );
-  else if (local.caminho === "/a-decidir")
-    ecra = (
-      <ADecidir
-        // Outro comerciante, outro ecrã: nada do anterior fica.
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        consulta={local.consulta}
-      />
-    );
-  else if (local.caminho === "/faturacao")
-    ecra = (
-      <Faturacao
-        // Outro comerciante, outro ecrã: nada do anterior fica.
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (local.caminho === "/faturacao/moloni")
-    ecra = <RegressoMoloni fragmento={regressoMoloni} />;
-  else if (local.caminho === "/faturacao/configurar")
-    ecra = (
-      <ConfigurarFaturacao
-        // Outra ligação, outro ecrã: nada do anterior fica.
-        key={local.consulta}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        ligacao={new URLSearchParams(local.consulta).get("ligacao")}
-      />
-    );
-  else if (local.caminho === "/faturacao/oss")
-    ecra = (
-      <RelatorioOss
-        // Outro comerciante, entidade ou período: outro relatório.
-        key={local.consulta}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        consulta={local.consulta}
-      />
-    );
-  else if (local.caminho === "/envios")
-    ecra = (
-      <Envios
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (local.caminho === "/envios/nova")
-    ecra = (
-      <EnvioNova
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (contaDeEnvios !== null)
-    ecra = (
-      <EnvioConta
-        key={`${contaDeEnvios} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        conta={contaDeEnvios}
-      />
-    );
-  else if (local.caminho === "/envios/metodos")
-    ecra = (
-      <MetodosEntrega
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (local.caminho === "/envios/metodos/novo" || metodoDeEnvios !== null)
-    ecra = (
-      <MetodoEntregaFormulario
-        // Outro método ou comerciante, outro formulário: nada do anterior fica.
-        key={`${metodoDeEnvios ?? "novo"} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        metodo={metodoDeEnvios}
-      />
-    );
-  else if (local.caminho === "/envios/embalagem")
-    ecra = (
-      <Embalagem
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (local.caminho === "/expedir")
-    ecra = (
-      <Expedir
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (encomendaAExpedir !== null)
-    ecra = (
-      <ExpedirEncomenda
-        // Outra encomenda ou comerciante, outro ecrã: nada do anterior fica.
-        key={`${encomendaAExpedir} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-        encomenda={encomendaAExpedir}
-      />
-    );
-  else if (local.caminho === "/chaves")
-    ecra = (
-      <Chaves
-        // Outro comerciante, outro ecrã: nada do anterior fica (revisão do
-        // #183, P3-9).
-        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
-  else if (local.caminho === "/conta")
-    ecra = (
-      <Conta
-        recuperada={
-          new URLSearchParams(local.consulta).get("recuperada") === "1"
-        }
-      />
-    );
-  else
-    ecra = (
-      <Inicio
-        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
-      />
-    );
+  const ecra = (
+    <Ecra
+      pagina={pagina}
+      consulta={local.consulta}
+      segredoDoConvite={segredoInicial}
+    />
+  );
 
   return (
     <ContextoHub.Provider value={contexto}>
@@ -597,4 +250,193 @@ export function App() {
       </main>
     </ContextoHub.Provider>
   );
+}
+
+/**
+ * O ecrã de cada página. O `switch` cobre todas as da tabela: uma página
+ * nova sem ecrã não compila (o `default` só aceita `never`).
+ */
+function Ecra({
+  pagina,
+  consulta,
+  segredoDoConvite,
+}: {
+  pagina: PaginaAberta | null;
+  consulta: string;
+  segredoDoConvite: string | null;
+}) {
+  const parametros = new URLSearchParams(consulta);
+  const comerciante = parametros.get("comerciante");
+  if (pagina === null) return <Inicio comerciante={comerciante} />;
+  const [p1 = "", p2 = "", p3 = ""] = pagina.partes;
+  // Outro artigo, variante ou comerciante, outro ecrã: nada do anterior fica.
+  const chave = [...pagina.partes, comerciante ?? ""].join(" ");
+  switch (pagina.nome) {
+    case "entrar":
+      return <Entrar />;
+    case "recuperar":
+      return <Recuperar />;
+    case "convite":
+      return <Convite segredo={segredoDoConvite} />;
+    case "inicio":
+      return <Inicio comerciante={comerciante} />;
+    case "equipa":
+      // Os membros de um nunca ficam por baixo do título de outro (revisão
+      // do #219, P2-2).
+      return <Equipa key={chave} comerciante={comerciante} />;
+    case "artigos":
+      return (
+        <Artigos key={chave} comerciante={comerciante} consulta={consulta} />
+      );
+    case "artigoNovo":
+      return <ArtigoNovo key={chave} comerciante={comerciante} />;
+    case "artigo":
+      return (
+        <Artigo
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          consulta={consulta}
+        />
+      );
+    case "artigoEditar":
+      return (
+        <ArtigoEditar
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          consulta={consulta}
+        />
+      );
+    case "historico":
+      return (
+        <Historico
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          consulta={consulta}
+        />
+      );
+    case "opcoes":
+      return (
+        <OpcoesEditar
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          consulta={consulta}
+        />
+      );
+    case "varianteNova":
+      return (
+        <VarianteNova
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          consulta={consulta}
+        />
+      );
+    case "variante":
+      return (
+        <VarianteEditar
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          variante={p2}
+          consulta={consulta}
+        />
+      );
+    case "preco":
+      return (
+        <PrecoDaVariante
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          lista={p2}
+          variante={p3}
+          consulta={consulta}
+        />
+      );
+    case "publicar":
+      return (
+        <PublicarArtigo
+          key={chave}
+          comerciante={comerciante}
+          artigo={p1}
+          canal={p2}
+          mercado={p3}
+          consulta={consulta}
+        />
+      );
+    case "aDecidir":
+      return (
+        <ADecidir key={chave} comerciante={comerciante} consulta={consulta} />
+      );
+    case "faturacao":
+      return <Faturacao key={chave} comerciante={comerciante} />;
+    case "moloni":
+      return <RegressoMoloni fragmento={regressoMoloni} />;
+    case "configurarFaturacao":
+      return (
+        <ConfigurarFaturacao
+          // Outra ligação, outro ecrã: nada do anterior fica.
+          key={consulta}
+          comerciante={comerciante}
+          ligacao={parametros.get("ligacao")}
+        />
+      );
+    case "oss":
+      return (
+        <RelatorioOss
+          // Outro comerciante, entidade ou período: outro relatório.
+          key={consulta}
+          comerciante={comerciante}
+          consulta={consulta}
+        />
+      );
+    case "envios":
+      return <Envios key={chave} comerciante={comerciante} />;
+    case "envioNova":
+      return <EnvioNova key={chave} comerciante={comerciante} />;
+    case "envioConta":
+      return <EnvioConta key={chave} comerciante={comerciante} conta={p1} />;
+    case "metodos":
+      return <MetodosEntrega key={chave} comerciante={comerciante} />;
+    case "metodoNovo":
+      return (
+        <MetodoEntregaFormulario
+          key={`novo ${comerciante ?? ""}`}
+          comerciante={comerciante}
+          metodo={null}
+        />
+      );
+    case "metodo":
+      return (
+        <MetodoEntregaFormulario
+          key={chave}
+          comerciante={comerciante}
+          metodo={p1}
+        />
+      );
+    case "embalagem":
+      return <Embalagem key={chave} comerciante={comerciante} />;
+    case "expedir":
+      return <Expedir key={chave} comerciante={comerciante} />;
+    case "expedirEncomenda":
+      return (
+        <ExpedirEncomenda
+          key={chave}
+          comerciante={comerciante}
+          encomenda={p1}
+        />
+      );
+    case "chaves":
+      // Outro comerciante, outro ecrã (revisão do #183, P3-9).
+      return <Chaves key={chave} comerciante={comerciante} />;
+    case "conta":
+      return <Conta recuperada={parametros.get("recuperada") === "1"} />;
+    default: {
+      const nenhuma: never = pagina.nome;
+      return nenhuma;
+    }
+  }
 }
