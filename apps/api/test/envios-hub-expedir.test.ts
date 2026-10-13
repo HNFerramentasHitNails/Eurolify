@@ -105,13 +105,40 @@ describe.skipIf(URL_BASE === undefined)("Hub: expedir", () => {
         "linhas",
       ].sort(),
     );
-    const texto = JSON.stringify(lista);
-    expect(texto).not.toContain("rui@exemplo.pt");
-    expect(texto).not.toContain("1230");
+    expect(JSON.stringify(lista)).not.toContain("rui@exemplo.pt");
     const vista = await ok(
       como("armazem", "GET", `/hub/fulfilment/orders/${encomenda}`),
     );
     expect(vista["expedicoes"]).toEqual([]);
+    // As chaves exactas: quem recebe e as linhas, sem preços (revisão do
+    // #418, P2-6).
+    expect(Object.keys(vista).sort()).toEqual(
+      [
+        "id",
+        "estado",
+        "criada_em",
+        "metodo_entrega",
+        "entrega",
+        "destinatario",
+        "linhas",
+        "expedicoes",
+      ].sort(),
+    );
+    expect(Object.keys(vista["destinatario"] as Json).sort()).toEqual([
+      "nome",
+      "telefone",
+    ]);
+    expect(Object.keys((vista["linhas"] as Json[])[0] ?? {}).sort()).toEqual(
+      [
+        "id",
+        "posicao",
+        "variante",
+        "sku",
+        "nome",
+        "quantidade",
+        "expedida",
+      ].sort(),
+    );
     const linha = (vista["linhas"] as Json[])[0] ?? {};
     const { id: expedicao } = (await ok(
       como("armazem", "POST", `/hub/orders/${encomenda}/shipments`, {
@@ -119,7 +146,8 @@ describe.skipIf(URL_BASE === undefined)("Hub: expedir", () => {
       }),
       201,
     )) as { id: string };
-    // Repetir com o que já saiu é recusado (uma resposta perdida não duplica).
+    // Repetir com tudo o que já saiu é recusado. Uma expedição parcial
+    // repetida seria aceite: ver o teste seguinte (revisão do #418, P2-2).
     const repetida = await codigo(
       como("armazem", "POST", `/hub/orders/${encomenda}/shipments`, {
         linhas: [{ linha: linha["id"], quantidade: 2 }],
@@ -170,6 +198,40 @@ describe.skipIf(URL_BASE === undefined)("Hub: expedir", () => {
       criada_por: `pessoa:per_${p["armazem"]?.pessoa ?? ""}`,
       quem: `pessoa:per_${p["armazem"]?.pessoa ?? ""}`,
     });
+    // E na transição da encomenda para expedida.
+    const t = await sql<{ quem: string }>`select quem from transicao_encomenda
+        where encomenda_id = ${encomenda.slice(4)}::uuid and para = 'expedida'`.execute(
+      base.dono,
+    );
+    expect(t.rows.map((r) => r.quem)).toEqual([
+      `pessoa:per_${p["armazem"]?.pessoa ?? ""}`,
+    ]);
+  });
+
+  it("uma expedição parcial repetida é aceite (o servidor só recusa o que passa do que falta)", async () => {
+    const { encomenda } = await apoio.expedicaoPaga(s, s.metodoCtt, 2, false);
+    const linha =
+      (
+        (
+          await ok(
+            como("armazem", "GET", `/hub/fulfilment/orders/${encomenda}`),
+          )
+        )["linhas"] as Json[]
+      )[0] ?? {};
+    const corpo = { linhas: [{ linha: linha["id"], quantidade: 1 }] };
+    await ok(
+      como("armazem", "POST", `/hub/orders/${encomenda}/shipments`, corpo),
+      201,
+    );
+    await ok(
+      como("armazem", "POST", `/hub/orders/${encomenda}/shipments`, corpo),
+      201,
+    );
+    expect(
+      await codigo(
+        como("armazem", "POST", `/hub/orders/${encomenda}/shipments`, corpo),
+      ),
+    ).toEqual([422, "shipments.quantity_exceeded"]);
   });
 
   it("anular a etiqueta e cancelar a expedição; num método manual, a transportadora e o seguimento à mão", async () => {
@@ -189,6 +251,18 @@ describe.skipIf(URL_BASE === undefined)("Hub: expedir", () => {
       201,
     )) as { id: string };
     await ok(como("dono", "POST", `/hub/shipments/${id}/label`, {}));
+    // Com a etiqueta emitida não se cancela: anula-se primeiro (P1-2).
+    const antes = await ok(
+      como("dono", "GET", `/hub/fulfilment/orders/${a.encomenda}`),
+    );
+    expect(
+      await codigo(
+        como("dono", "PATCH", `/hub/shipments/${id}`, {
+          versao: Number(((antes["expedicoes"] as Json[])[0] ?? {})["versao"]),
+          estado: "cancelada",
+        }),
+      ),
+    ).toEqual([409, "shipments.invalid_transition"]);
     expect(
       await ok(como("dono", "POST", `/hub/shipments/${id}/label/void`, {})),
     ).toMatchObject({ etiqueta: "anulada" });
@@ -278,8 +352,40 @@ describe.skipIf(URL_BASE === undefined)("Hub: expedir", () => {
         "expedicoes"
       ] as Json[]
     )[0];
-    if (daOutra !== undefined) {
-      const id = String(daOutra["id"]);
+    expect(daOutra).toBeDefined();
+    {
+      const id = String(daOutra?.["id"]);
+      for (const [metodo, url] of [
+        ["POST", `/hub/shipments/${id}/label`],
+        ["POST", `/hub/shipments/${id}/label/void`],
+        ["POST", `/hub/shipments/${id}/refresh`],
+        ["GET", `/hub/shipments/${id}/events`],
+      ] as const) {
+        const r = await como(
+          "donoB",
+          metodo,
+          url,
+          metodo === "GET" ? undefined : {},
+        );
+        expect(r.statusCode, url).toBe(404);
+        expect(r.headers["cache-control"], url).toBe("private, no-store");
+      }
+      const linhaDaOutra = String(
+        ((
+          (
+            await ok(como("dono", "GET", `/hub/fulfilment/orders/${encomenda}`))
+          )["linhas"] as Json[]
+        )[0] ?? {})["id"],
+      );
+      expect(
+        (
+          await codigo(
+            como("donoB", "POST", `/hub/orders/${encomenda}/shipments`, {
+              linhas: [{ linha: linhaDaOutra, quantidade: 1 }],
+            }),
+          )
+        )[0],
+      ).toBe(404);
       expect(
         (await codigo(como("donoB", "GET", `/hub/shipments/${id}/label`)))[0],
       ).toBe(404);

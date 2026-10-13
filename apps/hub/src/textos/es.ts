@@ -1367,7 +1367,7 @@ export const es: Textos = {
   expedirMaisDoQueFalta:
     "La cantidad supera lo que falta expedir de este artículo.",
   expedirTalvezCriada:
-    "No llegó respuesta: el envío puede haberse creado. La página se ha recargado; revise los envíos antes de intentarlo de nuevo.",
+    "No llegó respuesta: el envío puede haberse creado. Revise los envíos abajo antes de crear otro; si la página no los muestra, pulse «Intentar de nuevo».",
   expedirExpedicoes: "Envíos",
   expedirSemExpedicoes: "Aún no hay envíos de este pedido.",
   expedirExpedicaoNumero: "Envío {n}",
@@ -1394,8 +1394,7 @@ export const es: Textos = {
   expedirDevolvidaConfirmar: "¿Marcar como devuelto al remitente?",
   expedirDevolvidaAgora: "El envío quedó como devuelto al remitente.",
   expedirPerdida: "Marcar como perdido",
-  expedirPerdidaConfirmar:
-    "¿Marcar como perdido? Un envío perdido queda a cargo del comerciante.",
+  expedirPerdidaConfirmar: "¿Marcar como perdido?",
   expedirPerdidaAgora: "El envío quedó como perdido.",
   expedirRecusada:
     "El servidor rechazó el envío: compruebe las cantidades (no más de lo que falta).",
@@ -1432,7 +1431,7 @@ export const es: Textos = {
   etiquetaConsultadaAgora: "Se consultó al transportista.",
   etiquetaAnular: "Anular la etiqueta",
   etiquetaAnularConfirmar:
-    "¿Anular la etiqueta? Solo es posible antes de que el transportista recoja la caja.",
+    "¿Anular la etiqueta? Solo antes de marcar el envío como expedido, y si el transportista lo permite.",
   etiquetaAnuladaAgora: "La etiqueta se anuló.",
   etiquetaEventos: "Seguimiento del transportista",
   etiquetaSemEventos: "Aún sin eventos del transportista.",
@@ -1447,4 +1446,17 @@ export const es: Textos = {
     "El servidor rechazó la solicitud de la etiqueta: compruebe el peso de las variantes y la dirección.",
   etiquetaSemResposta:
     "El transportista no respondió. Inténtelo de nuevo en un rato.",
+  expedirLinhaNaoEDaEncomenda:
+    "Uno de los artículos no es de este pedido. Recargue la página.",
+  expedirImutavel: "Este envío ya no cambia.",
+  expedirEncomendaNaoEstaParaExpedir:
+    "Este pedido ya no está para expedir (por ejemplo, se canceló o ya salió todo).",
+  etiquetaTransicaoImpossivel:
+    "La etiqueta no puede cambiar así ahora: después de salir el envío, ya no se pide ni se anula.",
+  expedirPrimeiroAEtiqueta:
+    "Con este método, se marca como expedido después de que la etiqueta esté emitida.",
+  expedirAnularParaCancelar:
+    "Para cancelar este envío, anule primero la etiqueta (o consulte al transportista, si está incierta).",
+  etiquetaFicheiroJaNao:
+    "El archivo de la etiqueta ya no existe: se borra 30 días después de terminar el envío.",
 };

@@ -1253,3 +1253,7 @@ textarea {
   gap: var(--espaco-2);
   margin: var(--espaco-3) 0;
 }
+.eventos {
+  padding-left: var(--espaco-4);
+  margin: 0 0 var(--espaco-3);
+}

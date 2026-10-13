@@ -2,14 +2,17 @@ import { describe, expect, it } from "vitest";
 import { ErroHub, type EncomendaParaExpedir } from "../src/api";
 import { ErroDoEcra } from "../src/erros";
 import {
-  accoesDaEtiqueta,
+  accoesDaExpedicao,
   comEtiqueta,
   conferirQuantidades,
   erroDeExpedir,
   nomeDoMetodo,
   quantidadesPorOmissao,
+  TEXTO_DO_CODIGO,
   totalPorExpedir,
 } from "../src/expedir";
+import { ESTADO_DO_CODIGO as DOS_ENVIOS } from "../../api/src/envios/erros";
+import { ESTADO_DO_CODIGO as DO_STOCK } from "../../api/src/stock/erros";
 
 // O apoio do ecrã «Expedir» (docs/22 §32): o que falta, o que se envia e
 // o que a etiqueta deixa fazer. O servidor confere tudo outra vez.
@@ -76,23 +79,71 @@ describe("expedir no Hub", () => {
   });
 
   it("a etiqueta: pede-se só numa expedição por sair e sem etiqueta viva; uma incerta só se consulta", () => {
-    expect(accoesDaEtiqueta("por_pedir", "criada")).toEqual({
+    expect(accoesDaExpedicao("por_pedir", "criada")).toMatchObject({
       pedir: true,
       anular: false,
       consultar: false,
     });
-    expect(accoesDaEtiqueta("incerta", "criada")).toEqual({
+    expect(accoesDaExpedicao("incerta", "criada")).toMatchObject({
       pedir: false,
       anular: false,
       consultar: true,
     });
-    expect(accoesDaEtiqueta("emitida", "criada")).toEqual({
+    expect(accoesDaExpedicao("emitida", "criada")).toMatchObject({
       pedir: false,
       anular: true,
       consultar: true,
     });
-    expect(accoesDaEtiqueta("emitida", "expedida").anular).toBe(false);
-    expect(accoesDaEtiqueta("recusada", "cancelada").pedir).toBe(false);
+    expect(accoesDaExpedicao("emitida", "expedida").anular).toBe(false);
+    expect(accoesDaExpedicao("recusada", "cancelada").pedir).toBe(false);
+  });
+
+  it("com conta, só sai com a etiqueta emitida e não se cancela com uma viva; sem conta, sai e cancela (revisão do #418, P1-2)", () => {
+    expect(accoesDaExpedicao("por_pedir", "criada")).toMatchObject({
+      marcar: false,
+      cancelar: true,
+    });
+    expect(accoesDaExpedicao("emitida", "criada")).toMatchObject({
+      marcar: true,
+      cancelar: false,
+    });
+    for (const viva of ["incerta", "a_pedir"] as const) {
+      expect(accoesDaExpedicao(viva, "criada")).toMatchObject({
+        marcar: false,
+        cancelar: false,
+      });
+    }
+    expect(accoesDaExpedicao("anulada", "criada")).toMatchObject({
+      marcar: false,
+      cancelar: true,
+    });
+    expect(accoesDaExpedicao(null, "criada")).toMatchObject({
+      marcar: true,
+      cancelar: true,
+      pedir: false,
+    });
+    expect(accoesDaExpedicao(null, "expedida")).toMatchObject({
+      marcar: false,
+      cancelar: false,
+    });
+  });
+
+  it("cada código do mapa existe no servidor (revisão do #418, P1-1)", () => {
+    const conhecidos = new Set([
+      ...Object.keys(DOS_ENVIOS),
+      ...Object.keys(DO_STOCK),
+    ]);
+    for (const codigo of Object.keys(TEXTO_DO_CODIGO)) {
+      expect(conhecidos.has(codigo), codigo).toBe(true);
+    }
+    // Os das expedições, que o gatilho da base dá ao cancelar com etiqueta.
+    for (const codigo of [
+      "shipments.invalid_transition",
+      "shipments.quantity_exceeded",
+      "orders.invalid_transition",
+    ]) {
+      expect(TEXTO_DO_CODIGO[codigo], codigo).toBeDefined();
+    }
   });
 
   it("os erros do servidor dizem-se com o texto deste ecrã", () => {

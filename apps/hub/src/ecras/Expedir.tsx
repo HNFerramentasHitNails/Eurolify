@@ -23,7 +23,7 @@ import {
   type MensagemDeErro,
 } from "../erros";
 import {
-  accoesDaEtiqueta,
+  accoesDaExpedicao,
   comEtiqueta,
   conferirQuantidades,
   erroDeExpedir,
@@ -131,6 +131,9 @@ export function Expedir({ comerciante }: { comerciante: string | null }) {
         <ACarregar />
       ) : (
         <>
+          {erro === null ? null : (
+            <CaixaDeErro erro={erro} aoTentar={() => void carregar()} />
+          )}
           <p>{t.expedirExplicacao}</p>
           <p className="secundario" role="status">
             {n === 0
@@ -259,6 +262,9 @@ export function ExpedirEncomenda({
         <ACarregar />
       ) : (
         <>
+          {erro === null ? null : (
+            <CaixaDeErro erro={erro} aoTentar={() => void carregar()} />
+          )}
           <p>
             <span className="estado-encomenda" data-estado={e.estado}>
               {textoDoEstado(t, e.estado)}
@@ -380,8 +386,9 @@ function NovaExpedicao({
           navegar("/entrar", { substituir: true });
           return;
         }
-        // Sem resposta, relê-se em vez de repetir: um segundo pedido com o
-        // que já saiu seria recusado (docs/22 §32.2).
+        // Sem resposta, relê-se em vez de repetir. O servidor só recusa um
+        // segundo pedido quando passa do que falta: uma expedição parcial
+        // repetida seria aceite (docs/22 §32.2; revisão do #418, P2-2).
         setFalha(
           mostrar instanceof ErroHub &&
             (mostrar.estado === 0 || mostrar.estado >= 500)
@@ -531,10 +538,12 @@ function Expedicao({
   const erro: MensagemDeErro | null =
     falha === null ? null : mensagemDeErro(falha, t, lingua);
   const criada = x.estado === "criada";
-  const accoes =
-    etiqueta === null
-      ? { pedir: false, anular: false, consultar: false }
-      : accoesDaEtiqueta(etiqueta.etiqueta, x.estado);
+  // Com conta e a etiqueta ainda por ler, nada se oferece até se saber.
+  const accoes = accoesDaExpedicao(
+    comConta ? (etiqueta?.etiqueta ?? "a_pedir") : null,
+    x.estado,
+  );
+  const falhaDaEtiqueta = comConta && etiqueta === null && falha !== null;
 
   /** Uma acção: o erro fica junto, e tudo se relê no fim. */
   const correr = async (
@@ -611,7 +620,12 @@ function Expedicao({
         navegar("/entrar", { substituir: true });
         return;
       }
-      setFalha(erroDeExpedir(e));
+      // O ficheiro apaga-se 30 dias depois de a expedição acabar.
+      setFalha(
+        e instanceof ErroHub && e.codigo === "shipping.not_found"
+          ? new ErroDoEcra("etiquetaFicheiroJaNao")
+          : erroDeExpedir(e),
+      );
     }
   }
 
@@ -634,7 +648,11 @@ function Expedicao({
           {erro === null ? null : (
             <CaixaDeErro
               erro={erro}
-              {...(conflito ? { aoTentar: () => void depois() } : {})}
+              {...(conflito
+                ? { aoTentar: () => void depois() }
+                : falhaDaEtiqueta
+                  ? { aoTentar: () => void lerEtiqueta() }
+                  : {})}
             />
           )}
           {sucesso === null ? null : (
@@ -674,7 +692,8 @@ function Expedicao({
                   <>
                     <dt>{t.etiquetaSeguimento}</dt>
                     <dd>
-                      {etiqueta.url_seguimento === null ? (
+                      {etiqueta.url_seguimento === null ||
+                      !etiqueta.url_seguimento.startsWith("https://") ? (
                         <code translate="no">{etiqueta.seguimento}</code>
                       ) : (
                         <a
@@ -805,9 +824,19 @@ function Expedicao({
             </div>
           </>
         )}
+        {expede && comConta && criada && etiqueta !== null && !accoes.marcar ? (
+          <p className="secundario">{t.expedirPrimeiroAEtiqueta}</p>
+        ) : null}
+        {expede &&
+        comConta &&
+        criada &&
+        etiqueta !== null &&
+        !accoes.cancelar ? (
+          <p className="secundario">{t.expedirAnularParaCancelar}</p>
+        ) : null}
         {!expede ? null : (
           <div className="accoes">
-            {criada ? (
+            {accoes.marcar ? (
               <button
                 type="button"
                 className="principal"
@@ -824,7 +853,7 @@ function Expedicao({
                 {t.expedirMarcar}
               </button>
             ) : null}
-            {criada ? (
+            {accoes.cancelar ? (
               <button
                 type="button"
                 disabled={ocupado !== null}

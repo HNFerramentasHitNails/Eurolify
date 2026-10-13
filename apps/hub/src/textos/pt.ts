@@ -1350,7 +1350,7 @@ export const pt = {
   expedirMaisDoQueFalta:
     "A quantidade passa do que falta expedir deste artigo.",
   expedirTalvezCriada:
-    "Não chegou resposta: a expedição pode ter ficado criada. A página foi relida; confira as expedições antes de tentar outra vez.",
+    "Não chegou resposta: a expedição pode ter ficado criada. Confira as expedições abaixo antes de criar outra; se a página não as mostrar, carregue em «Tentar outra vez».",
   expedirExpedicoes: "Expedições",
   expedirSemExpedicoes: "Ainda não há expedições desta encomenda.",
   expedirExpedicaoNumero: "Expedição {n}",
@@ -1377,8 +1377,7 @@ export const pt = {
   expedirDevolvidaConfirmar: "Marcar como devolvida ao remetente?",
   expedirDevolvidaAgora: "A expedição ficou como devolvida ao remetente.",
   expedirPerdida: "Marcar como perdida",
-  expedirPerdidaConfirmar:
-    "Marcar como perdida? Uma expedição perdida fica a cargo do comerciante.",
+  expedirPerdidaConfirmar: "Marcar como perdida?",
   expedirPerdidaAgora: "A expedição ficou como perdida.",
   expedirRecusada:
     "O servidor recusou a expedição: confira as quantidades (não mais do que falta).",
@@ -1414,7 +1413,7 @@ export const pt = {
   etiquetaConsultadaAgora: "A transportadora foi consultada.",
   etiquetaAnular: "Anular a etiqueta",
   etiquetaAnularConfirmar:
-    "Anular a etiqueta? Só é possível antes de a transportadora recolher a caixa.",
+    "Anular a etiqueta? Só antes de marcar a expedição como expedida, e se a transportadora deixar.",
   etiquetaAnuladaAgora: "A etiqueta foi anulada.",
   etiquetaEventos: "Seguimento da transportadora",
   etiquetaSemEventos: "Ainda sem eventos da transportadora.",
@@ -1429,6 +1428,19 @@ export const pt = {
     "O servidor recusou o pedido da etiqueta: confira o peso das variantes e a morada.",
   etiquetaSemResposta:
     "A transportadora não respondeu. Tente outra vez daqui a pouco.",
+  expedirLinhaNaoEDaEncomenda:
+    "Um dos artigos não é desta encomenda. Recarregue a página.",
+  expedirImutavel: "Esta expedição já não muda.",
+  expedirEncomendaNaoEstaParaExpedir:
+    "Esta encomenda já não está para expedir (por exemplo, foi cancelada ou já saiu toda).",
+  etiquetaTransicaoImpossivel:
+    "A etiqueta não pode mudar assim agora: depois de a expedição sair, já não se pede nem se anula.",
+  expedirPrimeiroAEtiqueta:
+    "Com este método, marca-se como expedida depois de a etiqueta estar emitida.",
+  expedirAnularParaCancelar:
+    "Para cancelar esta expedição, anule primeiro a etiqueta (ou consulte a transportadora, se estiver incerta).",
+  etiquetaFicheiroJaNao:
+    "O ficheiro da etiqueta já não existe: apaga-se 30 dias depois de a expedição acabar.",
 };
 
 export type Textos = typeof pt;

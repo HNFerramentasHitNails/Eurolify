@@ -2495,7 +2495,7 @@ PDF, imprime-o, cola-o na caixa e carrega em «Marcar como expedida».
 | **Criar uma expedição** (`fulfilment:write`: o dono, o gestor e o armazém). Escolhem-se as linhas e as quantidades, e por omissão vai tudo o que falta. O servidor recusa mais do que falta. |
 | **A etiqueta**, quando o método tem conta: pedir, ver o estado (por pedir, a pedir, emitida, recusada com o motivo, incerta, anulada), descarregar o ficheiro, anular e «Consultar a transportadora» (uma etiqueta incerta nunca se pede outra vez às cegas, `docs/36` §4.1). |
 | **O seguimento**: os eventos da transportadora, normalizados, com a data. |
-| **O estado da expedição**, pelas transições da `docs/27` §3.7: «Marcar como expedida» (a saída do stock, com os lotes que o servidor escolhe: os que expiram primeiro); «Cancelar» uma criada que não saiu; e, **só num método «Manual»**, a transportadora e o seguimento escritos à mão e «entregue», «devolvida» ou «perdida». |
+| **O estado da expedição**, pelas transições da `docs/27` §3.7: «Marcar como expedida» (a saída do stock, com os lotes que o servidor escolhe: os que expiram primeiro; **com conta, só depois de a etiqueta estar emitida**); «Cancelar» uma criada que não saiu (**com uma etiqueta viva, anula-se primeiro**); e, **só num método «Manual»**, a transportadora e o seguimento escritos à mão e «entregue», «devolvida» ou «perdida». |
 
 | Fica de fora, e porquê |
 |---|
@@ -2532,7 +2532,9 @@ Segue o padrão do §29.2:
   - `fulfilment:read`: também o apoio, que só vê.
 - **Uma resposta perdida:**
   - Ao **criar uma expedição**, o ecrã relê a encomenda em vez de repetir.
-    Um segundo pedido com o que já saiu é recusado pelo servidor.
+    O servidor só recusa um segundo pedido que passe do que falta: uma
+    expedição parcial repetida seria aceite. Por isso o ecrã diz para
+    conferir as expedições antes de criar outra (revisão do #418, P2-2).
   - Ao **pedir uma etiqueta**, a etiqueta fica «a pedir» ou «incerta», e só
     «Consultar a transportadora» a resolve (`docs/36` R2).
 - **O ficheiro da etiqueta** descarrega-se por um pedido com a sessão, e não
@@ -2613,3 +2615,48 @@ dados de quem recebe não vão para o título da janela.
   - a etiqueta recusada e a incerta no ecrã (estão nos testes da API das
     etiquetas);
   - o apoio só a ver, nas capturas.
+
+**Revisão do agente** (Claude Sonnet 5.5, publicada no #418): 0 P0, 2 P1 e
+7 P2.
+
+**Corrigido:**
+- **P1-1:** o mapa dos erros do ecrã usa os códigos que o servidor dá
+  (`shipments.*`, `orders.invalid_transition`). Um teste confere que cada
+  código do mapa existe no servidor. Para isso, os códigos do stock
+  passaram a `src/stock/erros.ts`, um ficheiro sem dependências.
+- **P1-2:**
+  - com conta, «Marcar como expedida» só aparece com a etiqueta emitida;
+  - «Cancelar» não aparece com uma etiqueta viva (emitida, incerta ou a
+    pedir), e o ecrã diz que se anula primeiro;
+  - um teste da API confere a recusa do servidor.
+- **P2-1:** um erro ao reler a página mostra-se também quando já há dados,
+  com «Tentar outra vez». O texto da resposta perdida já não diz que releu.
+- **P2-2:** a afirmação sobre a resposta perdida foi corrigida aqui, no
+  código e no teste. Um teste documenta que uma expedição parcial repetida
+  é aceite.
+- **P2-3:** uma falha ao ler a etiqueta tem «Tentar outra vez».
+- **P2-4:** a confirmação de «perdida» já não diz de quem é a perda
+  (era uma regra sem fonte).
+- **P2-6:**
+  - chaves exactas também no detalhe, em quem recebe e nas linhas;
+  - o isolamento cobre todas as rotas, sem condição;
+  - `no-store` nos 404.
+- **P2-7:** o texto de anular diz «antes de marcar como expedida, e se a
+  transportadora deixar».
+- **P3-1, P3-2 e P3-5:**
+  - o ficheiro já apagado tem texto próprio;
+  - a ligação do seguimento só se abre com `https://`;
+  - a lista dos eventos tem estilo.
+
+**Fica, declarado:**
+- **P2-5:** pedir, anular e consultar a etiqueta exigem o `quem`, mas a
+  base não o guarda em nenhuma tabela. Está provado na expedição, na saída
+  do stock e na transição da encomenda.
+- **P2-6 (d):** a passagem do exemplo contra a Sendcloud de ensaio não está
+  nos testes. A API usa a transportadora de ensaio (CTT), com o contrato
+  inteiro.
+- **P3-3, P3-4, P3-6 e P3-7:**
+  - as leituras da etiqueta sem guarda de ordem;
+  - o 400 de validação sem `no-store`;
+  - o espanhol nos códigos sem texto;
+  - «entregue» sem confirmação.

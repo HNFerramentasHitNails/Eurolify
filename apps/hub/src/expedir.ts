@@ -112,12 +112,37 @@ export const TEXTO_DO_ESTADO_DA_ETIQUETA: Record<EstadoEtiqueta, keyof Textos> =
     anulada: "etiquetaAnulada",
   };
 
-/** O que a etiqueta deixa fazer agora (o servidor confere de novo). */
-export function accoesDaEtiqueta(
-  etiqueta: EstadoEtiqueta,
+/**
+ * O que a expedição deixa fazer agora (o servidor confere de novo). Com
+ * conta, só se marca como expedida com a etiqueta emitida: depois de sair,
+ * a etiqueta já não se pede nem se anula (0079), e uma incerta que a
+ * transportadora afinal criou ficaria sem anulação. Com uma etiqueta viva
+ * (emitida, incerta ou a pedir) não se cancela: anula-se primeiro (revisão
+ * do #418, P1-2).
+ */
+export function accoesDaExpedicao(
+  etiqueta: EstadoEtiqueta | null,
   expedicao: EstadoExpedicao,
-): { pedir: boolean; anular: boolean; consultar: boolean } {
+): {
+  pedir: boolean;
+  anular: boolean;
+  consultar: boolean;
+  marcar: boolean;
+  cancelar: boolean;
+} {
   const criada = expedicao === "criada";
+  // Sem conta (método «Manual») não há etiqueta.
+  if (etiqueta === null) {
+    return {
+      pedir: false,
+      anular: false,
+      consultar: false,
+      marcar: criada,
+      cancelar: criada,
+    };
+  }
+  const viva =
+    etiqueta === "emitida" || etiqueta === "incerta" || etiqueta === "a_pedir";
   return {
     pedir:
       criada &&
@@ -127,24 +152,38 @@ export function accoesDaEtiqueta(
     anular: criada && etiqueta === "emitida",
     // Uma incerta resolve-se só pela consulta; uma emitida lê o seguimento.
     consultar: etiqueta === "incerta" || etiqueta === "emitida",
+    marcar: criada && etiqueta === "emitida",
+    cancelar: criada && !viva,
   };
 }
 
-const TEXTO_DO_CODIGO: Record<string, keyof Textos> = {
-  "inventory.invalid_field": "expedirRecusada",
+/**
+ * Os códigos que o servidor dá nestas rotas (`CodigoErroStock` e
+ * `CodigoErroEnvios`; o teste confere que existem), com o texto deste ecrã.
+ */
+export const TEXTO_DO_CODIGO: Record<string, keyof Textos> = {
   "inventory.version_conflict": "expedirConflito",
   "inventory.no_warehouse": "expedirSemArmazem",
   "inventory.lot_required": "expedirSemLote",
   "inventory.insufficient": "expedirSemStock",
   "inventory.negative": "expedirSemStock",
   "inventory.not_found": "expedirNaoExiste",
+  "inventory.invalid_field": "expedirRecusada",
   "inventory.retry": "enviosTentarDeNovo",
+  "shipments.quantity_exceeded": "expedirMaisDoQueFalta",
+  "shipments.line_not_in_order": "expedirLinhaNaoEDaEncomenda",
+  "shipments.invalid_transition": "expedirTransicaoImpossivel",
+  "shipments.immutable": "expedirImutavel",
+  "orders.invalid_transition": "expedirEncomendaNaoEstaParaExpedir",
   "shipping.not_found": "expedirNaoExiste",
+  "shipping.retry": "enviosTentarDeNovo",
+  "shipping.not_configured": "enviosSemChave",
   "shipping.label_exists": "etiquetaJaExiste",
   "shipping.label_uncertain": "etiquetaIncertaConsultar",
   "shipping.void_not_allowed": "etiquetaNaoAnula",
-  "shipping.invalid_transition": "expedirTransicaoImpossivel",
+  "shipping.invalid_transition": "etiquetaTransicaoImpossivel",
   "shipping.account_not_ready": "etiquetaContaNaoPronta",
+  "shipping.service_unknown": "etiquetaContaNaoPronta",
   "shipping.invalid_field": "etiquetaPedidoRecusado",
   "shipping.carrier_unavailable": "etiquetaSemResposta",
 };

@@ -21,13 +21,19 @@ desenho do `docs/22` §32 (issue #393, pedido #418).
 - **Testes:** a preparação da encomenda paga passou a
   `test/envios-cenario.ts`, partilhado com o teste das etiquetas.
 
+- **Revisão do agente** (Sonnet 5.5, no #418): 2 P1, corrigidos.
+  - O mapa dos erros usava `shipping.invalid_transition` em vez de
+    `shipments.invalid_transition`. Um teste confere agora os códigos
+    contra o servidor.
+  - Com conta, a expedição saía sem a etiqueta emitida.
+
 ## Números (com data e como se contaram)
 
 - 13/10/2026, local:
-  - 3 testes da API (`test/envios-hub-expedir.test.ts`), verdes;
+  - 4 testes da API (`test/envios-hub-expedir.test.ts`), verdes;
   - os 42 testes dos envios e do stock, verdes depois da mudança do
     cenário;
-  - 235 testes do Hub, verdes.
+  - 237 testes do Hub, verdes.
 
 ## O que ficou por verificar
 

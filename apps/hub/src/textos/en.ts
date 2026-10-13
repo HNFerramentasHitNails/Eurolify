@@ -1353,7 +1353,7 @@ export const en: Textos = {
   expedirMaisDoQueFalta:
     "The quantity is more than what is left to ship of this item.",
   expedirTalvezCriada:
-    "No response arrived: the shipment may have been created. The page was reloaded; check the shipments before trying again.",
+    "No response arrived: the shipment may have been created. Check the shipments below before creating another; if the page does not show them, press «Try again».",
   expedirExpedicoes: "Shipments",
   expedirSemExpedicoes: "There are no shipments for this order yet.",
   expedirExpedicaoNumero: "Shipment {n}",
@@ -1380,8 +1380,7 @@ export const en: Textos = {
   expedirDevolvidaConfirmar: "Mark as returned to sender?",
   expedirDevolvidaAgora: "The shipment is now returned to sender.",
   expedirPerdida: "Mark as lost",
-  expedirPerdidaConfirmar:
-    "Mark as lost? A lost shipment is the merchant's responsibility.",
+  expedirPerdidaConfirmar: "Mark as lost?",
   expedirPerdidaAgora: "The shipment is now lost.",
   expedirRecusada:
     "The server refused the shipment: check the quantities (no more than what is left).",
@@ -1416,7 +1415,7 @@ export const en: Textos = {
   etiquetaConsultadaAgora: "The carrier was asked.",
   etiquetaAnular: "Void the label",
   etiquetaAnularConfirmar:
-    "Void the label? This is only possible before the carrier collects the parcel.",
+    "Void the label? Only before marking the shipment as shipped, and if the carrier allows it.",
   etiquetaAnuladaAgora: "The label was voided.",
   etiquetaEventos: "Carrier tracking",
   etiquetaSemEventos: "No carrier events yet.",
@@ -1431,4 +1430,17 @@ export const en: Textos = {
   etiquetaPedidoRecusado:
     "The server refused the label request: check the variants' weight and the address.",
   etiquetaSemResposta: "The carrier did not respond. Try again in a moment.",
+  expedirLinhaNaoEDaEncomenda:
+    "One of the items is not from this order. Reload the page.",
+  expedirImutavel: "This shipment can no longer change.",
+  expedirEncomendaNaoEstaParaExpedir:
+    "This order is no longer to be shipped (for example, it was cancelled or has fully left).",
+  etiquetaTransicaoImpossivel:
+    "The label cannot change like that now: once the shipment has left, it can no longer be requested or voided.",
+  expedirPrimeiroAEtiqueta:
+    "With this method, mark it as shipped once the label is issued.",
+  expedirAnularParaCancelar:
+    "To cancel this shipment, void the label first (or ask the carrier, if it is uncertain).",
+  etiquetaFicheiroJaNao:
+    "The label file no longer exists: it is deleted 30 days after the shipment ends.",
 };
