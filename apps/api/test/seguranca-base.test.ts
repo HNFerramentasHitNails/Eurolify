@@ -106,6 +106,8 @@ const FUNCOES_DA_API = [
   "entrar_com_palavra_passe",
   "entrar_com_passkey",
   // Os envios (0079): a porta dos avisos e o trabalho da API.
+  // O aviso da tentativa falhada (0087): a conferência no envio.
+  "envios_aviso_espera",
   "envios_avisos_resumir",
   // As encomendas paradas (0085): a volta de todos e a de um comerciante.
   "envios_comerciantes_com_paradas",

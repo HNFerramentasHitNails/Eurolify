@@ -7,6 +7,7 @@ import {
   lerPeriodo,
   periodoDe,
   ultimoFechado,
+  vendasADistancia,
   type DocumentoLido,
 } from "../src/faturacao/oss.js";
 import type { Conteudo } from "../src/faturacao/repositorio.js";
@@ -400,6 +401,54 @@ describe("o relatório OSS (puro)", () => {
     expect([
       ...agregar([resolvido], "PT", T4, new Set()).impedimentos.keys(),
     ]).toEqual(["linhas_desalinhadas"]);
+  });
+
+  it("um documento classificado que fica divergente continua a impedir e sai do limiar (3.ª revisão do #392, P3-8)", () => {
+    const d = documento("k", "2026-10-02", [
+      { regra: "bloqueio", pais_imposto: null, base: 100, iva: 21, taxa: 2100 },
+    ]);
+    d.classificacao = { linhas: [{ balde: "oss", pais: "ES" }], data: null };
+    expect(agregar([d], "PT", T4, new Set()).impedimentos.size).toBe(0);
+    expect(vendasADistancia([d], "PT", true)).toEqual({
+      base: 100,
+      excluidos: 0,
+    });
+    d.estado = "divergente";
+    const r = agregar([d], "PT", T4, new Set());
+    expect([...(r.impedimentos.get("divergente") ?? [])]).toEqual(["inv_k"]);
+    expect(r.incluidos).toEqual([]);
+    expect(vendasADistancia([d], "PT", true)).toEqual({
+      base: 0,
+      excluidos: 1,
+    });
+  });
+
+  it("o limiar com a decisão do dono: conta o OSS dele; uma venda para outro país posta no nacional fica excluída (P2-C)", () => {
+    const linha = {
+      regra: "bloqueio",
+      pais_imposto: null,
+      base: 100,
+      iva: 23,
+      taxa: 2300,
+    };
+    const paraOss = documento("o", "2026-10-02", [linha]);
+    paraOss.classificacao = {
+      linhas: [{ balde: "oss", pais: "ES" }],
+      data: null,
+    };
+    const paraNacional = documento("n", "2026-10-02", [linha]);
+    paraNacional.classificacao = {
+      linhas: [{ balde: "nacional", pais: "PT" }],
+      data: null,
+    };
+    const nacionalEmPT = documento("p", "2026-10-02", [linha], {}, "PT");
+    nacionalEmPT.classificacao = {
+      linhas: [{ balde: "nacional", pais: "PT" }],
+      data: null,
+    };
+    expect(
+      vendasADistancia([paraOss, paraNacional, nacionalEmPT], "PT", true),
+    ).toEqual({ base: 100, excluidos: 1 });
   });
 
   it("as linhas casam uma a uma: quantidade, taxa ou motivo diferentes impedem (revisão do #392, P1-2)", () => {
