@@ -228,6 +228,22 @@ revisão do agente. Um pedido só.
   `notificacao`, o gatilho, que é `ALWAYS`, recria notificações (P3-7).
   A ordem da reposição não foi verificada.
 
+## 12.1 O aviso da ligação com erro (13/10/2026; migração 0083; EJ)
+
+O desenho está no `docs/29` §18 (Q1 A). Usa a mesma fila de e-mails, sem
+mudar o fornecedor nem as regras N4 a N11:
+
+- **O tipo** `invoicing.connection_error`: um por dono e por passagem, só
+  quando a ligação entra em erro pela renovação recusada (um teste falhado
+  não manda e-mail).
+- **A quem:** quem pode ligar a conta (`invoices:accounts`, só o dono), lido
+  outra vez no envio (`notificacao_destino()`).
+- **No envio:** fica cancelada, com `ligacao_ja_nao_espera`, se a ligação já
+  não estiver com erro na mesma passagem.
+- **O que diz:** a loja, a entidade (o nome da empresa do comerciante), o
+  software, o motivo (só o código), desde quando e quantas faturas estão
+  retidas por isso. Nunca a frase do emissor nem dados de clientes.
+
 ## 13. A configuração chega à VPS pelo GitHub (12/10/2026; #372)
 
 O §5 deixou por fazer o caminho dos cinco `SMTP_*` até à VPS. A 12/10/2026
