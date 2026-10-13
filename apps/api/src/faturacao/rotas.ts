@@ -30,6 +30,11 @@ import {
   concluirAutorizacao,
   entidadesDaFaturacao,
   pedirAutorizacao,
+  configurarLigacao,
+  criarLigacaoMoloni,
+  faltasDasLigacoes,
+  opcoesDoEmissor,
+  pesquisarNoEmissor,
 } from "./repositorio.js";
 
 // A API dos documentos fiscais (docs/29 §7; issue #310; Diogo, 10/10/2026:
@@ -570,9 +575,10 @@ export function rotasDosDocumentos(
     async (pedido, resposta) =>
       emDocumentos(resposta, async () => {
         const s = daSessao(pedido, "invoices:read");
-        const [entidades, ligacoes] = await Promise.all([
+        const [entidades, ligacoes, faltas] = await Promise.all([
           entidadesDaFaturacao(base, s.comercianteId),
           listarLigacoes(base, s.comercianteId),
+          faltasDasLigacoes(base, s.comercianteId),
         ]);
         return {
           entidades: entidades.map((e) => ({
@@ -581,7 +587,174 @@ export function rotasDosDocumentos(
             pais: e.pais,
             emissor: e.emissor_fiscal,
           })),
-          ligacoes: ligacoes.map(paraLigacao),
+          // O que falta mapear (docs/22 §31.4), sem ler o emissor.
+          ligacoes: ligacoes.map((l) => ({
+            ...paraLigacao(l),
+            faltam: l.activa ? (faltas.get(l.id) ?? null) : null,
+          })),
+        };
+      }),
+  );
+
+  rotas.post(
+    "/hub/invoicing-connections",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §31): cria a ligação ao Moloni de uma entidade legal, sem série nem mapas, «por testar». Uma ligação activa por entidade. Com `invoices:accounts` (o dono).",
+        body: Type.Object(
+          { entidade_legal: IdEntidade },
+          { additionalProperties: false },
+        ),
+        response: {
+          201: Type.Object({ id: Type.String() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      const r = await emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:accounts");
+        return {
+          id: `isx_${await criarLigacaoMoloni(
+            base,
+            s.comercianteId,
+            semPrefixo(pedido.body.entidade_legal),
+            cfg,
+            s.quem,
+          )}`,
+        };
+      });
+      return resposta.code(201).send(r);
+    },
+  );
+
+  const Opcao = Type.Object({ id: Type.String(), nome: Type.String() });
+  const comOpcao = (extra: Parameters<typeof Type.Object>[0]) =>
+    Type.Array(
+      Type.Object({ id: Type.String(), nome: Type.String(), ...extra }),
+    );
+  const TextoOuNulo = Type.Union([Type.String(), Type.Null()]);
+  const NumeroOuNulo = Type.Union([Type.Number(), Type.Null()]);
+
+  rotas.get(
+    "/hub/invoicing-connections/:id/issuer-options",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §31): lê do software de faturação as listas para configurar a ligação (séries, taxas com o valor e a zona fiscal, isenções, métodos de pagamento, línguas, vencimentos, unidades e categorias de topo) e junta o que o Eurolify precisa de mapear: os pares (país, taxa) do Motor de IVA vigentes hoje nos países dos mercados activos e no da entidade, os códigos de motivo de isenção desses países e os meios de pagamento activos. Não escolhe nada e não guarda nada. Com `invoices:accounts`.",
+        params: Type.Object({ id: IdLigacao }),
+        response: {
+          200: Type.Object({
+            listas: Type.Object({
+              series: Type.Array(Opcao),
+              taxas: comOpcao({ valor: Type.Integer(), zona: TextoOuNulo }),
+              isencoes: Type.Array(Opcao),
+              metodos_pagamento: Type.Array(Opcao),
+              linguas: comOpcao({ codigo: TextoOuNulo }),
+              vencimentos: comOpcao({ dias: NumeroOuNulo }),
+              unidades: comOpcao({ abreviatura: TextoOuNulo }),
+              categorias: Type.Array(Opcao),
+            }),
+            necessario: Livre,
+            ligacao: Livre,
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:accounts");
+        const r = await opcoesDoEmissor(
+          base,
+          s.comercianteId,
+          semPrefixo(pedido.params.id),
+          cfg,
+        );
+        void resposta.header("cache-control", "no-store");
+        return r;
+      }),
+  );
+
+  rotas.get(
+    "/hub/invoicing-connections/:id/issuer-search",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §31): pesquisa um artigo (o dos portes) ou um cliente (o «Consumidor final») no software de faturação, até 50. De um cliente só sai o id, o número e o nome, nunca o contribuinte nem a morada. Com `invoices:accounts`.",
+        params: Type.Object({ id: IdLigacao }),
+        querystring: Type.Object(
+          {
+            tipo: umDe(["artigo", "cliente"] as const),
+            q: Type.String({ minLength: 1, maxLength: 60 }),
+          },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ dados: Type.Array(Livre) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:accounts");
+        void resposta.header("cache-control", "no-store");
+        return {
+          dados: await pesquisarNoEmissor(
+            base,
+            s.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.query.tipo,
+            pedido.query.q,
+            cfg,
+          ),
+        };
+      }),
+  );
+
+  rotas.patch(
+    "/hub/invoicing-connections/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §31): grava a série, os mapas e a configuração no emissor, como PATCH /invoicing-connections/{id}. Antes, relê as listas do software de faturação e recusa (`invoices.invalid_field`) um id que lá não exista ou uma taxa do emissor com outro valor que o do par. A ligação fica por testar; com documentos a meio no emissor, recusa (R15). Com `invoices:accounts`.",
+        params: Type.Object({ id: IdLigacao }),
+        body: Type.Object(
+          {
+            versao: Versao,
+            serie: Type.Optional(Serie),
+            taxas: Type.Optional(Taxas),
+            isencoes: Type.Optional(Isencoes),
+            config: Type.Optional(ConfigLigacao),
+          },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emDocumentos(resposta, async () => {
+        const s = daSessao(pedido, "invoices:accounts");
+        const { versao, ...dados } = pedido.body;
+        return {
+          versao: await configurarLigacao(
+            base,
+            s.comercianteId,
+            semPrefixo(pedido.params.id),
+            versao,
+            dados,
+            cfg,
+            s.quem,
+          ),
         };
       }),
   );

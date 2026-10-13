@@ -121,6 +121,41 @@ export class ErroDoEmissor extends Error {
   }
 }
 
+/** Uma escolha lida do emissor (docs/22 §31): o id e o nome dele. */
+export interface OpcaoDoEmissor {
+  id: string;
+  nome: string;
+}
+
+/** As listas de onde o dono escolhe os mapas e a configuração (docs/22 §31.1). */
+export interface ListasDoEmissor {
+  series: OpcaoDoEmissor[];
+  /** `valor` em centésimas de ponto (2300 = 23 %); `zona` como o emissor a tem. */
+  taxas: (OpcaoDoEmissor & { valor: number; zona: string | null })[];
+  /** O id é o código do motivo no emissor. */
+  isencoes: OpcaoDoEmissor[];
+  metodos_pagamento: OpcaoDoEmissor[];
+  linguas: (OpcaoDoEmissor & { codigo: string | null })[];
+  vencimentos: (OpcaoDoEmissor & { dias: number | null })[];
+  unidades: (OpcaoDoEmissor & { abreviatura: string | null })[];
+  categorias: OpcaoDoEmissor[];
+}
+
+/**
+ * Um resultado da pesquisa no emissor. De um cliente, só o id, o número e o
+ * nome — nunca o contribuinte nem a morada (docs/22 §31.3).
+ */
+export type ResultadoNoEmissor =
+  | {
+      tipo: "artigo";
+      id: string;
+      nome: string;
+      referencia: string | null;
+      /** Cêntimos, sem IVA, como o emissor o tem. */
+      preco: number | null;
+    }
+  | { tipo: "cliente"; id: string; nome: string; numero: string | null };
+
 export interface AdaptadorFaturacao {
   readonly nome: NomeAdaptador;
   /** Lança se as credenciais não forem aceites. */
@@ -159,6 +194,23 @@ export interface AdaptadorFaturacao {
     credenciais: CredenciaisEmissor,
     nifSemPrefixo: string,
   ): Promise<EntidadeNoEmissor | null>;
+  /**
+   * As listas do emissor para configurar a ligação (docs/22 §31): só um
+   * emissor que as tem (o Moloni). Só leitura; lança o erro do emissor.
+   */
+  listas?(credenciais: CredenciaisEmissor): Promise<ListasDoEmissor>;
+  /** Pesquisa um artigo ou um cliente (até 50). */
+  pesquisar?(
+    credenciais: CredenciaisEmissor,
+    tipo: "artigo" | "cliente",
+    texto: string,
+  ): Promise<ResultadoNoEmissor[]>;
+  /** Se o artigo ou o cliente com este id existe no emissor. */
+  existe?(
+    credenciais: CredenciaisEmissor,
+    tipo: "artigo" | "cliente",
+    id: string,
+  ): Promise<boolean>;
   criarRascunho(
     credenciais: CredenciaisEmissor,
     pedido: PedidoRascunho,

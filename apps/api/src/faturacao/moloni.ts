@@ -7,6 +7,9 @@ import {
   type DocumentoNoEmissor,
   type EntidadeNoEmissor,
   type LinhaNoEmissor,
+  type ListasDoEmissor,
+  type OpcaoDoEmissor,
+  type ResultadoNoEmissor,
   type LinhaPedida,
   type PedidoRascunho,
   type Procura,
@@ -112,9 +115,19 @@ function errosDe(r: unknown): string[] | null {
   if (!Array.isArray(r) || r.length === 0) return null;
   const textos = r.map((e) => {
     if (typeof e === "string") return e;
-    if (e !== null && typeof e === "object" && "code" in e) {
-      const o = e as { code: unknown; description?: unknown };
-      return `${String(o.code)}${typeof o.description === "string" ? ` (${o.description})` : ""}`;
+    // Com `human_errors`, `{code: "1 name", description}` (página
+    // «Controlo de erros», lida a 13/10/2026): o código começa pelo número
+    // do erro e não há outros campos. Uma isenção do taxExemptions/getAll
+    // também tem `code` («M16»), mas com `name` — não é um erro (§31).
+    if (e !== null && typeof e === "object") {
+      const o = e as { code?: unknown; description?: unknown };
+      const soErro = Object.keys(o).every(
+        (k) => k === "code" || k === "description",
+      );
+      const codigo = typeof o.code === "number" ? String(o.code) : txt(o.code);
+      if (soErro && /^\d+( |$)/.test(codigo)) {
+        return `${codigo}${typeof o.description === "string" ? ` (${o.description})` : ""}`;
+      }
     }
     return null;
   });
@@ -464,6 +477,104 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       nif: typeof c["vat"] === "string" ? c["vat"] : null,
       nome: typeof c["name"] === "string" ? c["name"] : null,
     };
+  }
+
+  // ------------------------------- As listas para configurar (docs/22 §31)
+
+  /**
+   * As listas de onde o dono escolhe (§31.1, páginas lidas a 12/10 e
+   * 13/10/2026; os campos exactos **por medir** na conta trial). Uma a uma,
+   * pelo limite por empresa; nada fica guardado.
+   */
+  async listas(credenciais: CredenciaisEmissor): Promise<ListasDoEmissor> {
+    const ler = (metodo: string, dados: Json = {}) =>
+      this.lista(credenciais, metodo, dados);
+    const series = await ler("documentSets/getAll");
+    const taxas = await ler("taxes/getAll");
+    const isencoes = await ler("taxExemptions/getAll");
+    const metodos = await ler("paymentMethods/getAll");
+    const linguas = await ler("languages/getAll");
+    const vencimentos = await ler("maturityDates/getAll");
+    const unidades = await ler("measurementUnits/getAll");
+    const categorias = await ler("productCategories/getAll", { parent_id: 0 });
+    const com = (lista: Json[], id: string, nome: string) =>
+      lista.filter(temId(id)).map((x) => ({
+        x,
+        o: { id: txt(x[id]), nome: txt(x[nome]) },
+      }));
+    const numero = (v: unknown) => {
+      const n = Number(v);
+      return v === undefined || v === null || v === "" || !Number.isFinite(n)
+        ? null
+        : n;
+    };
+    return {
+      series: opcoes(series, "document_set_id", "name"),
+      taxas: com(taxas, "tax_id", "name").map(({ x, o }) => ({
+        ...o,
+        // Uma taxa sem valor legível fica com -1: nunca bate com nenhuma.
+        valor: Math.round((numero(x["value"]) ?? -0.01) * 100),
+        zona: txt(x["fiscal_zone"]) || null,
+      })),
+      isencoes: opcoes(isencoes, "code", "name"),
+      metodos_pagamento: opcoes(metodos, "payment_method_id", "name"),
+      linguas: com(linguas, "language_id", "title").map(({ x, o }) => ({
+        ...o,
+        codigo: txt(x["code"]) || null,
+      })),
+      vencimentos: com(vencimentos, "maturity_date_id", "name").map(
+        ({ x, o }) => ({ ...o, dias: numero(x["days"]) }),
+      ),
+      unidades: com(unidades, "unit_id", "name").map(({ x, o }) => ({
+        ...o,
+        abreviatura: txt(x["short_name"]) || null,
+      })),
+      categorias: opcoes(categorias, "category_id", "name"),
+    };
+  }
+
+  async pesquisar(
+    credenciais: CredenciaisEmissor,
+    tipo: "artigo" | "cliente",
+    texto: string,
+  ): Promise<ResultadoNoEmissor[]> {
+    const r = await this.lista(
+      credenciais,
+      tipo === "artigo" ? "products/getBySearch" : "customers/getBySearch",
+      { search: texto, qty: 50, offset: 0 },
+    );
+    if (tipo === "artigo") {
+      return r.filter(temId("product_id")).map((a) => ({
+        tipo: "artigo" as const,
+        id: txt(a["product_id"]),
+        nome: txt(a["name"]),
+        referencia: txt(a["reference"]) || null,
+        preco: a["price"] === undefined ? null : cent(a["price"]),
+      }));
+    }
+    // Do cliente só o id, o número e o nome: o contribuinte e a morada
+    // nunca saem daqui (§31.3).
+    return r.filter(temId("customer_id")).map((c) => ({
+      tipo: "cliente" as const,
+      id: txt(c["customer_id"]),
+      nome: txt(c["name"]),
+      numero: txt(c["number"]) || null,
+    }));
+  }
+
+  async existe(
+    credenciais: CredenciaisEmissor,
+    tipo: "artigo" | "cliente",
+    id: string,
+  ): Promise<boolean> {
+    if (!/^\d{1,12}$/.test(id)) return false;
+    const campo = tipo === "artigo" ? "product_id" : "customer_id";
+    const r = await this.lista(
+      credenciais,
+      tipo === "artigo" ? "products/getOne" : "customers/getOne",
+      { [campo]: id },
+    );
+    return r.some((x) => txt(x[campo]) === id);
   }
 
   async criarRascunho(
@@ -919,6 +1030,16 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
  * infinita do JavaScript. As casas que o Moloni guarda estão por medir
  * (§13.7, 4); uma diferença de cêntimos é divergência (R8).
  */
+/** Uma entrada com id (as outras não se podem escolher). */
+const temId = (campo: string) => (x: Json) => txt(x[campo]) !== "";
+
+/** As entradas com id, como escolhas: o id e o nome do Moloni. */
+function opcoes(lista: Json[], id: string, nome: string): OpcaoDoEmissor[] {
+  return lista
+    .filter(temId(id))
+    .map((x) => ({ id: txt(x[id]), nome: txt(x[nome]) }));
+}
+
 function precoUnitario(l: LinhaPedida): number {
   return Number((l.base / 100 / l.quantidade).toFixed(6));
 }
