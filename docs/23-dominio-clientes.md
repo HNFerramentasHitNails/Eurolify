@@ -1226,8 +1226,10 @@ pedido à parte»*), com teste e contraprova de cada um. O texto da
 transportadora, como a prova de entrega, pode ter o nome de outra pessoa
 (quem recebeu): o RGPD, art. 15.º, n.º 4, diz que a cópia «não prejudica
 os direitos e as liberdades de terceiros» (`eur-lex`, `corpus/dados-e-privacidade/32016R0679-rgpd.md`, versão de 2016-05-04) — **C**, para o jurista (revisão
-do #414, P3-6). Um evento que chegue depois do apagamento entra com o
-texto como vem (revisão do #414, P3-1; fica para o domínio dos envios).
+do #414, P3-6). Um evento ou um aviso da transportadora que chegue depois do
+apagamento (ou durante), numa encomenda já limpa, entra com o marcador; um
+aviso que não se ligue a nenhuma expedição fica em bruto até ao resumo dos
+30 dias (migração 0083; revisão do #414, P3-1, e do #420; `docs/36`).
 
 Fica de fora, da revisão do #411: a lista das fichas parecidas só se vê antes do apagamento pela
 exportação (P3-3); a exportação lê em READ COMMITTED, dentro da transacção

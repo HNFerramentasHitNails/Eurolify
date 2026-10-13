@@ -503,9 +503,22 @@ resto corre contra uma transportadora de ensaio com o contrato inteiro da §8.
   composição congelada). Do §14 também ficam o P3-5 (leitura da conta sem
   bloqueio) e o P3-7 (rotação da chave); o P3-8 (tempo-limite) ficou feito.
 
-**Não testado:** o apagamento do titular a levar o ficheiro e a limpar os
-avisos e os eventos (os gatilhos existem; o teste precisa de uma encomenda
-acabada e de um pedido de apagamento); a etiqueta incerta sem resposta há
+**Testado depois (13/10/2026, migração 0083; revisão do #414, P3-1):** o
+apagamento do titular leva o ficheiro e limpa os avisos e os eventos; e o
+que a transportadora manda **depois** do apagamento, numa encomenda já
+limpa, entra sem o nome: o evento com o marcador no texto (o estado
+normalizado e a data ficam) e o aviso, ao ligar-se à expedição, com o
+marcador no corpo (`envios_encomenda_limpa()`; o caso «depois do apagamento
+do titular» em `envios-etiquetas.test.ts`, com duas contraprovas). A
+encomenda conta como limpa pelo e-mail do contacto (o nome é texto livre do
+cliente). Um aviso que chega durante o apagamento espera por ele (a leitura
+toma a encomenda, `FOR KEY SHARE`; caso «durante o apagamento», com
+contraprova). **Excepção:** um aviso que não se liga a nenhuma expedição
+(assinatura errada, referência desconhecida, etiqueta já não viva) fica em
+bruto até ao resumo dos 30 dias, como já era (revisão do #420, P2-1, P2-2,
+P3-1).
+
+**Não testado:** a etiqueta incerta sem resposta há
 mais de um dia (o problema); um evento que o armazém recuse (o ponto de
 retorno); o resumo dos avisos aos 30 dias. A concorrência testa-se pela API,
 mas o segundo pedido chega depois de o primeiro ter gravado `a_pedir`, não
