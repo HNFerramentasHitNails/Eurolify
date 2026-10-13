@@ -1852,6 +1852,12 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     // Antes do pedido, quem lê encomendas vê a cópia, como hoje.
     const antes = await ok(s.adm("GET", `/orders/${ord}`));
     expect(antes["perfil_copia"]).not.toBeNull();
+    // E o comprador, na confirmação.
+    const confirmacao = await ok(
+      pedir("GET", `/checkout/${k.token}/confirmation`),
+    );
+    expect(confirmacao["perfil_copia"]).not.toBeNull();
+    expect(confirmacao).not.toHaveProperty("guardado_por_obrigacao_fiscal");
     expect(antes["guardado_por_obrigacao_fiscal"]).toBe(false);
     const nome = String((antes["perfil_copia"] as Json)["nome_documento"]);
     const { rows } = await sql<{ cliente_id: string }>`
@@ -1873,6 +1879,9 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     const publica = await pedir("GET", `/checkout/${k.token}/confirmation`);
     expect(publica.statusCode, publica.body).toBe(200);
     expect(publica.json<Json>()["perfil_copia"]).toBeNull();
+    expect(publica.json<Json>()).not.toHaveProperty(
+      "guardado_por_obrigacao_fiscal",
+    );
     // O dono (customers:billing) lê-a.
     const dono = (
       await criarChave(base.dono, s.c, {

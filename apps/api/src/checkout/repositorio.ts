@@ -1730,7 +1730,9 @@ export async function lerEncomenda(
       .selectFrom("encomenda")
       .selectAll()
       // A ficha foi pseudonimizada por um pedido de apagamento: a cópia do
-      // perfil de faturação só sai ao dono (docs/23 §15.13, EN).
+      // perfil de faturação só sai ao dono (docs/23 §15.13, EN). O
+      // `selectAll` traz a cópia: uma rota que a devolva passa por
+      // `paraEncomenda` (checkout/rotas.ts), que aplica a regra.
       .select(fichaPseudonimizada(sql`encomenda.cliente_id`).as("guardado"))
       .where("id", "=", id)
       .executeTakeFirst();

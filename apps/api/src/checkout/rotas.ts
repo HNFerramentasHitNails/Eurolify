@@ -1001,6 +1001,9 @@ export function rotasDoCheckout(
               );
             delete publica.emissor_fiscal;
             delete publica.documento;
+            // Se a ficha foi apagada é coisa da operação (§15.13; revisão
+            // do #442, P3-1).
+            delete publica.guardado_por_obrigacao_fiscal;
             // A conta e o serviço da transportadora são da operação; o
             // cliente vê o método e a data-limite (docs/36 L1).
             const me = publica.metodo_entrega as

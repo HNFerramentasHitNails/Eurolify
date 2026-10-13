@@ -1368,7 +1368,7 @@ entrega, mas `perfil_copia: null` e `guardado_por_obrigacao_fiscal: true`.
 | Onde | Sem `customers:billing`, numa ficha pseudonimizada |
 |---|---|
 | `GET /orders/{id}` (`orders:read`) | `perfil_copia: null`; o campo novo `guardado_por_obrigacao_fiscal` diz porquê (para o dono também, com a cópia) |
-| `GET /checkout/{token}/confirmation` (público, pelo token) | `perfil_copia: null` (quem tem o token não tem âmbito) |
+| `GET /checkout/{token}/confirmation` (público, pelo token) | `perfil_copia: null` (quem tem o token não tem âmbito); sem o campo `guardado_por_obrigacao_fiscal`, que é da operação |
 
 - **A mesma regra** da §15.12 (`fichaPseudonimizada`), lida em
   `lerEncomenda`; `GET /orders` em lista não traz a cópia.
