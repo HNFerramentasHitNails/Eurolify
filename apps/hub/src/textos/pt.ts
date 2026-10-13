@@ -1366,6 +1366,11 @@ export const pt = {
   impedimento_sem_variantes_a_venda: "Escolha pelo menos uma variante.",
   impedimento_categoria_fiscal_em_falta: "Falta a categoria fiscal do artigo.",
   impedimento_peso_em_falta: "Falta o peso de {sku}.",
+  impedimento_peso_em_falta_generico: "Falta o peso de uma variante.",
+  impedimento_preco_em_falta_generico:
+    "Uma variante não tem preço na lista base de {mercado}.",
+  publicarRetiradaSemResposta:
+    "A ligação falhou e não encontrámos a mudança. Confira o estado das publicações e tente outra vez.",
   impedimento_preco_em_falta: "{sku} não tem preço na lista base de {mercado}.",
   impedimento_traducao_em_falta: "Falta a tradução do nome em {linguas}.",
   impedimento_traducao_desactualizada:

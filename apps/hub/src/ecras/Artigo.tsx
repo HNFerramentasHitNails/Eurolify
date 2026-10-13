@@ -443,7 +443,11 @@ export function Artigo({
         await api.retirarPublicacao(comerciante, p.id, p.versao);
       } catch (e) {
         if (!(e instanceof ErroHub)) throw e;
-        if (e.codigo === "catalog.version_conflict") {
+        if (
+          e.codigo === "catalog.version_conflict" ||
+          // Já não estava publicada: o mesmo que um conflito.
+          e.codigo === "catalog.invalid_transition"
+        ) {
           void carregarPublicacoes(true);
           throw new ErroDoEcra("publicarConflito");
         }
@@ -452,7 +456,7 @@ export function Artigo({
         const dela = agora.dados.find((x) => x.id === p.id) ?? null;
         if (!retiradaConfere(dela, p.versao)) {
           void carregarPublicacoes(true);
-          throw e;
+          throw new ErroDoEcra("publicarRetiradaSemResposta");
         }
       }
       if (!montado.current) return;

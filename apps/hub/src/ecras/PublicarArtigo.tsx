@@ -248,7 +248,12 @@ export function PublicarArtigo({
         naoVerificado: r.nao_verificado,
         aoPublicar: false,
       });
-      focarDepois.current = "publicar-resultado";
+      // Sem impedimentos, o foco vai para «Publicar» (o resultado está depois
+      // dos botões e o status anuncia-o); com impedimentos, para a lista.
+      focarDepois.current =
+        r.impedimentos.length === 0
+          ? "publicar-publicar"
+          : "publicar-resultado";
       if (r.impedimentos.some((i) => i.codigo === "preco_em_falta")) {
         void acharListaBase();
       }
@@ -548,6 +553,7 @@ export function PublicarArtigo({
               </button>
               {mostrarPublicar ? (
                 <button
+                  id="publicar-publicar"
                   type="button"
                   className="principal"
                   disabled={ocupado}

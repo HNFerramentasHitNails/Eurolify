@@ -370,6 +370,11 @@ export interface PublicacaoArtigo {
   motivo_arquivo: (typeof MOTIVOS_ARQUIVO)[number] | null;
   /** A versão lida: publicar e retirar levam-na (docs/22 §27.2). */
   versao: number;
+  /** A do último pedido de publicação, também se foi recusado; null se não houve. */
+  ultima_verificacao: {
+    impedimentos: ImpedimentoApi[];
+    nao_verificado: string[];
+  } | null;
 }
 
 /** Um par canal × mercado onde o canal vende (GET /hub/sales-pairs). */

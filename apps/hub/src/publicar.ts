@@ -110,6 +110,8 @@ export function paresSemPublicacao(
 ): ParDeVenda[] {
   return pares.filter(
     (p) =>
+      p.canal_estado === "activo" &&
+      p.mercado_estado === "activo" &&
       !publicacoes.some((x) => x.canal === p.canal && x.mercado === p.mercado),
   );
 }
@@ -134,13 +136,19 @@ const mesmasVariantes = (a: readonly string[], b: readonly string[]) =>
  * lida. `versaoLida` é null quando ainda não havia publicação.
  */
 export function publicacaoConfere(
-  agora: Pick<PublicacaoArtigo, "estado" | "variantes_fora" | "versao"> | null,
+  agora: Pick<
+    PublicacaoArtigo,
+    "estado" | "variantes_fora" | "versao" | "ultima_verificacao"
+  > | null,
   pedidas: readonly string[],
   versaoLida: number | null,
 ): boolean {
   return (
     agora !== null &&
     agora.estado === "publicado" &&
+    // A versão também sobe ao guardar uma verificação recusada
+    // (`publicada: false`): só conta se a última verificação passou.
+    (agora.ultima_verificacao?.impedimentos.length ?? 1) === 0 &&
     mesmasVariantes(agora.variantes_fora, pedidas) &&
     agora.versao !== versaoLida
   );
@@ -305,6 +313,19 @@ export function linhasDosImpedimentos(
         break;
       case "peso_em_falta":
       case "preco_em_falta":
+        if ((i.variantes ?? []).length === 0) {
+          // Sem SKU na resposta: uma frase sem variante, nunca nenhuma.
+          linhas.push({
+            codigo: i.codigo,
+            texto:
+              i.codigo === "peso_em_falta"
+                ? "impedimento_peso_em_falta_generico"
+                : "impedimento_preco_em_falta_generico",
+            valores: { mercado: ctx.mercadoNome },
+            ligacao: null,
+          });
+          break;
+        }
         for (const sku of i.variantes ?? []) {
           const id = idDoSku(sku);
           let ligacao: Ligacao | null = null;

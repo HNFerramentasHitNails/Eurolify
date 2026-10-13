@@ -104,6 +104,7 @@ const publicacao = (p: Partial<PublicacaoArtigo> = {}): PublicacaoArtigo => ({
   arquivado_em: null,
   motivo_arquivo: null,
   versao: 4,
+  ultima_verificacao: { impedimentos: [], nao_verificado: ["conformidade"] },
   ...p,
 });
 
@@ -116,6 +117,24 @@ describe("a resposta de publicar perdeu-se", () => {
   it("a ordem das variantes não conta", () => {
     const agora = publicacao({ variantes_fora: [B, C], versao: 5 });
     expect(publicacaoConfere(agora, [C, B], 4)).toBe(true);
+  });
+
+  it("recusada com impedimentos (publicada: false) não se dá por feita, mesmo com a versão a subir", () => {
+    const agora = publicacao({
+      versao: 5,
+      ultima_verificacao: {
+        impedimentos: [{ codigo: "peso_em_falta" }],
+        nao_verificado: [],
+      },
+    });
+    expect(publicacaoConfere(agora, [], 4)).toBe(false);
+    expect(
+      publicacaoConfere(
+        publicacao({ versao: 5, ultima_verificacao: null }),
+        [],
+        4,
+      ),
+    ).toBe(false);
   });
 
   it("a mesma versão: nada mudou", () => {
@@ -192,6 +211,17 @@ describe("as publicações da ficha", () => {
     ).toEqual([]);
   });
 
+  it("«Publicar noutra loja» só oferece pares com o canal e o mercado activos", () => {
+    const pares = [
+      par("chn_1", "mkt_1"),
+      { ...par("chn_2", "mkt_1"), canal_estado: "arquivado" },
+      { ...par("chn_1", "mkt_2"), mercado_estado: "arquivado" },
+    ];
+    expect(paresSemPublicacao(pares, []).map((p) => p.canal)).toEqual([
+      "chn_1",
+    ]);
+  });
+
   it("o rótulo do par junta a loja quando o nome se repete (§19.2)", () => {
     const a = par("chn_1", "mkt_1");
     const b = { ...par("chn_2", "mkt_1"), loja_nome: "Sul" };
@@ -261,6 +291,23 @@ describe("os impedimentos em linguagem comum", () => {
         palavra,
       )[0]?.ligacao,
     ).toBeNull();
+  });
+
+  it("peso ou preço em falta sem SKU dá uma linha genérica", () => {
+    const linhas = linhasDosImpedimentos(
+      [
+        { codigo: "peso_em_falta" },
+        { codigo: "preco_em_falta", variantes: [] },
+      ],
+      ctx,
+      palavra,
+    );
+    expect(linhas.map((l) => l.texto)).toEqual([
+      "impedimento_peso_em_falta_generico",
+      "impedimento_preco_em_falta_generico",
+    ]);
+    expect(linhas.every((l) => l.ligacao === null)).toBe(true);
+    expect(linhas[1]?.valores.mercado).toBe("Portugal");
   });
 
   it("um SKU que a ficha não tem fica sem ligação", () => {

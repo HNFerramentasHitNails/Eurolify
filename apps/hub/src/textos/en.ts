@@ -1368,6 +1368,11 @@ export const en: Textos = {
   impedimento_categoria_fiscal_em_falta:
     "The product's tax category is missing.",
   impedimento_peso_em_falta: "The weight of {sku} is missing.",
+  impedimento_peso_em_falta_generico: "The weight of a variant is missing.",
+  impedimento_preco_em_falta_generico:
+    "A variant has no price in the base list of {mercado}.",
+  publicarRetiradaSemResposta:
+    "The connection failed and we could not find the change. Check the status of the publications and try again.",
   impedimento_preco_em_falta:
     "{sku} has no price in the base list of {mercado}.",
   impedimento_traducao_em_falta:

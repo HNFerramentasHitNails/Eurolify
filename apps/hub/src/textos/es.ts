@@ -1384,6 +1384,11 @@ export const es: Textos = {
   impedimento_categoria_fiscal_em_falta:
     "Falta la categoría fiscal del artículo.",
   impedimento_peso_em_falta: "Falta el peso de {sku}.",
+  impedimento_peso_em_falta_generico: "Falta el peso de una variante.",
+  impedimento_preco_em_falta_generico:
+    "Una variante no tiene precio en la lista base de {mercado}.",
+  publicarRetiradaSemResposta:
+    "La conexión falló y no encontramos el cambio. Revise el estado de las publicaciones e inténtelo de nuevo.",
   impedimento_preco_em_falta:
     "{sku} no tiene precio en la lista base de {mercado}.",
   impedimento_traducao_em_falta: "Falta la traducción del nombre en {linguas}.",
