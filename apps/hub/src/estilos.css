@@ -133,10 +133,15 @@ a {
   color: var(--accao-principal);
 }
 
-label {
+label,
+.rotulo {
   display: block;
   font-weight: 600;
   margin-bottom: var(--espaco-1);
+}
+
+.rotulo {
+  margin-top: 0;
 }
 
 input,

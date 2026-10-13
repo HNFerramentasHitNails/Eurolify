@@ -7,6 +7,9 @@ import {
   type DocumentoNoEmissor,
   type EntidadeNoEmissor,
   type LinhaNoEmissor,
+  type ListasDoEmissor,
+  type OpcaoDoEmissor,
+  type ResultadoNoEmissor,
   type LinhaPedida,
   type PedidoRascunho,
   type Procura,
@@ -112,9 +115,19 @@ function errosDe(r: unknown): string[] | null {
   if (!Array.isArray(r) || r.length === 0) return null;
   const textos = r.map((e) => {
     if (typeof e === "string") return e;
-    if (e !== null && typeof e === "object" && "code" in e) {
-      const o = e as { code: unknown; description?: unknown };
-      return `${String(o.code)}${typeof o.description === "string" ? ` (${o.description})` : ""}`;
+    // Com `human_errors`, `{code: "1 name", description}` (página
+    // «Controlo de erros», lida a 13/10/2026): o código começa pelo número
+    // do erro e não há outros campos. Uma isenção do taxExemptions/getAll
+    // também tem `code` («M16»), mas com `name` — não é um erro (§32).
+    if (e !== null && typeof e === "object") {
+      const o = e as { code?: unknown; description?: unknown };
+      const soErro = Object.keys(o).every(
+        (k) => k === "code" || k === "description",
+      );
+      const codigo = typeof o.code === "number" ? String(o.code) : txt(o.code);
+      if (soErro && /^\d+( |$)/.test(codigo)) {
+        return `${codigo}${typeof o.description === "string" ? ` (${o.description})` : ""}`;
+      }
     }
     return null;
   });
@@ -281,16 +294,27 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
   // ------------------------------------------------------------ HTTP
 
   /** Espera se esta empresa já fez `porMinuto` pedidos no último minuto. */
-  private async limitar(empresa: string) {
+  private async limitar(empresa: string, doHub = false) {
     for (;;) {
       const agora = this.agora();
       const lista = (this.pedidos.get(empresa) ?? []).filter(
         (t) => agora - t < 60_000,
       );
-      if (lista.length < this.porMinuto) {
+      // As leituras do Hub (listas, pesquisa) só usam dois terços do limite
+      // e nunca esperam: o resto fica para as emissões (docs/22 §32;
+      // revisão do #412, P2-4).
+      const teto = doHub
+        ? Math.max(1, Math.floor((this.porMinuto * 2) / 3))
+        : this.porMinuto;
+      if (lista.length < teto) {
         lista.push(agora);
         this.pedidos.set(empresa, lista);
         return;
+      }
+      if (doHub) {
+        throw new ErroDoEmissor(
+          "o limite de pedidos ao Moloni desta empresa está ocupado; tentar daqui a um minuto",
+        );
       }
       const espera = 60_000 - (agora - (lista[0] ?? agora)) + 5;
       await new Promise((ok) => setTimeout(ok, espera));
@@ -346,6 +370,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     cred: CredenciaisEmissor,
     metodo: string,
     dados: Json = {},
+    doHub = false,
   ): Promise<unknown> {
     const token = cred["access_token"];
     const expira = Date.parse(cred["access_expira"] ?? "");
@@ -357,7 +382,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       throw new ErroDoEmissor("o token de acesso do Moloni expirou");
     }
     const empresa = this.empresa(cred);
-    await this.limitar(empresa);
+    await this.limitar(empresa, doHub);
     const corpo = metodo.startsWith("companies/")
       ? dados
       : { company_id: empresa, ...dados };
@@ -411,8 +436,9 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     cred: CredenciaisEmissor,
     metodo: string,
     dados: Json,
+    doHub = false,
   ): Promise<Json[]> {
-    const r = await this.api(cred, metodo, dados);
+    const r = await this.api(cred, metodo, dados, doHub);
     const erros = errosDe(r);
     if (erros !== null) {
       throw new ErroDoEmissor(
@@ -464,6 +490,121 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       nif: typeof c["vat"] === "string" ? c["vat"] : null,
       nome: typeof c["name"] === "string" ? c["name"] : null,
     };
+  }
+
+  // ------------------------------- As listas para configurar (docs/22 §32)
+
+  /**
+   * As listas de onde o dono escolhe (§32.1, páginas lidas a 12/10 e
+   * 13/10/2026; os campos exactos **por medir** na conta trial). Uma a uma,
+   * pelo limite por empresa; nada fica guardado.
+   */
+  async listas(credenciais: CredenciaisEmissor): Promise<ListasDoEmissor> {
+    const ler = (metodo: string, dados: Json = {}) =>
+      this.lista(credenciais, metodo, dados, true);
+    const series = await ler("documentSets/getAll");
+    const taxas = await ler("taxes/getAll");
+    const isencoes = await ler("taxExemptions/getAll");
+    const metodos = await ler("paymentMethods/getAll");
+    const linguas = await ler("languages/getAll");
+    const vencimentos = await ler("maturityDates/getAll");
+    const unidades = await ler("measurementUnits/getAll");
+    const categorias = await ler("productCategories/getAll", { parent_id: 0 });
+    const com = (lista: Json[], id: string, nome: string) =>
+      lista.filter(temId(id)).map((x) => ({
+        x,
+        o: { id: txt(x[id]), nome: txt(x[nome]) },
+      }));
+    const numero = (v: unknown) => {
+      const n = Number(v);
+      return v === undefined || v === null || v === "" || !Number.isFinite(n)
+        ? null
+        : n;
+    };
+    return {
+      series: opcoes(series, "document_set_id", "name"),
+      // Só as de IVA (saft_type 1, como na leitura dos documentos; sem o
+      // tipo, todas): uma de 23 % de outro imposto nunca se escolhe para um
+      // par de IVA (revisão do #412, P2-2).
+      taxas: com(
+        taxas.filter(
+          (t) => t["saft_type"] === undefined || Number(t["saft_type"]) === 1,
+        ),
+        "tax_id",
+        "name",
+      ).map(({ x, o }) => ({
+        ...o,
+        // Uma taxa sem valor legível fica com -1: nunca bate com nenhuma.
+        valor: Math.round((numero(x["value"]) ?? -0.01) * 100),
+        zona: txt(x["fiscal_zone"]) || null,
+      })),
+      isencoes: opcoes(isencoes, "code", "name"),
+      metodos_pagamento: opcoes(metodos, "payment_method_id", "name"),
+      linguas: com(linguas, "language_id", "title").map(({ x, o }) => ({
+        ...o,
+        codigo: txt(x["code"]) || null,
+      })),
+      vencimentos: com(vencimentos, "maturity_date_id", "name").map(
+        ({ x, o }) => ({ ...o, dias: numero(x["days"]) }),
+      ),
+      unidades: com(unidades, "unit_id", "name").map(({ x, o }) => ({
+        ...o,
+        abreviatura: txt(x["short_name"]) || null,
+      })),
+      categorias: opcoes(categorias, "category_id", "name"),
+    };
+  }
+
+  async pesquisar(
+    credenciais: CredenciaisEmissor,
+    tipo: "artigo" | "cliente",
+    texto: string,
+  ): Promise<ResultadoNoEmissor[]> {
+    const r = await this.lista(
+      credenciais,
+      tipo === "artigo" ? "products/getBySearch" : "customers/getBySearch",
+      { search: texto, qty: 50, offset: 0 },
+      true,
+    );
+    if (tipo === "artigo") {
+      return r.filter(temId("product_id")).map((a) => ({
+        tipo: "artigo" as const,
+        id: txt(a["product_id"]),
+        nome: txt(a["name"]),
+        referencia: txt(a["reference"]) || null,
+        preco: a["price"] === undefined ? null : cent(a["price"]),
+      }));
+    }
+    // Do cliente só o id, o número e o nome: o contribuinte e a morada
+    // nunca saem daqui (§32.3).
+    return r.filter(temId("customer_id")).map((c) => ({
+      tipo: "cliente" as const,
+      id: txt(c["customer_id"]),
+      nome: txt(c["name"]),
+      numero: txt(c["number"]) || null,
+    }));
+  }
+
+  async existe(
+    credenciais: CredenciaisEmissor,
+    tipo: "artigo" | "cliente" | "consumidor_final",
+    id: string,
+  ): Promise<boolean> {
+    if (!/^\d{1,12}$/.test(id)) return false;
+    const campo = tipo === "artigo" ? "product_id" : "customer_id";
+    const r = await this.lista(
+      credenciais,
+      tipo === "artigo" ? "products/getOne" : "customers/getOne",
+      { [campo]: id },
+      true,
+    );
+    const x = r.find((y) => txt(y[campo]) === id);
+    if (x === undefined) return false;
+    // O «Consumidor final» confere-se já ao gravar, como na emissão (M3;
+    // revisão do #412, P3-6); o contribuinte não sai daqui.
+    return (
+      tipo !== "consumidor_final" || txt(x["vat"]) === NIF_CONSUMIDOR_FINAL
+    );
   }
 
   async criarRascunho(
@@ -919,6 +1060,16 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
  * infinita do JavaScript. As casas que o Moloni guarda estão por medir
  * (§13.7, 4); uma diferença de cêntimos é divergência (R8).
  */
+/** Uma entrada com id (as outras não se podem escolher). */
+const temId = (campo: string) => (x: Json) => txt(x[campo]) !== "";
+
+/** As entradas com id, como escolhas: o id e o nome do Moloni. */
+function opcoes(lista: Json[], id: string, nome: string): OpcaoDoEmissor[] {
+  return lista
+    .filter(temId(id))
+    .map((x) => ({ id: txt(x[id]), nome: txt(x[nome]) }));
+}
+
 function precoUnitario(l: LinhaPedida): number {
   return Number((l.base / 100 / l.quantidade).toFixed(6));
 }

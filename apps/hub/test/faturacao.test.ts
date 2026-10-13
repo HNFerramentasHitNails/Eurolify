@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   BALDES,
+  enderecoConfigurar,
+  escolhasDe,
+  faltaNasEscolhas,
+  paraGravar,
+  resumoDoQueFalta,
+  taxasParaOPar,
   emCurso,
   estadoMostrado,
   fechoDe,
@@ -391,5 +397,119 @@ describe("o regresso do Moloni", () => {
       regressoDe({ codigo: "c", estado: "b".repeat(32) }, pedido, agora).tipo,
     ).toBe("estado_diferente");
     expect(regressoDe(null, pedido, agora).tipo).toBe("sem_codigo");
+  });
+});
+
+// Configurar a ligação ao Moloni (docs/22 §32; Q1 em A).
+describe("configurar a ligação", () => {
+  const ligacao = {
+    versao: 3,
+    serie: "77",
+    taxas: [{ pais: "PT", taxa: 2300, emissor: "11" }],
+    isencoes: [],
+    config: { lingua: "1", metodos_pagamento: { mb_way: "31" } },
+  };
+  const necessario = {
+    taxas: [
+      { pais: "PT", taxa: 2300 },
+      { pais: "PT", taxa: 600 },
+    ],
+    isencoes: [{ pais: "PT", codigo: "M16" }],
+    meios: ["mb_way", "multibanco"],
+  };
+
+  it("as escolhas partem do que está gravado; nada vem escolhido por adivinhar", () => {
+    const e = escolhasDe(ligacao);
+    expect(e.serie).toBe("77");
+    expect(e.taxas).toEqual({ "PT|2300": "11" });
+    expect(e.metodos).toEqual({ mb_way: "31" });
+    expect(e.config.vencimento).toBe("");
+    expect(escolhasDe({ ...ligacao, serie: null, taxas: [] }).taxas).toEqual(
+      {},
+    );
+  });
+
+  it("o que falta muda com as escolhas, pela mesma chave do servidor", () => {
+    const e = escolhasDe(ligacao);
+    expect(faltaNasEscolhas(necessario, e)).toEqual({
+      taxas: [{ pais: "PT", taxa: 600 }],
+      isencoes: [{ pais: "PT", codigo: "M16" }],
+      meios: ["multibanco"],
+    });
+    const tudo = {
+      ...e,
+      taxas: { ...e.taxas, "PT|600": "12" },
+      isencoes: { M16: "M16" },
+      metodos: { ...e.metodos, multibanco: "32" },
+    };
+    expect(faltaNasEscolhas(necessario, tudo)).toEqual({
+      taxas: [],
+      isencoes: [],
+      meios: [],
+    });
+  });
+
+  it("o resumo do que falta, no singular e no plural; nada quando nada falta", () => {
+    expect(
+      resumoDoQueFalta(TEXTOS.pt, {
+        taxas: [
+          { pais: "PT", taxa: 600 },
+          { pais: "ES", taxa: 2100 },
+        ],
+        isencoes: [],
+        meios: ["mb_way"],
+      }),
+    ).toBe("Falta mapear: 2 taxas e 1 método de pagamento.");
+    expect(
+      resumoDoQueFalta(TEXTOS.pt, { taxas: [], isencoes: [], meios: [] }),
+    ).toBeNull();
+  });
+
+  it("Q1 em A: as taxas de mesmo valor e zona ficam no topo, sem nenhuma escolhida", () => {
+    const taxas = [
+      { id: "12", nome: "Reduzida", valor: 600, zona: "PT" },
+      { id: "13", nome: "Normal ES", valor: 2100, zona: "ES" },
+      { id: "11", nome: "Normal", valor: 2300, zona: "PT" },
+      { id: "14", nome: "Normal antiga", valor: 2300, zona: "pt" },
+      { id: "15", nome: "Açores", valor: 2300, zona: "PT-AC" },
+    ];
+    const r = taxasParaOPar(taxas, { pais: "PT", taxa: 2300 });
+    expect(r.batem.map((x) => x.id)).toEqual(["11", "14"]);
+    expect(r.outras.map((x) => x.id)).toEqual(["12", "13", "15"]);
+  });
+
+  it("o corpo a gravar leva a versão lida e só o que foi escolhido", () => {
+    const e = escolhasDe(ligacao);
+    const corpo = paraGravar(
+      {
+        ...e,
+        taxas: { ...e.taxas, "PT|600": "" },
+        config: { ...e.config, artigo_portes: "1001" },
+      },
+      ligacao.versao,
+    );
+    expect(corpo).toEqual({
+      versao: 3,
+      serie: "77",
+      taxas: [{ pais: "PT", taxa: 2300, emissor: "11" }],
+      isencoes: [],
+      config: {
+        lingua: "1",
+        artigo_portes: "1001",
+        metodos_pagamento: { mb_way: "31" },
+      },
+    });
+    expect(
+      paraGravar({ ...e, serie: "", metodos: { mb_way: "" } }, 1),
+    ).toMatchObject({ serie: null, config: { lingua: "1" } });
+    expect(
+      paraGravar({ ...e, metodos: { mb_way: "" } }, 1).config,
+    ).not.toHaveProperty("metodos_pagamento");
+  });
+
+  it("o endereço do ecrã Configurar", () => {
+    expect(enderecoConfigurar("mer_x", "isx_y")).toBe(
+      "/faturacao/configurar?comerciante=mer_x&ligacao=isx_y",
+    );
   });
 });
