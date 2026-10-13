@@ -228,7 +228,7 @@ revisão do agente. Um pedido só.
   `notificacao`, o gatilho, que é `ALWAYS`, recria notificações (P3-7).
   A ordem da reposição não foi verificada.
 
-## 12.1 O aviso da ligação com erro (13/10/2026; migração 0083; EJ)
+## 12.1 O aviso da ligação com erro (13/10/2026; migração 0084; EJ)
 
 O desenho está no `docs/29` §18 (Q1 A). Usa a mesma fila de e-mails, sem
 mudar o fornecedor nem as regras N4 a N11:

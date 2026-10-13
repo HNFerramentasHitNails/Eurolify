@@ -1775,7 +1775,7 @@ export interface TabelaLigacaoFaturacao {
   sessao_em: ColumnType<Date | null, never, Date | null>;
   testada_em: ColumnType<Date | null, never, Date | null>;
   erro: ColumnType<string | null, never, string | null>;
-  /** Postos pelo gatilho ao entrar em erro, limpos ao sair (migração 0083). */
+  /** Postos pelo gatilho ao entrar em erro, limpos ao sair (migração 0084). */
   com_erro_desde: ColumnType<Date | null, never, never>;
   com_erro_passagem: ColumnType<string | null, never, never>;
   /** A API grava-o com o estado `com_erro` (docs/29 §18, L2). */

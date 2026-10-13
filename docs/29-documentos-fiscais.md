@@ -860,12 +860,12 @@ faturas retidas e o dono não sabe porquê.
 | O aviso ir para ninguém (nenhum dono activo) | a mesma regra do `docs/34` §12: quem decide a fila, activo; sem ninguém, a notificação fica `cancelada` e vê-se em `GET /notifications` |
 | O dono resolver sem verificar as faturas retidas | a linha do caso diz quantas estão retidas; elas continuam na fila `documento_fiscal` até alguém as verificar |
 
-### 18.6 Em código (13/10/2026; migração 0083; pedido #422)
+### 18.6 Em código (13/10/2026; migração 0084; pedido #422)
 
 | O quê | Onde |
 |---|---|
-| na ligação, `com_erro_desde`, `com_erro_passagem` e `com_erro_motivo`, com o gatilho que os põe e limpa; a oitava fila (`faturacao_casos_a_decidir()`) na régua, no prazo por omissão, na lista comum e na restrição da atribuição | migração 0083 |
-| o tipo de notificação `invoicing.connection_error`, o gatilho que a grava, quem recebe (`faturacao_aviso_pode_receber`), a conferência no envio (`faturacao_aviso_espera`) e as faturas retidas contadas no envio (`faturacao_aviso_retidas`) | migração 0083; `src/notificacoes/repositorio.ts` e `modelos.ts` |
+| na ligação, `com_erro_desde`, `com_erro_passagem` e `com_erro_motivo`, com o gatilho que os põe e limpa; a oitava fila (`faturacao_casos_a_decidir()`) na régua, no prazo por omissão, na lista comum e na restrição da atribuição | migração 0084 |
+| o tipo de notificação `invoicing.connection_error`, o gatilho que a grava, quem recebe (`faturacao_aviso_pode_receber`), a conferência no envio (`faturacao_aviso_espera`) e as faturas retidas contadas no envio (`faturacao_aviso_retidas`) | migração 0084; `src/notificacoes/repositorio.ts` e `modelos.ts` |
 | a renovação recusada e o teste falhado gravam o motivo; a renovação recusada só marca a ligação se as credenciais recusadas ainda forem as dela | `src/faturacao/repositorio.ts` (`ligacaoComErro`, `RenovacaoRecusada`, `testarLigacao`) |
 | no Hub: a fila no «A decidir», com a entidade, o software e as faturas retidas na linha e a ligação para a Faturação; o número de retidas no ecrã Faturação | `apps/hub/src/ecras/ADecidir.tsx`, `Faturacao.tsx`, `faturacao.ts`, `tarefas.ts` |
 | testes: `apps/api/test/faturacao-ligacao-com-erro.test.ts` (a fila em cada comerciante, o e-mail aos donos e só a eles, as retidas no envio, a passagem nova, o responsável que passa a gestor, o motivo que passa a mais grave, o cancelamento, a escrita que a API não pode fazer, os textos) e os das filas com oito | — |

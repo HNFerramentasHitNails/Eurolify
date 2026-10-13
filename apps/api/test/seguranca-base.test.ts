@@ -112,7 +112,7 @@ const FUNCOES_DA_API = [
   "envios_trabalho",
   "envios_trabalho_adiar",
   "envios_trabalho_feito",
-  // A ligação com erro (0083): a fila do «A decidir» e a conferência do e-mail.
+  // A ligação com erro (0084): a fila do «A decidir» e a conferência do e-mail.
   "faturacao_aviso_espera",
   "faturacao_aviso_retidas",
   "faturacao_casos_a_decidir",

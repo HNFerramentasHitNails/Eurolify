@@ -33,7 +33,7 @@ export interface DadosDaTarefa {
 
 /**
  * O aviso da ligação ao software de faturação com erro (docs/29 §18, Q1 A;
- * migração 0083).
+ * migração 0084).
  */
 export interface DadosDaLigacao {
   loja?: string;
