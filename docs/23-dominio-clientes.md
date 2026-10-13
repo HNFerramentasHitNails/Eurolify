@@ -1457,4 +1457,5 @@ lei já não foi cumprida (RGPD, art. 12.º, n.º 3, **W**; a mesma fonte da
 vence 7 dias antes); o aviso ao cliente (o comerciante responde pelo seu
 canal).
 
-**Pergunta para o Diogo ou o Bruno.** Q-P3: aprovas o aviso e o texto?
+**Decidido:** Q-P3, aprovado pelo Diogo a 13/10/2026 (*«a»*), o aviso e o
+texto; programa-se a seguir à parte 1.
