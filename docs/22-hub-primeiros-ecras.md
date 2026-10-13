@@ -1890,6 +1890,8 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/tarefas/rotas
 
 ✅ **Q1: A** (Diogo, 12/10/2026, *«A, aprovado»*). Desenho aprovado.
 
+✅ **Aspecto aprovado** (Diogo, 13/10/2026, *«A, aprovado»*), pelas capturas da versão publicada (#396 e #399): 1280 px em claro, 375 px em escuro e a entrada com o módulo. Não visto no Safari nem num telemóvel real.
+
 **Q1.** Nenhuma das sete filas tem ecrã no Hub. A lista «A decidir» avança
 já, **sem ligação ao caso** (mostra o identificador do caso e da encomenda,
 e diz que se decide pela integração), ou espera que as filas tenham os seus

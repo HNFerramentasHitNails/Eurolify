@@ -15,6 +15,7 @@
 - **O prazo escolhe-se no fuso do comerciante:** a lista do Hub leva o
   `fuso`, e a conversão está em `apps/hub/src/tarefas.ts`, testada com a
   mudança de hora.
+- **Aspecto aprovado pelo Diogo** (13/10/2026, «A, aprovado»), pelas capturas de 1280 px claro, 375 px escuro e da entrada (`docs/22` §28.5).
 
 ## Números (com data e como se contaram)
 
