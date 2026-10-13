@@ -1378,6 +1378,62 @@ export async function nomesDeCanaisEMercados(
   });
 }
 
+/**
+ * Os pares canal × mercado onde o canal vende, com os nomes e os estados
+ * do canal, do mercado e da loja (docs/22 §27.2): onde o Hub pode publicar
+ * um artigo. Só lê; os pares criam-se em Preços e mercados.
+ */
+export async function paresDeVenda(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+): Promise<
+  {
+    canal_id: string;
+    canal_nome: string;
+    canal_estado: string;
+    mercado_id: string;
+    mercado_nome: string;
+    mercado_estado: string;
+    loja_nome: string;
+  }[]
+> {
+  return noDominio(db, comercianteId, (trx) =>
+    trx
+      .selectFrom("canal_mercado as cm")
+      .innerJoin("canal", (j) =>
+        j
+          .onRef("canal.comerciante_id", "=", "cm.comerciante_id")
+          .onRef("canal.id", "=", "cm.canal_id"),
+      )
+      .innerJoin("mercado", (j) =>
+        j
+          .onRef("mercado.comerciante_id", "=", "cm.comerciante_id")
+          .onRef("mercado.id", "=", "cm.mercado_id"),
+      )
+      .innerJoin("loja", (j) =>
+        j
+          .onRef("loja.comerciante_id", "=", "cm.comerciante_id")
+          .onRef("loja.id", "=", "cm.loja_id"),
+      )
+      .select([
+        "cm.canal_id",
+        "canal.nome as canal_nome",
+        "canal.estado as canal_estado",
+        "cm.mercado_id",
+        "mercado.nome as mercado_nome",
+        "mercado.estado as mercado_estado",
+        "loja.nome as loja_nome",
+      ])
+      .where("cm.comerciante_id", "=", comercianteId)
+      .orderBy("loja.nome")
+      .orderBy("canal.nome")
+      .orderBy("mercado.nome")
+      .orderBy("cm.canal_id")
+      .orderBy("cm.mercado_id")
+      .execute(),
+  );
+}
+
 /** Uma lista activa com o mercado dela e os preços das variantes de um artigo. */
 export interface PrecosDoArtigoNaLista {
   id: string;
