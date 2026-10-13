@@ -2001,7 +2001,7 @@ assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
 | Fica de fora, e porquê |
 |---|
 | **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§31). Precisam das listas dos mercados e dos armazéns no Hub. |
-| **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Desenha-se com eles (`docs/27`). |
+| **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Ficam no ecrã «Expedir» (§32). |
 | **O modo real**: é uma migração com decisão escrita (`docs/36` §16.2). O ecrã diz «Teste» e não oferece outro. |
 | **Os CTT**: a conta cria-se, vê-se e arquiva-se, mas sem credenciais nem teste: o adaptador não declara campos, e o ecrã diz «Esta transportadora ainda não está ligada ao Eurolify», até haver o adaptador (V1). |
 
@@ -2461,3 +2461,118 @@ Eurolify», e o ecrã di-lo.
 
   As capturas fazem o caminho normal: vazio, criar «Manual», sem contas
   prontas e a embalagem.
+
+## 32. Envios: «Expedir» — as expedições, a etiqueta e o seguimento (issue #393)
+
+Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
+envios»*, depois de aprovar o aspecto do §31 (*«aprovo; junta quando ficar
+verde»*). **Este desenho está por aprovar.**
+
+A API já tem tudo:
+- a vista do armazém (`docs/27` §6, `GET /fulfilment/orders`);
+- as expedições (`docs/27` §3.7);
+- a etiqueta e o seguimento (`docs/36` §4 e §7.1).
+
+O Hub dá-lhes um ecrã para o trabalho de todos os dias no armazém. Skills:
+`order-fulfilment`, `eurolify-transport-logistics-eu`, `eu-gdpr-privacy`,
+`eurolify-design`, `eurolify-hub-modular`, `observability-security`.
+
+Ex.: a Rita, do armazém, abre «Expedir» e vê a encomenda de ontem, paga,
+com «Correio registado». Abre-a e vê as duas linhas (2 vernizes e 1 lima),
+o nome, o telefone e a morada de quem recebe. Carrega em «Criar a
+expedição», com tudo por expedir. Depois carrega em «Pedir a etiqueta»: a
+etiqueta fica «Emitida», com o número de seguimento. A Rita descarrega o
+PDF, imprime-o, cola-o na caixa e carrega em «Marcar como expedida».
+
+### 32.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **Um módulo «Expedir»** na entrada do Hub, para quem tem `fulfilment:read`: o dono, o gestor, o armazém e o apoio. |
+| **As encomendas por expedir**, das mais antigas para as mais recentes, como a API as dá (no máximo 100 de cada vez). A lista diz quantas mostra e, se forem 100, que há mais. |
+| **A encomenda na vista do armazém**: as linhas, com a quantidade e quanto já saiu; o método de entrega; quem recebe, com o nome, o telefone e a morada; e as expedições. **Sem** preços, NIF, e-mail nem perfil de faturação (`docs/27` §6). |
+| **Criar uma expedição** (`fulfilment:write`: o dono, o gestor e o armazém). Escolhem-se as linhas e as quantidades, e por omissão vai tudo o que falta. O servidor recusa mais do que falta. |
+| **A etiqueta**, quando o método tem conta: pedir, ver o estado (por pedir, a pedir, emitida, recusada com o motivo, incerta, anulada), descarregar o ficheiro, anular e «Consultar a transportadora» (uma etiqueta incerta nunca se pede outra vez às cegas, `docs/36` §4.1). |
+| **O seguimento**: os eventos da transportadora, normalizados, com a data. |
+| **O estado da expedição**, pelas transições da `docs/27` §3.7: «Marcar como expedida» (a saída do stock, com os lotes que o servidor escolhe: os que expiram primeiro); «Cancelar» uma criada que não saiu; e, **só num método «Manual»**, a transportadora e o seguimento escritos à mão e «entregue», «devolvida» ou «perdida». |
+
+| Fica de fora, e porquê |
+|---|
+| **Escolher os lotes à mão:** o servidor escolhe os que expiram primeiro. Escolher outro lote vai para um pedido à parte. |
+| **Mudar o serviço de uma expedição:** é uma decisão de uma pessoa, com motivo (`docs/27` R6). O ecrã não o oferece. |
+| **Imprimir ou pedir etiquetas em lote:** nesta parte, uma expedição de cada vez. |
+| **Corrigir à mão o estado de uma expedição com etiqueta.** Nesse caso, quem decide «entregue» é o seguimento da transportadora (`docs/36` §4.2). O ecrã não oferece estes botões. |
+| **O resto da encomenda:** os preços, o pagamento, a linha do tempo (`orders:read`), cancelar e as devoluções. Ficam para os ecrãs das encomendas e da pós-venda. |
+
+### 32.2 Como o Hub lê e escreve
+
+Segue o padrão do §29.2:
+- a sessão da pessoa e o cabeçalho `Eurolify-Comerciante`;
+- sem `Idempotency-Key` (`docs/21` §11);
+- `cache-control: private, no-store`, também nos 403;
+- quem escreve fica `pessoa:per_…` nos movimentos e na etiqueta (nas rotas
+  da chave fica `chave:key_…`).
+
+| Caminho do Hub | Âmbito | A rota da chave |
+|---|---|---|
+| `GET /hub/fulfilment/orders` | `fulfilment:read` | `GET /fulfilment/orders` |
+| `GET /hub/fulfilment/orders/{id}` | `fulfilment:read` | `GET /fulfilment/orders/{id}` |
+| `POST /hub/orders/{id}/shipments` | `fulfilment:write` | `POST /orders/{id}/shipments` |
+| `PATCH /hub/shipments/{id}` | `fulfilment:write` | `PATCH /shipments/{id}` |
+| `POST /hub/shipments/{id}/label` | `fulfilment:write` | `POST /shipments/{id}/label` |
+| `GET /hub/shipments/{id}/label` | `fulfilment:read` | `GET /shipments/{id}/label` |
+| `GET /hub/shipments/{id}/label/file` | `fulfilment:read` | `GET /shipments/{id}/label/file` |
+| `POST /hub/shipments/{id}/label/void` | `fulfilment:write` | `POST /shipments/{id}/label/void` |
+| `GET /hub/shipments/{id}/events` | `fulfilment:read` | `GET /shipments/{id}/events` |
+| `POST /hub/shipments/{id}/refresh` | `fulfilment:write` | `POST /shipments/{id}/refresh` |
+
+- **Os papéis não mudam:**
+  - `fulfilment:write`: o dono, o gestor e o armazém;
+  - `fulfilment:read`: também o apoio, que só vê.
+- **Uma resposta perdida:**
+  - Ao **criar uma expedição**, o ecrã relê a encomenda em vez de repetir.
+    Um segundo pedido com o que já saiu é recusado pelo servidor.
+  - Ao **pedir uma etiqueta**, a etiqueta fica «a pedir» ou «incerta», e só
+    «Consultar a transportadora» a resolve (`docs/36` R2).
+- **O ficheiro da etiqueta** descarrega-se por um pedido com a sessão, e não
+  fica em nenhuma cache. É um documento com dados pessoais: o ecrã diz que se
+  apaga 30 dias depois de a expedição acabar (`docs/36` Q7).
+
+### 32.3 O ecrã
+
+| Ecrã | O que mostra | Estados além do normal |
+|---|---|---|
+| **Expedir** (`/expedir`) | Uma linha por encomenda (cartões no telemóvel): o número, a data, o estado («Paga», «Em preparação», «Expedida em parte»), o método de entrega, o número de artigos por expedir e a localidade. A contagem à vista. | nada por expedir; a carregar; erro; sem permissão; 100 mostradas (diz que há mais e que são as mais antigas) |
+| **A encomenda** (`/expedir/{ord_…}`) | Quem recebe (o nome, o telefone e a morada) e o método. As linhas, com «por expedir» e «já saiu». O formulário «Criar a expedição», com uma quantidade por linha, preenchida com o que falta. As expedições, cada uma com o estado e a etiqueta. | tudo já saiu (sem formulário); recusa do servidor (mais do que falta, sem armazém, a encomenda não está para expedir); conflito; resposta perdida (relê); só ver |
+| **A expedição**, dentro da encomenda | **Com conta:** a etiqueta (o estado, o motivo de uma recusa, o seguimento com a ligação pública da transportadora, o peso), «Pedir a etiqueta», «Descarregar a etiqueta», «Anular», «Consultar a transportadora», o seguimento e «Marcar como expedida». **Manual:** a transportadora e o seguimento escritos à mão, «Marcar como expedida» e depois «entregue», «devolvida» ou «perdida». Em ambos, «Cancelar» enquanto está criada. | etiqueta recusada (o motivo e o que fazer); incerta (não se pede outra; consultar); a transportadora sem resposta; sem `ENVIOS_CHAVE` no servidor; conflito; confirmação antes de cancelar, anular e marcar como perdida |
+
+**Os textos** estão em PT, ES e EN. Cada estado tem uma cor, por token. Os
+dados de quem recebe não vão para o título da janela.
+
+### 32.4 Por onde é que isto ainda pode sair errado
+
+- **Uma etiqueta paga duas vezes.** O servidor só deixa uma viva por
+  expedição, e numa incerta só se pode consultar. O ecrã nunca repete o
+  pedido sozinho.
+- **Marcar como expedida sem a caixa ter saído** tira o stock. Pede-se
+  confirmação, e o texto diz que a saída do stock não se desfaz pelo ecrã.
+- **O telefone e a morada à vista** de quem tem `fulfilment:read`. É a vista
+  mínima da `docs/27` §6. Nada vai para os registos nem para o
+  armazenamento do navegador.
+- **Nesta parte, as etiquetas não se imprimem em lote.** Uma loja com muitas
+  encomendas vai precisar disso (pedido seguinte).
+
+### 32.5 Antes de dizer que está feito (o pedido do código)
+
+- **API:**
+  - as rotas do Hub fazem o mesmo que as da chave;
+  - o apoio leva 403 nas escritas;
+  - a encomenda e a expedição de outro comerciante dão 404;
+  - `no-store`, também nos 403 e no ficheiro;
+  - o `quem` da pessoa nos movimentos e na etiqueta;
+  - a vista sem preços, NIF nem e-mail (comparar as chaves exactas da resposta).
+- **Hub:**
+  - a passagem do exemplo contra a Sendcloud de ensaio, nos testes;
+  - a etiqueta recusada, a incerta e o conflito;
+  - o apoio só a ver;
+  - capturas a 375, 768 e 1280 px, em claro e escuro, para o OK do aspecto.

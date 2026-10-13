@@ -24,6 +24,10 @@ desenho do `docs/22` §31 (issue #393, pedido #413).
   - um texto que prometia demais sobre a embalagem;
   - o texto de «não encontrado».
 
+- **Aspecto aprovado** pelo Diogo a 13/10/2026, depois de ver 7 capturas
+  (*«aprovo; junta quando ficar verde»*). O #413 entrou no `main` com os
+  testes do GitHub verdes.
+
 ## Números (com data e como se contaram)
 
 - 13/10/2026, local:
