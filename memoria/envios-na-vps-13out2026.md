@@ -58,11 +58,18 @@ desenho do `docs/36` §17 (issue #393).
 - Visto de passagem no `medir`: a tarefa `verificacao` **falhou** às 07:00
   UTC de 13/10/2026 (`exit-code`). Não é deste pedido: está por investigar.
 
+- 13/10/2026, fluxo `medir` depois de o #424 estar aplicado (execução
+  38384470412, 10:36 UTC), secção «envios» (§17.2, ponto 4):
+  - `ENVIOS_CHAVE na API no ar: sim (a variável está no contentor)`;
+  - `POST` à Sendcloud com a conta fictícia: `401 application/problem+json`
+    (chega à API, que recusa sem assinatura);
+  - `GET` à Sendcloud: `403 text/html` (nginx, `limit_except`);
+  - `POST` aos CTT e aos pagamentos: `404 text/html` (nginx).
+
 ## O que ficou por verificar
 
-- **Na VPS:** a `ENVIOS_CHAVE` na API no ar e as respostas de `/webhooks/`
-  (§17.2, ponto 4), pelo `medir` depois de o #424 estar aplicado; e a
-  cópia da chave fora da máquina (passo do Diogo ou do Bruno, à mão).
+- **Na VPS:** a cópia da chave fora da máquina (passo do Diogo ou do Bruno,
+  à mão). O §17.2, ponto 4, ficou medido a 13/10/2026 (acima).
 - **O `preparar.sh --mostrar`** num Ubuntu vazio corre no GitHub (fluxo
   `script-vps`), e não aqui.
 - **O nginx da VPS (Ubuntu)** é outra versão que a 1.27 do ensaio local; o

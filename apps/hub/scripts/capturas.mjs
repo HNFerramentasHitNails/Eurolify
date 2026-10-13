@@ -4730,6 +4730,11 @@ try {
         !(await caixaB.isChecked()),
       "publicar: a ENS-041 vem marcada e a ENS-041-B, que está fora, não (Q1)",
     );
+    confere(
+      (await rp.getByText("nova", { exact: true }).count()) === 1 &&
+        (await rp.getByText("fora", { exact: true }).count()) === 0,
+      "publicar: a ENS-041-B, acrescentada depois de publicar, diz «nova» (§27.5)",
+    );
     await caixaB.focus();
     await rp.keyboard.press("Space");
     await rp.getByRole("button", { name: "Verificar" }).focus();
