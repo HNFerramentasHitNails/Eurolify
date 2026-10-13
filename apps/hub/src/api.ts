@@ -795,7 +795,7 @@ export const api = {
     ligacao: string,
     corpo: ReturnType<typeof paraGravar>,
   ) =>
-    pedir<{ versao: number }>(
+    pedir<{ versao: number; estado: string }>(
       "PATCH",
       `/hub/invoicing-connections/${encodeURIComponent(ligacao)}`,
       { comerciante, corpo },

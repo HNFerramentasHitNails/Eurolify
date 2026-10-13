@@ -928,7 +928,8 @@ export const es: Textos = {
     "Los documentos de esta entidad salen del sistema propio.",
   faturacaoPorConfigurar:
     "Aún no se ha elegido quién emite los documentos de esta entidad.",
-  faturacaoSemLigacaoDono: "Esta entidad aún no está conectada a un software de facturación.",
+  faturacaoSemLigacaoDono:
+    "Esta entidad aún no está conectada a un software de facturación.",
   faturacaoCriarMoloni: "Crear la conexión a Moloni",
   faturacaoACriar: "Creando…",
   faturacaoJaExiste: "Esta entidad ya tiene una conexión. Leímos otra vez.",
@@ -984,8 +985,12 @@ export const es: Textos = {
   configurarGravado: "Guardado. La conexión quedó por probar.",
   configurarConflito:
     "Otra persona cambió esta conexión mientras tanto. Sus elecciones siguen en la pantalla: revíselas y guarde otra vez.",
+  configurarGravadoSemMudarEstado:
+    "Guardado. Pruebe la conexión para confirmar.",
+  configurarReleituraFalhou:
+    "No fue posible leer Moloni otra vez; sus elecciones siguen en la pantalla.",
   configurarIdInvalido:
-    "Moloni ya no tiene una de las elecciones: {erro} Las listas se leyeron otra vez.",
+    "Moloni rechazó una de las elecciones: {erro} Las listas se leyeron otra vez.",
   configurarOcupado:
     "Hay documentos a medias en Moloni en esta conexión. Resuélvalos antes de cambiar la configuración.",
   faturacaoOssTitulo: "Informe OSS",

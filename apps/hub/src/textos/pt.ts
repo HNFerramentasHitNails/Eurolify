@@ -919,7 +919,8 @@ export const pt = {
     "Os documentos desta entidade saem do sistema próprio.",
   faturacaoPorConfigurar:
     "Ainda não se escolheu quem emite os documentos desta entidade.",
-  faturacaoSemLigacaoDono: "Esta entidade ainda não está ligada a um software de faturação.",
+  faturacaoSemLigacaoDono:
+    "Esta entidade ainda não está ligada a um software de faturação.",
   faturacaoCriarMoloni: "Criar a ligação ao Moloni",
   faturacaoACriar: "A criar…",
   faturacaoJaExiste: "Esta entidade já tem uma ligação. Lemos outra vez.",
@@ -975,8 +976,11 @@ export const pt = {
   configurarGravado: "Gravado. A ligação ficou por testar.",
   configurarConflito:
     "Outra pessoa mudou esta ligação entretanto. As suas escolhas ficaram no ecrã: confira e grave outra vez.",
+  configurarGravadoSemMudarEstado: "Gravado. Teste a ligação para confirmar.",
+  configurarReleituraFalhou:
+    "Não foi possível ler o Moloni outra vez; as suas escolhas ficaram no ecrã.",
   configurarIdInvalido:
-    "O Moloni já não tem uma das escolhas: {erro} As listas foram lidas outra vez.",
+    "O Moloni recusou uma das escolhas: {erro} As listas foram lidas outra vez.",
   configurarOcupado:
     "Há documentos a meio no Moloni desta ligação. Resolva-os antes de mudar a configuração.",
   faturacaoOssTitulo: "Relatório OSS",

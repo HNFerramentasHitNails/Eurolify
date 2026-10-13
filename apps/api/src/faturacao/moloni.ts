@@ -294,16 +294,27 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
   // ------------------------------------------------------------ HTTP
 
   /** Espera se esta empresa já fez `porMinuto` pedidos no último minuto. */
-  private async limitar(empresa: string) {
+  private async limitar(empresa: string, doHub = false) {
     for (;;) {
       const agora = this.agora();
       const lista = (this.pedidos.get(empresa) ?? []).filter(
         (t) => agora - t < 60_000,
       );
-      if (lista.length < this.porMinuto) {
+      // As leituras do Hub (listas, pesquisa) só usam dois terços do limite
+      // e nunca esperam: o resto fica para as emissões (docs/22 §31;
+      // revisão do #412, P2-4).
+      const teto = doHub
+        ? Math.max(1, Math.floor((this.porMinuto * 2) / 3))
+        : this.porMinuto;
+      if (lista.length < teto) {
         lista.push(agora);
         this.pedidos.set(empresa, lista);
         return;
+      }
+      if (doHub) {
+        throw new ErroDoEmissor(
+          "o limite de pedidos ao Moloni desta empresa está ocupado; tentar daqui a um minuto",
+        );
       }
       const espera = 60_000 - (agora - (lista[0] ?? agora)) + 5;
       await new Promise((ok) => setTimeout(ok, espera));
@@ -359,6 +370,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     cred: CredenciaisEmissor,
     metodo: string,
     dados: Json = {},
+    doHub = false,
   ): Promise<unknown> {
     const token = cred["access_token"];
     const expira = Date.parse(cred["access_expira"] ?? "");
@@ -370,7 +382,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       throw new ErroDoEmissor("o token de acesso do Moloni expirou");
     }
     const empresa = this.empresa(cred);
-    await this.limitar(empresa);
+    await this.limitar(empresa, doHub);
     const corpo = metodo.startsWith("companies/")
       ? dados
       : { company_id: empresa, ...dados };
@@ -424,8 +436,9 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     cred: CredenciaisEmissor,
     metodo: string,
     dados: Json,
+    doHub = false,
   ): Promise<Json[]> {
-    const r = await this.api(cred, metodo, dados);
+    const r = await this.api(cred, metodo, dados, doHub);
     const erros = errosDe(r);
     if (erros !== null) {
       throw new ErroDoEmissor(
@@ -488,7 +501,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
    */
   async listas(credenciais: CredenciaisEmissor): Promise<ListasDoEmissor> {
     const ler = (metodo: string, dados: Json = {}) =>
-      this.lista(credenciais, metodo, dados);
+      this.lista(credenciais, metodo, dados, true);
     const series = await ler("documentSets/getAll");
     const taxas = await ler("taxes/getAll");
     const isencoes = await ler("taxExemptions/getAll");
@@ -510,7 +523,16 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     };
     return {
       series: opcoes(series, "document_set_id", "name"),
-      taxas: com(taxas, "tax_id", "name").map(({ x, o }) => ({
+      // Só as de IVA (saft_type 1, como na leitura dos documentos; sem o
+      // tipo, todas): uma de 23 % de outro imposto nunca se escolhe para um
+      // par de IVA (revisão do #412, P2-2).
+      taxas: com(
+        taxas.filter(
+          (t) => t["saft_type"] === undefined || Number(t["saft_type"]) === 1,
+        ),
+        "tax_id",
+        "name",
+      ).map(({ x, o }) => ({
         ...o,
         // Uma taxa sem valor legível fica com -1: nunca bate com nenhuma.
         valor: Math.round((numero(x["value"]) ?? -0.01) * 100),
@@ -542,6 +564,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       credenciais,
       tipo === "artigo" ? "products/getBySearch" : "customers/getBySearch",
       { search: texto, qty: 50, offset: 0 },
+      true,
     );
     if (tipo === "artigo") {
       return r.filter(temId("product_id")).map((a) => ({
@@ -564,7 +587,7 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
 
   async existe(
     credenciais: CredenciaisEmissor,
-    tipo: "artigo" | "cliente",
+    tipo: "artigo" | "cliente" | "consumidor_final",
     id: string,
   ): Promise<boolean> {
     if (!/^\d{1,12}$/.test(id)) return false;
@@ -573,8 +596,15 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
       credenciais,
       tipo === "artigo" ? "products/getOne" : "customers/getOne",
       { [campo]: id },
+      true,
     );
-    return r.some((x) => txt(x[campo]) === id);
+    const x = r.find((y) => txt(y[campo]) === id);
+    if (x === undefined) return false;
+    // O «Consumidor final» confere-se já ao gravar, como na emissão (M3;
+    // revisão do #412, P3-6); o contribuinte não sai daqui.
+    return (
+      tipo !== "consumidor_final" || txt(x["vat"]) === NIF_CONSUMIDOR_FINAL
+    );
   }
 
   async criarRascunho(

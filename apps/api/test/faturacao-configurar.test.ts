@@ -3,8 +3,10 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   criarEntidadeLegal,
+  criarLoja,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
+import { criarMercado } from "../src/precos/repositorio.js";
 import { AdaptadorMoloni } from "../src/faturacao/moloni.js";
 import {
   faltaNaLigacao,
@@ -202,6 +204,10 @@ describe.skipIf(URL_BASE === undefined)(
         valor: 2300,
         zona: "PT",
       });
+      // Só as de IVA: o imposto de selo de 23 % (saft_type 2) não aparece.
+      expect((listas["taxas"] as Json[]).map((x) => x["id"])).not.toContain(
+        "16",
+      );
       expect(listas["isencoes"]).toEqual([
         { id: "M16", nome: "Artigo 14.º do RITI" },
       ]);
@@ -239,6 +245,10 @@ describe.skipIf(URL_BASE === undefined)(
       ]);
       expect(JSON.stringify(r)).not.toContain("Rua de Teste");
       expect(JSON.stringify(r)).not.toMatch(/"vat"|"address"/);
+      // O que se pesquisou não vai para o registo (P1-1 do #412).
+      const registo = h.registo.join("");
+      expect(registo).toContain("issuer-search?tipo=cliente&q=[tapado]");
+      expect(registo).not.toContain("q=Consumidor");
       const artigos = await ok(
         como("dono", "GET", url("/issuer-search?tipo=artigo&q=Portes")),
       );
@@ -271,6 +281,16 @@ describe.skipIf(URL_BASE === undefined)(
         { config: { metodos_pagamento: { mb_way: "999" } } },
         { config: { artigo_portes: "999" } },
         { config: { cliente_consumidor_final: "999" } },
+        // Outro imposto com o mesmo valor (saft_type 2): não é IVA.
+        { taxas: [{ pais: "PT", taxa: 2300, emissor: "16" }] },
+        // Um cliente que existe, mas sem o NIF de consumidor final (P3-6).
+        {
+          config: {
+            cliente_consumidor_final: String(
+              moloni.cliente("501964843", "Rui Exemplo").customer_id,
+            ),
+          },
+        },
       ];
       for (const caso of casos) {
         expect(
@@ -323,7 +343,7 @@ describe.skipIf(URL_BASE === undefined)(
           },
         }),
       );
-      expect(r["versao"]).toBe(versao + 1);
+      expect(r).toEqual({ versao: versao + 1, estado: "por_testar" });
       const l = (
         (await ok(como("dono", "GET", "/hub/invoicing")))["ligacoes"] as Json[]
       )[0];
@@ -337,6 +357,185 @@ describe.skipIf(URL_BASE === undefined)(
         estado: "pronta",
         erro: null,
       });
+    });
+
+    it("confere-se só o que muda: uma escolha antiga que o Moloni já não tem não impede de gravar o resto (P2-1)", async () => {
+      const series = moloni.estado.listas.series;
+      moloni.estado.listas.series = [];
+      try {
+        const versao = Number(
+          (
+            (await ok(como("dono", "GET", url("/issuer-options"))))[
+              "ligacao"
+            ] as Json
+          )["versao"],
+        );
+        // A série «77» fica igual; só as isenções mudam. A ligação estava
+        // pronta: passa a por testar.
+        expect(
+          await ok(
+            como("dono", "PATCH", url(), { versao, serie: "77", isencoes: [] }),
+          ),
+        ).toEqual({ versao: versao + 1, estado: "por_testar" });
+        // Escolher outra vez uma que não existe continua recusado.
+        expect(
+          await codigo(
+            como("dono", "PATCH", url(), { versao: versao + 1, serie: "78" }),
+          ),
+        ).toEqual([400, "invoices.invalid_field"]);
+      } finally {
+        moloni.estado.listas.series = series;
+      }
+    });
+
+    it("credenciais recusadas pelo Moloni (401): issuer_error, e ler as listas nunca põe a ligação com erro", async () => {
+      const antes = (
+        (await ok(como("dono", "GET", "/hub/invoicing")))["ligacoes"] as Json[]
+      )[0];
+      const tokens = new Map(moloni.estado.tokens);
+      moloni.estado.tokens.clear();
+      try {
+        expect(
+          await codigo(como("dono", "GET", url("/issuer-options"))),
+        ).toEqual([502, "invoices.issuer_error"]);
+        expect(
+          await codigo(
+            como("dono", "GET", url("/issuer-search?tipo=artigo&q=Portes")),
+          ),
+        ).toEqual([502, "invoices.issuer_error"]);
+      } finally {
+        for (const [k, v] of tokens) moloni.estado.tokens.set(k, v);
+      }
+      const depois = (
+        (await ok(como("dono", "GET", "/hub/invoicing")))["ligacoes"] as Json[]
+      )[0];
+      expect(depois).toMatchObject({
+        estado: antes?.["estado"],
+        versao: antes?.["versao"],
+        erro: antes?.["erro"],
+      });
+    });
+
+    it("o que falta: só os países e os meios dos mercados activos desta entidade, e as taxas vigentes hoje (P2-5)", async () => {
+      // Taxas de Espanha só nesta base de teste: uma antiga, a vigente e uma
+      // futura (a tabela só se acrescenta).
+      await sql`insert into taxa_iva (pais, regiao, categoria, tipo, percentagem, inicio, fonte) values
+        ('ES', null, 'normal', 'taxa', 1800, '2000-01-01', 'teste'),
+        ('ES', null, 'normal', 'taxa', 2100, '2020-01-01', 'teste'),
+        ('ES', null, 'normal', 'taxa', 2200, '2099-01-01', 'teste'),
+        ('FR', null, 'normal', 'taxa', 2000, '2020-01-01', 'teste')`.execute(
+        base.dono,
+      );
+      const loja = await criarLoja(base.api, a, {
+        entidade_legal_id: entidade,
+        nome: "Loja online",
+      });
+      const mercado = async (
+        e: string,
+        nomeLoja: string,
+        paises: string[],
+        activo: boolean,
+      ) => {
+        const l =
+          e === entidade
+            ? loja
+            : await criarLoja(base.api, a, {
+                entidade_legal_id: e,
+                nome: nomeLoja,
+              });
+        const m = await criarMercado(base.api, a, {
+          loja_id: l,
+          nome: `Mercado ${paises.join(" ")}`,
+          paises,
+          moeda: "EUR",
+          linguas: ["pt"],
+          lingua_principal: "pt",
+        });
+        if (activo) {
+          // Sem lista de preços: activa-se à mão, só neste teste.
+          await base.dono.transaction().execute(async (trx) => {
+            await sql`alter table mercado disable trigger all`.execute(trx);
+            await sql`update mercado set estado = 'activo' where id = ${m}::uuid`.execute(
+              trx,
+            );
+            await sql`alter table mercado enable trigger all`.execute(trx);
+          });
+        }
+        return m;
+      };
+      const es = await mercado(entidade, "", ["ES"], true);
+      await mercado(entidade, "", ["IT"], false);
+      // Outra entidade do mesmo comerciante, com um mercado em França.
+      const outra = await criarEntidadeLegal(base.api, a, {
+        denominacao: "Outra Loja, Lda",
+        forma_juridica: "sociedade_por_quotas",
+        pais: "PT",
+        numero_fiscal: "503504564",
+        morada_linha: "Rua de Teste, 2",
+        morada_codigo_postal: "1000-002",
+        morada_localidade: "Lisboa",
+      });
+      await mercado(outra, "Loja da outra", ["FR"], true);
+      // Um método de pagamento activo no mercado de Espanha (posto à mão,
+      // sem conta de pagamentos: só a ligação ao mercado conta aqui).
+      await base.dono.transaction().execute(async (trx) => {
+        await sql`alter table metodo_pagamento disable trigger all`.execute(
+          trx,
+        );
+        await sql`insert into metodo_pagamento
+          (comerciante_id, loja_id, mercado_id, metodo, conta_id, prazo_minutos)
+          values (${a}::uuid, ${loja}::uuid, ${es}::uuid, 'multibanco',
+            ${randomUUID()}::uuid, 60)`.execute(trx);
+        await sql`alter table metodo_pagamento enable trigger all`.execute(trx);
+      });
+      const r = await ok(como("dono", "GET", url("/issuer-options")));
+      const n = r["necessario"] as {
+        taxas: { pais: string; taxa: number }[];
+        meios: string[];
+      };
+      expect(n.taxas.filter((t) => t.pais === "ES")).toEqual([
+        { pais: "ES", taxa: 2100 },
+      ]);
+      expect(n.taxas.some((t) => t.pais === "FR" || t.pais === "IT")).toBe(
+        false,
+      );
+      // As regiões de Portugal (Açores, Madeira) também são pares.
+      expect(n.taxas.filter((t) => t.pais === "PT")).toEqual([
+        { pais: "PT", taxa: 2300 },
+        { pais: "PT", taxa: 2200 },
+        { pais: "PT", taxa: 1600 },
+      ]);
+      expect(n.meios).toEqual(["multibanco"]);
+      // E o ecrã Faturação diz o mesmo, sem ler o Moloni.
+      const l = (
+        (await ok(como("dono", "GET", "/hub/invoicing")))["ligacoes"] as Json[]
+      ).find((x) => x["id"] === `isx_${ligacao}`);
+      expect((l?.["faltam"] as Json)["meios"]).toEqual(["multibanco"]);
+      expect((l?.["faltam"] as Json)["taxas"]).toContainEqual({
+        pais: "ES",
+        taxa: 2100,
+      });
+    });
+
+    it("uma entidade que emite pelo sistema próprio não ganha uma ligação ao Moloni (P3-12)", async () => {
+      const propria = await criarEntidadeLegal(base.api, a, {
+        denominacao: "Sistema Próprio, Lda",
+        forma_juridica: "sociedade_por_quotas",
+        pais: "PT",
+        numero_fiscal: "505959255",
+        morada_linha: "Rua de Teste, 3",
+        morada_codigo_postal: "1000-003",
+        morada_localidade: "Lisboa",
+      });
+      await sql`update entidade_legal set emissor_fiscal = 'sistema_proprio'
+        where id = ${propria}::uuid`.execute(base.dono);
+      expect(
+        await codigo(
+          como("dono", "POST", "/hub/invoicing-connections", {
+            entidade_legal: `lgl_${propria}`,
+          }),
+        ),
+      ).toEqual([409, "invoices.other_issuer"]);
     });
 
     it("o Moloni recusa ou não responde: issuer_error, e a ligação não muda", async () => {
@@ -396,8 +595,13 @@ describe.skipIf(URL_BASE === undefined)(
           'teste', 'rascunho', ${ligacao}::uuid)`);
       try {
         expect(
-          // Uma mudança a sério (a série já é «77»): tirar o mapa das isenções.
-          await codigo(como("dono", "PATCH", url(), { versao, isencoes: [] })),
+          // Uma mudança a sério: pôr outra vez o mapa da isenção M16.
+          await codigo(
+            como("dono", "PATCH", url(), {
+              versao,
+              isencoes: [{ codigo: "M16", emissor: "M16" }],
+            }),
+          ),
         ).toEqual([409, "invoices.issuer_busy"]);
       } finally {
         await semGatilhos(
@@ -497,5 +701,27 @@ describe("o que falta bate com a retenção", () => {
       "teste",
     );
     expect(isenta).toContain("isencao_sem_mapa");
+  });
+});
+
+// As leituras do Hub nunca gastam o limite das emissões (revisão do #412,
+// P2-4): com 12 por minuto, as listas (8 pedidos) passam uma vez; a segunda
+// recusa logo, sem esperar, e uma chamada da emissão ainda passa.
+describe("o limite de pedidos ao Moloni", () => {
+  it("as leituras do Hub param a dois terços e não esperam; o resto fica para as emissões", async () => {
+    const m = moloniFalso();
+    const a = new AdaptadorMoloni({
+      clientId: "dev-eurolify",
+      clientSecret: "segredo-do-developer",
+      empresasPermitidas: [String(m.empresa)],
+      fetch: m.fetch,
+      porMinuto: 12,
+    });
+    const cred = m.credenciais();
+    await a.listas(cred);
+    const antes = Date.now();
+    await expect(a.listas(cred)).rejects.toThrow(/limite de pedidos/);
+    expect(Date.now() - antes).toBeLessThan(1000);
+    await expect(a.testar(cred)).resolves.toBeUndefined();
   });
 });

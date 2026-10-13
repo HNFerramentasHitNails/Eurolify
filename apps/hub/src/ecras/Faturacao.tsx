@@ -221,12 +221,25 @@ function Entidade({
         <Titulo id={`ligacao-${e.id}`}>{t.faturacaoLigacaoTitulo}</Titulo>
         {e.emissor === "sistema_proprio" ? (
           <p>{t.faturacaoSistemaProprio}</p>
-        ) : l === null && ambitos.includes("invoices:accounts") ? (
-          <CriarLigacao
-            entidade={e}
-            comerciante={comerciante}
-            depoisDeCriar={depoisDeTestar}
-          />
+        ) : (l === null || !l.activa) &&
+          ambitos.includes("invoices:accounts") ? (
+          <>
+            {/* Uma desligada mostra-se, e pode criar-se outra (P3-7). */}
+            {l === null ? null : (
+              <Ligacao
+                ligacao={l}
+                podeMudar={false}
+                ligar={ligar}
+                comerciante={comerciante}
+                depoisDeTestar={depoisDeTestar}
+              />
+            )}
+            <CriarLigacao
+              entidade={e}
+              comerciante={comerciante}
+              depoisDeCriar={depoisDeTestar}
+            />
+          </>
         ) : e.emissor === "por_configurar" && l === null ? (
           <p>{t.faturacaoPorConfigurar}</p>
         ) : l === null ? (

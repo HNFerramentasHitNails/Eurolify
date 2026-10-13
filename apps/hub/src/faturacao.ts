@@ -347,10 +347,7 @@ export function escolhasDe(l: OpcoesDoEmissor["ligacao"]): Escolhas {
     serie: l.serie ?? "",
     taxas: Object.fromEntries(l.taxas.map((t) => [chaveDoPar(t), t.emissor])),
     isencoes: Object.fromEntries(l.isencoes.map((i) => [i.codigo, i.emissor])),
-    metodos:
-      typeof metodos === "object"
-        ? { ...metodos }
-        : ({}),
+    metodos: typeof metodos === "object" ? { ...metodos } : {},
     config: {
       lingua: texto("lingua"),
       vencimento: texto("vencimento"),

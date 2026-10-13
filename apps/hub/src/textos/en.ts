@@ -917,7 +917,8 @@ export const en: Textos = {
     "This entity's documents are issued by its own system.",
   faturacaoPorConfigurar:
     "Who issues this entity's documents has not been chosen yet.",
-  faturacaoSemLigacaoDono: "This entity is not yet connected to an invoicing software.",
+  faturacaoSemLigacaoDono:
+    "This entity is not yet connected to an invoicing software.",
   faturacaoCriarMoloni: "Create the Moloni connection",
   faturacaoACriar: "Creating…",
   faturacaoJaExiste: "This entity already has a connection. We read it again.",
@@ -973,8 +974,11 @@ export const en: Textos = {
   configurarGravado: "Saved. The connection now needs a test.",
   configurarConflito:
     "Someone else changed this connection in the meantime. Your choices are still on screen: check them and save again.",
+  configurarGravadoSemMudarEstado: "Saved. Test the connection to confirm.",
+  configurarReleituraFalhou:
+    "Moloni could not be read again; your choices are still on screen.",
   configurarIdInvalido:
-    "Moloni no longer has one of the choices: {erro} The lists were read again.",
+    "Moloni refused one of the choices: {erro} The lists were read again.",
   configurarOcupado:
     "There are documents half-way in Moloni on this connection. Resolve them before changing the configuration.",
   faturacaoOssTitulo: "OSS report",

@@ -506,10 +506,13 @@ async function necessarioDe(
     .select("pais")
     .where("id", "=", entidadeId)
     .executeTakeFirst();
+  // Só os mercados das lojas desta entidade (revisão do #412, P3-1).
   const mercados = await trx
     .selectFrom("mercado")
-    .select("paises")
-    .where("estado", "=", "activo")
+    .innerJoin("loja", "loja.id", "mercado.loja_id")
+    .select(["mercado.id", "mercado.paises"])
+    .where("mercado.estado", "=", "activo")
+    .where("loja.entidade_legal_id", "=", entidadeId)
     .execute();
   const paises = [
     ...new Set([
@@ -524,6 +527,15 @@ async function necessarioDe(
     .select(["pais", "regiao", "categoria", "tipo", "percentagem"])
     .select(sql<string>`to_char(inicio, 'YYYY-MM-DD')`.as("inicio"))
     .where("pais", "in", paises)
+    // Uma categoria arquivada já não decide nada (P3-1).
+    .where(
+      "categoria",
+      "in",
+      trx
+        .selectFrom("categoria_fiscal")
+        .select("codigo")
+        .where("estado", "<>", "arquivada"),
+    )
     .execute();
   // A de início mais recente até hoje, por (país, região, categoria) — como
   // `taxaEmVigor` no Motor.
@@ -550,13 +562,18 @@ async function necessarioDe(
     .orderBy("codigo")
     .execute();
   const vistos = new Set<string>();
-  const meios = await trx
-    .selectFrom("metodo_pagamento")
-    .select("metodo")
-    .distinct()
-    .where("estado", "=", "activo")
-    .orderBy("metodo")
-    .execute();
+  const idsDosMercados = mercados.map((m) => m.id);
+  const meios =
+    idsDosMercados.length === 0
+      ? []
+      : await trx
+          .selectFrom("metodo_pagamento")
+          .select("metodo")
+          .distinct()
+          .where("estado", "=", "activo")
+          .where("mercado_id", "in", idsDosMercados)
+          .orderBy("metodo")
+          .execute();
   return {
     taxas: [...pares.values()].sort(
       (a, b) => a.pais.localeCompare(b.pais) || b.taxa - a.taxa,
@@ -633,6 +650,19 @@ export async function criarLigacaoMoloni(
   }
   return noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem);
+    // Quem emite pelo sistema próprio não emite pelo Eurolify (docs/29 §15;
+    // revisão do #412, P3-12).
+    const e = await trx
+      .selectFrom("entidade_legal")
+      .select("emissor_fiscal")
+      .where("id", "=", entidadeId)
+      .executeTakeFirst();
+    if (e?.emissor_fiscal === "sistema_proprio") {
+      throw new ErroDocumentos(
+        "invoices.other_issuer",
+        "os documentos desta entidade saem do sistema próprio",
+      );
+    }
     return criarLigacao(
       trx,
       c,
@@ -670,7 +700,17 @@ async function paraLerNoEmissor(
   id: string,
   cfg: ConfigFaturacao | undefined,
 ) {
-  const l = await noDocumentos(db, c, (trx) => ligacaoParaMudar(trx, id, null));
+  // Só leitura: sem trancar a ligação (revisão do #412, P3-10).
+  const l = await noDocumentos(db, c, (trx) =>
+    trx
+      .selectFrom("ligacao_faturacao")
+      .selectAll()
+      .where("id", "=", id)
+      .executeTakeFirst(),
+  );
+  if (l === undefined) {
+    throw new ErroDocumentos("invoices.not_found", "esta ligação não existe");
+  }
   if (!l.activa) {
     throw new ErroDocumentos(
       "invoices.invalid_transition",
@@ -702,7 +742,7 @@ async function paraLerNoEmissor(
     existe:
       existe === undefined
         ? null
-        : (tipo: "artigo" | "cliente", id: string) =>
+        : (tipo: "artigo" | "cliente" | "consumidor_final", id: string) =>
             doEmissor(() => existe(cred, tipo, id)),
   };
 }
@@ -794,12 +834,23 @@ export async function configurarLigacao(
   };
   const tem = (lista: { id: string }[], v: string) =>
     lista.some((o) => o.id === v);
-  if (dados.serie != null && !tem(listas.series, dados.serie)) {
+  // Confere-se só o que muda: uma linha gravada antes, que o ecrã não
+  // mostra, nunca impede de gravar o resto (revisão do #412, P2-1).
+  const antes = l.config;
+  if (
+    dados.serie != null &&
+    dados.serie !== l.serie &&
+    !tem(listas.series, dados.serie)
+  ) {
     recusa(`a série ${dados.serie}`);
   }
   for (const t of dados.taxas ?? []) {
+    const igual = l.taxas.some(
+      (x) => x.pais === t.pais && x.taxa === t.taxa && x.emissor === t.emissor,
+    );
+    if (igual) continue;
     const daLista = listas.taxas.find((o) => o.id === t.emissor);
-    if (daLista === undefined) recusa(`a taxa ${t.emissor}`);
+    if (daLista === undefined) recusa(`a taxa de IVA ${t.emissor}`);
     else if (daLista.valor !== t.taxa) {
       throw new ErroDocumentos(
         "invoices.invalid_field",
@@ -808,7 +859,12 @@ export async function configurarLigacao(
     }
   }
   for (const i of dados.isencoes ?? []) {
-    if (!tem(listas.isencoes, i.emissor)) recusa(`a isenção ${i.emissor}`);
+    const igual = l.isencoes.some(
+      (x) => x.codigo === i.codigo && x.emissor === i.emissor,
+    );
+    if (!igual && !tem(listas.isencoes, i.emissor)) {
+      recusa(`a isenção ${i.emissor}`);
+    }
   }
   const config = dados.config ?? {};
   const porLista: [string, { id: string }[]][] = [
@@ -819,28 +875,46 @@ export async function configurarLigacao(
   ];
   for (const [chave, lista] of porLista) {
     const v = config[chave];
-    if (typeof v === "string" && !tem(lista, v)) recusa(`${chave} ${v}`);
+    if (typeof v === "string" && v !== antes[chave] && !tem(lista, v)) {
+      recusa(`${chave} ${v}`);
+    }
   }
   for (const [meio, v] of Object.entries(config.metodos_pagamento ?? {})) {
-    if (!tem(listas.metodos_pagamento, v)) {
+    if (
+      v !== antes.metodos_pagamento?.[meio] &&
+      !tem(listas.metodos_pagamento, v)
+    ) {
       recusa(`o método de pagamento ${v} (${meio})`);
     }
   }
-  const porId: [string, "artigo" | "cliente"][] = [
+  const porId: [string, "artigo" | "consumidor_final"][] = [
     ["artigo_portes", "artigo"],
-    ["cliente_consumidor_final", "cliente"],
+    ["cliente_consumidor_final", "consumidor_final"],
   ];
   for (const [chave, tipo] of porId) {
     const v = config[chave];
-    if (typeof v !== "string") continue;
+    if (typeof v !== "string" || v === antes[chave]) continue;
     if (emissor.existe === null) recusa(`${chave} ${v}`);
     else if (!(await emissor.existe(tipo, v))) {
-      recusa(`${tipo === "artigo" ? "o artigo" : "o cliente"} ${v}`);
+      throw new ErroDocumentos(
+        "invoices.invalid_field",
+        tipo === "artigo"
+          ? `o artigo ${v} não existe no emissor: escolher outra vez da lista`
+          : `o cliente ${v} não existe no emissor ou não tem o NIF de consumidor final`,
+      );
     }
   }
   return noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem);
-    return mudarLigacao(trx, c, id, versao, dados);
+    const nova = await mudarLigacao(trx, c, id, versao, dados);
+    // O estado como ficou (o gatilho decide se passou a «por testar»;
+    // revisão do #412, P3-4).
+    const { estado } = await trx
+      .selectFrom("ligacao_faturacao")
+      .select("estado")
+      .where("id", "=", id)
+      .executeTakeFirstOrThrow();
+    return { versao: nova, estado };
   });
 }
 

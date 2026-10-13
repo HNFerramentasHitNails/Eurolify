@@ -68,35 +68,54 @@ export function ConfigurarFaturacao({
   const [aTestar, setATestar] = useState(false);
   /** O texto de um artigo ou cliente escolhido por pesquisa nesta visita. */
   const [nomes, setNomes] = useState<Record<string, string>>({});
+  const [releituraFalhou, setReleituraFalhou] = useState(false);
   const ultimo = useRef(0);
 
-  /** Lê as listas; `manter`: as escolhas no ecrã ficam (conflito, id velho). */
+  const testarRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Lê as listas. `abrir`: do zero; `manter`: as escolhas no ecrã ficam
+   * (conflito, id velho); `gravado`: as escolhas passam a ser as gravadas.
+   * Fora de `abrir`, o formulário nunca se desmonta (o foco e o aviso ficam;
+   * revisão do #412, P2-3) e uma releitura que falha não apaga as escolhas
+   * (P3-8).
+   */
   const carregar = useCallback(
-    async (manter: boolean) => {
+    async (modo: "abrir" | "manter" | "gravado") => {
       if (!valido) return;
       const este = ++ultimo.current;
-      setFalha(null);
-      if (!manter) setOpcoes(null);
+      if (modo === "abrir") {
+        setFalha(null);
+        setOpcoes(null);
+      }
       try {
         const r = await api.opcoesDoEmissor(comerciante, ligacao);
         if (este !== ultimo.current) return;
         setOpcoes(r);
-        setEscolhas((e) => (manter && e !== null ? e : escolhasDe(r.ligacao)));
+        setEscolhas((e) =>
+          modo === "manter" && e !== null ? e : escolhasDe(r.ligacao),
+        );
       } catch (e) {
         if (este !== ultimo.current) return;
         if (semSessao(e)) {
           navegar("/entrar", { substituir: true });
           return;
         }
-        setFalha(e);
+        if (modo === "abrir") setFalha(e);
+        else setReleituraFalhou(true);
       }
     },
     [valido, comerciante, ligacao, navegar],
   );
 
   useEffect(() => {
-    void carregar(false);
+    void carregar("abrir");
   }, [carregar]);
+
+  // Depois de gravar, o foco vai para «Testar», o passo seguinte (§31.7).
+  useEffect(() => {
+    if (gravado) testarRef.current?.focus();
+  }, [gravado]);
 
   if (!valido) {
     return (
@@ -121,16 +140,25 @@ export function ConfigurarFaturacao({
     if (opcoes === null || escolhas === null) return;
     setAGravar(true);
     setAviso(null);
+    setReleituraFalhou(false);
     try {
-      await api.configurarLigacao(
+      const r = await api.configurarLigacao(
         comerciante as string,
         ligacao as string,
         paraGravar(escolhas, opcoes.ligacao.versao),
       );
+      // O estado como a API o devolve: só uma ligação pronta passa a «por
+      // testar» (P3-4).
+      setAviso({
+        texto:
+          r.estado === "por_testar"
+            ? t.configurarGravado
+            : t.configurarGravadoSemMudarEstado,
+        erro: false,
+      });
+      // Relê o que ficou gravado (e a versão nova), sem desmontar.
+      await carregar("gravado");
       setGravado(true);
-      setAviso({ texto: t.configurarGravado, erro: false });
-      // Relê o que ficou gravado (e a versão nova).
-      await carregar(false);
     } catch (x) {
       const f = await falhaDeAccao(x);
       if (f === null) {
@@ -139,7 +167,7 @@ export function ConfigurarFaturacao({
       }
       if (f instanceof ErroHub && f.codigo === "invoices.version_conflict") {
         setAviso({ texto: t.configurarConflito, erro: true });
-        await carregar(true);
+        await carregar("manter");
       } else if (
         f instanceof ErroHub &&
         f.codigo === "invoices.invalid_field"
@@ -148,7 +176,7 @@ export function ConfigurarFaturacao({
           texto: preencher(t.configurarIdInvalido, { erro: f.detalhe ?? "" }),
           erro: true,
         });
-        await carregar(true);
+        await carregar("manter");
       } else if (f instanceof ErroHub && f.codigo === "invoices.issuer_busy") {
         setAviso({ texto: t.configurarOcupado, erro: true });
       } else {
@@ -212,7 +240,7 @@ export function ConfigurarFaturacao({
       {falha !== null ? (
         <CaixaDeErro
           erro={{ texto: textoDaFalha(falha) }}
-          aoTentar={() => void carregar(false)}
+          aoTentar={() => void carregar("abrir")}
         />
       ) : opcoes === null || escolhas === null ? (
         <p role="status">{t.configurarALer}</p>
@@ -225,26 +253,23 @@ export function ConfigurarFaturacao({
             void gravar();
           }}
         >
-          <fieldset>
-            <legend>{t.configurarSerie}</legend>
-            <Escolha
-              id="serie"
-              rotulo={t.configurarSerie}
-              valor={escolhas.serie}
-              grupos={[
-                {
-                  rotulo: null,
-                  opcoes: opcoes.listas.series.map((o) => ({
-                    id: o.id,
-                    texto: opcaoSimples(t, o),
-                  })),
-                },
-              ]}
-              aoMudar={(v) => {
-                mudar((e) => ({ ...e, serie: v }));
-              }}
-            />
-          </fieldset>
+          <Escolha
+            id="serie"
+            rotulo={t.configurarSerie}
+            valor={escolhas.serie}
+            grupos={[
+              {
+                rotulo: null,
+                opcoes: opcoes.listas.series.map((o) => ({
+                  id: o.id,
+                  texto: opcaoSimples(t, o),
+                })),
+              },
+            ]}
+            aoMudar={(v) => {
+              mudar((e) => ({ ...e, serie: v }));
+            }}
+          />
 
           <fieldset>
             <legend>{t.configurarTaxas}</legend>
@@ -431,6 +456,11 @@ export function ConfigurarFaturacao({
               {aviso.texto}
             </p>
           )}
+          {releituraFalhou ? (
+            <p className="erro" role="status">
+              {t.configurarReleituraFalhou}
+            </p>
+          ) : null}
           <div className="accoes-tarefa">
             <button type="submit" className="principal" disabled={aGravar}>
               {aGravar ? t.configurarAGravar : t.configurarGravar}
@@ -438,6 +468,7 @@ export function ConfigurarFaturacao({
             {gravado ? (
               <button
                 type="button"
+                ref={testarRef}
                 disabled={aTestar}
                 onClick={() => void testar()}
               >
@@ -472,11 +503,14 @@ function Escolha({
     valor === "" || grupos.some((g) => g.opcoes.some((o) => o.id === valor));
   return (
     <div className="campo">
-      <label htmlFor={`escolha-${id}`}>{rotulo}</label>
+      {/* Sem lista, não há campo: o rótulo é texto (P2-3). */}
       {vazia ? (
-        <p className="secundario" id={`escolha-${id}`}>
-          {t.configurarListaVazia}
-        </p>
+        <p className="rotulo">{rotulo}</p>
+      ) : (
+        <label htmlFor={`escolha-${id}`}>{rotulo}</label>
+      )}
+      {vazia ? (
+        <p className="secundario">{t.configurarListaVazia}</p>
       ) : (
         <select
           id={`escolha-${id}`}

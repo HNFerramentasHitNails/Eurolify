@@ -723,7 +723,7 @@ export function rotasDosDocumentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §31): grava a série, os mapas e a configuração no emissor, como PATCH /invoicing-connections/{id}. Antes, relê as listas do software de faturação e recusa (`invoices.invalid_field`) um id que lá não exista ou uma taxa do emissor com outro valor que o do par. A ligação fica por testar; com documentos a meio no emissor, recusa (R15). Com `invoices:accounts`.",
+          "Pelo Hub (docs/22 §31): grava a série, os mapas e a configuração no emissor, como PATCH /invoicing-connections/{id}. Antes, relê as listas do software de faturação e recusa (`invoices.invalid_field`) um id que lá não exista ou uma taxa do emissor com outro valor que o do par. Confere só o que muda. Uma ligação pronta fica por testar (devolve o estado em que ficou); com documentos a meio no emissor, recusa (R15). Com `invoices:accounts`.",
         params: Type.Object({ id: IdLigacao }),
         body: Type.Object(
           {
@@ -736,7 +736,7 @@ export function rotasDosDocumentos(
           { additionalProperties: false },
         ),
         response: {
-          200: Type.Object({ versao: Type.Integer() }),
+          200: Type.Object({ versao: Type.Integer(), estado: Type.String() }),
           ...RESPOSTA_DE_ERRO,
         },
       },
@@ -745,17 +745,15 @@ export function rotasDosDocumentos(
       emDocumentos(resposta, async () => {
         const s = daSessao(pedido, "invoices:accounts");
         const { versao, ...dados } = pedido.body;
-        return {
-          versao: await configurarLigacao(
-            base,
-            s.comercianteId,
-            semPrefixo(pedido.params.id),
-            versao,
-            dados,
-            cfg,
-            s.quem,
-          ),
-        };
+        return configurarLigacao(
+          base,
+          s.comercianteId,
+          semPrefixo(pedido.params.id),
+          versao,
+          dados,
+          cfg,
+          s.quem,
+        );
       }),
   );
 

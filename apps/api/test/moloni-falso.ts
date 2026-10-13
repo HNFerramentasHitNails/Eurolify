@@ -126,6 +126,14 @@ export function moloniFalso() {
           saft_type: 1,
           fiscal_zone: "PT",
         },
+        // Outro imposto (não IVA) com o mesmo valor: nunca se escolhe.
+        {
+          tax_id: 16,
+          name: "Imposto de selo",
+          value: 23,
+          saft_type: 2,
+          fiscal_zone: "PT",
+        },
         {
           tax_id: 13,
           name: "IVA normal ES",

@@ -205,10 +205,13 @@ export interface AdaptadorFaturacao {
     tipo: "artigo" | "cliente",
     texto: string,
   ): Promise<ResultadoNoEmissor[]>;
-  /** Se o artigo ou o cliente com este id existe no emissor. */
+  /**
+   * Se o artigo ou o cliente com este id existe no emissor; para
+   * `consumidor_final`, também se tem o NIF de consumidor final.
+   */
   existe?(
     credenciais: CredenciaisEmissor,
-    tipo: "artigo" | "cliente",
+    tipo: "artigo" | "cliente" | "consumidor_final",
     id: string,
   ): Promise<boolean>;
   criarRascunho(
