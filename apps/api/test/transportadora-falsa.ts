@@ -6,6 +6,7 @@ import {
   type EtiquetaEmitida,
   type EventoSeguimento,
   type PedidoEtiqueta,
+  type PontoRecolha,
 } from "../src/envios/adaptador.js";
 
 // Uma transportadora de ensaio com o contrato inteiro do docs/36 §8: os
@@ -33,6 +34,13 @@ export function transportadoraFalsa() {
     eventos: new Map<string, EventoSeguimento[]>(),
     anuladas: [] as string[],
     numero: 0,
+    /** Os pontos de recolha da procura (docs/36 §21). */
+    pontos: [] as PontoRecolha[],
+    /** O que a procura recebeu (para ver que só sai o país e o código postal). */
+    procuras: [] as unknown[],
+    /** Os pontos que já não recebem; «rede» = não responde. */
+    pontosFechados: new Set<string>(),
+    disponibilidade: "responde" as "responde" | "rede",
   };
   const emitir = (referencia: string): EtiquetaEmitida => {
     estado.numero += 1;
@@ -69,6 +77,16 @@ export function transportadoraFalsa() {
         aceitaOnu: [],
       },
       {
+        codigo: "PONTO_48",
+        nome: { pt: "Entrega num ponto, 48 h" },
+        paises: ["PT"],
+        pesoMaxG: 10_000,
+        pedeTelefone: false,
+        pedeEmail: false,
+        aceitaOnu: [],
+        ponto: true,
+      },
+      {
         codigo: "SO_ESPANHA",
         nome: { pt: "Só Espanha" },
         paises: ["ES"],
@@ -78,6 +96,19 @@ export function transportadoraFalsa() {
         aceitaOnu: [],
       },
     ],
+    procurarPontos(_c, pedido) {
+      estado.procuras.push(pedido);
+      if (estado.consultar === "rede") {
+        return Promise.reject(new ErroDeRede("tempo esgotado"));
+      }
+      return Promise.resolve(estado.pontos.slice(0, pedido.limite));
+    },
+    pontoDisponivel(_c, ponto) {
+      if (estado.disponibilidade === "rede") {
+        return Promise.reject(new ErroDeRede("tempo esgotado"));
+      }
+      return Promise.resolve(!estado.pontosFechados.has(ponto));
+    },
     testar(credenciais: CredenciaisTransportadora) {
       return credenciais["chave"] === CHAVE_BOA
         ? Promise.resolve()

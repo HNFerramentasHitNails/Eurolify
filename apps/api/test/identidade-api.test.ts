@@ -227,6 +227,8 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       "/checkout/{token}/payment",
       "/checkout/{token}/payment-method",
       "/checkout/{token}/payment-methods",
+      "/checkout/{token}/pickup-point",
+      "/checkout/{token}/pickup-points",
       "/checkout/{token}/place",
       "/checkout/{token}/summary",
       "/checkouts",

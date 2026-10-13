@@ -176,6 +176,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0087_envios_aviso_tentativa",
         "0088_tarefas_em_atraso",
         "0089_relatorio_oss_a_parte",
+        "0090_envios_pontos_de_recolha",
       ]);
     });
 

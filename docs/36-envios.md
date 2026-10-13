@@ -322,6 +322,11 @@ contra um ambiente de teste.
 - Se o art. 19.º do DL 24/2014 (reembolso em dobro) se aplica à expedição
   perdida ou só à indisponibilidade do bem (L4).
 - Os textos da data-limite e das restrições de entrega por língua (L1, L3).
+- Entrega num ponto de recolha (§21):
+  - se o dono do ponto é «terceiro indicado pelo consumidor» (L5);
+  - se o país do ponto, que passa a ser o país de entrega, decide os textos
+    de consumidor e o IVA quando o cliente vive noutro país (revisão do #439,
+    P3-4).
 
 ## 13. Como entra no código (quando aprovado)
 
@@ -1105,3 +1110,193 @@ destino e a conferência no envio), os modelos PT, ES e EN, o T10 do
   nas notificações não entra no apagamento do titular (0072) e sai com elas
   aos 90 dias: decisão do Diogo, 13/10/2026 (*«fica como está»*; a base
   jurídica continua **C**).
+
+## 21. Entrega num ponto de recolha ou cacifo (desenho; parte 3, Q5, issue #393)
+
+Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
+envios»*. **Aprovado** pelo Diogo a 13/10/2026 (*«sim, aprovo; avança com o
+código»*), com a morada de casa dispensada na entrega num ponto. A Q5 (`docs/06`, ED) pôs os
+pontos de recolha e os cacifos na parte 3; os CTT continuam à espera da
+especificação (§11, V1), por isso esta parte usa só a **Sendcloud**. Skills:
+`order-fulfilment`, `consumer-rights-eu`, `eu-gdpr-privacy`,
+`eu-localization`, `headless-commerce`, `observability-security`.
+
+Ex.: um cliente em Braga escolhe «Entrega num ponto (2–4 dias úteis)», escreve
+o código postal `4700-000` e o checkout mostra os pontos mais próximos da
+transportadora do método. Escolhe a loja «Papelaria Central». A etiqueta sai
+com esse ponto; quando a transportadora diz `pup`, a expedição fica «para
+levantar» e o comerciante recebe o aviso do §20. Só fica `entregue` quando o
+cliente levanta a encomenda.
+
+### 21.1 O que se leu (Sendcloud, W)
+
+Documentação da Sendcloud lida a 13/10/2026 em `sendcloud.dev` (resumos da
+página, **W**). Nada se correu contra uma conta real.
+
+| Ponto | O que diz | Página |
+|---|---|---|
+| Procurar | `GET /api/v3/service-points`, com `country_code` (obrigatório), `carrier_code` ou `use_integration_carriers`, a morada (`address_postal_code`, …) ou `latitude`/`longitude`, `radius`, `limit`. Só do servidor: a API **não aceita autenticação no navegador** | `docs/service-points/find-service-points-with-the-api` |
+| O ponto | `id`, `name`, `carrier`, `carrier_service_point_id`, `address` (rua, número, código postal, localidade, país), `position`, `opening_times`, `is_open_tomorrow`, `next_open_at`, `is_expired`, `distance` | idem |
+| Ainda existe? | os resultados **não garantem** que o ponto está disponível; `POST /api/v3/service-points/{id}/check-availability` devolve `is_available` e deve correr **antes de criar o envio** | idem |
+| Serviço compatível | `POST /api/v3/shipping-options` com `to_service_point.id`, ou, sem ponto, `functionalities.last_mile = service_point` | `docs/service-points/create-a-shipment-with-service-point-delivery` |
+| Etiqueta | `POST /api/v3/shipments/announce` com `to_service_point.id`; o exemplo leva o nome e o e-mail do cliente em `to_address` (a regra não está escrita) | idem |
+
+**Não se leu:** se o telefone ou o e-mail são obrigatórios na entrega num
+ponto; os erros de um ponto fechado; se o `delivered` de um envio para um
+ponto quer dizer «levantado pelo cliente» ou «deixado no ponto» (V8).
+
+### 21.2 A regra legal que manda aqui
+
+| # | Regra | Fonte (`eur-lex`, lida a 13/10/2026) |
+|---|---|---|
+| L5 | **Chegar ao ponto não é entregar.** O bem está entregue quando o consumidor (ou um terceiro que ele indicou, que não o transportador) tem a posse física. O «para levantar» não é `entregue`: a livre resolução (L6) e o risco (art. 20.º) só contam do levantamento | DL 84/2021, art. 11.º, n.º 1 (original do DRE, `legislacao-pt/decreto-lei-84-2021.md`, obtido a 10/10/2026); Dir. 2011/83/UE, art. 20.º (consolidada aplicável desde 27/09/2026, `corpus/consumidores-e-vendas/32011L0083-direitos-dos-consumidores.md`) |
+| L1, L2 | A modalidade «entrega num ponto», o preço e a data-limite dizem-se antes da compra, como os outros métodos | §5 |
+| — | **Se o dono do ponto é «terceiro indicado pelo consumidor»** (e o bem fica entregue ao chegar): não encontrei regra no corpus (procurei «ponto de recolha», «cacifo» no DL 84/2021, no DL 24/2014 e no corpus de consumidores, sem resultados). Fica a leitura prudente — entregue só no levantamento — e a pergunta vai para o jurista (§12) | **C** |
+
+### 21.3 O que entra
+
+| O quê | Regra |
+|---|---|
+| **O método diz onde entrega**: `entrega` = `morada` (como hoje) ou `ponto` | um método `ponto` só aceita um serviço que a Sendcloud declare para pontos (`last_mile = service_point`); hoje esses ficam de fora (§16.3, D3) e passam a entrar só nestes métodos |
+| **Procurar pontos no checkout**: `GET /checkout/{token}/pickup-points?postal_code=…` | o servidor pergunta à Sendcloud com a conta do comerciante, a transportadora do serviço e o país do mercado; devolve até 10 pontos (nome, morada, horário, distância). **Só o código postal** sai para a Sendcloud, nunca a rua nem o nome. No máximo 20 procuras por sessão de checkout |
+| **Escolher o ponto**: `PUT /checkout/{token}/delivery` com `ponto` | o servidor relê o ponto na Sendcloud (não confia no que o navegador manda) e guarda uma cópia: id, id da transportadora, nome, morada. O ponto tem de ser do país do mercado e de uma zona do método (R4, pelo código postal do ponto) |
+| **A morada do cliente** | numa entrega num ponto **não se pede a morada de casa** (minimização; aprovado); pede-se o nome e o contacto que o serviço exigir (V7) |
+| **Antes do botão final** | `check-availability`; se o ponto já não estiver disponível, ou a Sendcloud não responder, o resumo bloqueia com `shipping.pickup_point_unavailable` e o cliente escolhe outro. **Na dúvida, não vende** (R4) |
+| **A encomenda e a expedição** | guardam a cópia do ponto na `entrega` (como a morada hoje); a etiqueta leva `to_service_point.id` e o serviço vendido (R1) |
+| **Estados** | `pup` ⇒ «para levantar» (já é assim, D6); `entregue` só com o evento que a transportadora dá **depois do levantamento** (L5, V8). Um ponto que devolve a encomenda por não ser levantada ⇒ `devolvida_ao_remetente`, como hoje |
+| **O Hub** | o método ganha «Onde entrega: morada / ponto de recolha»; a expedição em «Expedir» mostra o ponto (nome e morada do ponto, nunca a do cliente). Capturas para o OK do aspecto |
+| **Erros novos** | `shipping.pickup_point_unavailable` (409), `shipping.pickup_point_required` (422, método `ponto` sem ponto), `shipping.pickup_point_outside_zone` (422) |
+
+### 21.4 O que fica de fora, e porquê
+
+| Fica de fora |
+|---|
+| **Os pontos dos CTT**: sem especificação (§11, V1) |
+| **O mapa da Sendcloud no checkout** («hosted picker»): é código de terceiros a correr na página do checkout, que mostraria à Sendcloud quem procura. A lista vem do servidor |
+| **Cacifos com número de cliente** (`to_address.po_box`, ex.: DHL PackStation): não há em PT; entram com um mercado que os tenha |
+| **Mudar de ponto depois da compra**: é uma alteração ao contrato; fica para a pós-venda, se um comerciante pedir |
+| **Pesquisa por coordenadas ou pela localização do telemóvel**: só o código postal (minimização) |
+
+### 21.5 Dados pessoais
+
+- O ponto escolhido, junto com a encomenda, diz por onde o cliente anda:
+  fica **na encomenda**, com a retenção dela, e nunca nos eventos
+  (`shipment.*`), nos registos nem nos avisos do §20.
+- Para a Sendcloud vai, antes da compra, só o código postal da procura; e,
+  na etiqueta, o que já ia (§6, D9) mais o id do ponto.
+- O tratamento T10 / o tratamento das encomendas do `docs/17` ganham a
+  finalidade «escolher o ponto»; **C** como o resto do §6.
+
+### 21.6 Por onde é que isto ainda pode sair errado
+
+- **O ponto fecha entre a escolha e a etiqueta**: a etiqueta é recusada
+  (`label_refused`, D8) e a expedição fica à espera de uma pessoa, com o
+  motivo; o cliente não é avisado automaticamente (§20.2: espera pelo
+  serviço transaccional).
+- **A Sendcloud em baixo no checkout**: o método `ponto` não se pode
+  concluir; os métodos `morada` continuam a funcionar.
+- **«Entregue» cedo de mais** (V8): se a transportadora disser `delivered`
+  quando deixa no ponto, a livre resolução começava a contar antes de o
+  cliente ter o bem. Até verificar, um `delivered` num envio para ponto que
+  não venha depois de `pup` fica em «outro» (só no histórico) e a pessoa
+  marca a entrega à mão.
+- **Muitas procuras**: 20 por sessão e o limite geral do checkout; os 1000
+  pedidos/min de leitura da Sendcloud são da conta do comerciante.
+
+### 21.7 Testes que têm de falhar sem a protecção
+
+- um método `ponto` sem ponto escolhido não deixa concluir; um ponto de outro
+  país ou fora da zona é recusado;
+- o ponto mandado pelo navegador com outra morada fica com a morada que a
+  Sendcloud devolve;
+- um ponto indisponível no botão final bloqueia; a Sendcloud sem resposta
+  também;
+- a procura não manda à Sendcloud nada além do código postal (a Sendcloud de
+  ensaio regista o pedido);
+- a etiqueta leva `to_service_point.id` e o serviço vendido;
+- `pup` ⇒ para levantar, sem `entregue`; `delivered` sem `pup` antes fica
+  em «outro»;
+- os eventos e os avisos não levam a morada do ponto;
+- isolamento: a procura usa só a conta do comerciante da sessão.
+
+### 21.8 Por verificar numa conta de teste
+
+| # | O quê |
+|---|---|
+| V7 | se a entrega num ponto exige telefone ou e-mail de quem recebe (CTT Expresso e as outras de PT) |
+| V8 | o que quer dizer `delivered` num envio para um ponto (levantado ou deixado) |
+| V9 | os erros da Sendcloud para um ponto fechado ou inexistente |
+
+### 21.9 Como entra no código
+
+Dois pedidos, por esta ordem:
+1. **API e base** (migração nova): o campo `entrega` do método, a procura e a
+   escolha no checkout, a verificação no botão final, a etiqueta com o
+   ponto, o `delivered` prudente, os testes e a revisão do agente.
+2. **Hub**: o campo no método e o ponto em «Expedir», com capturas para o
+   OK do aspecto.
+
+### 21.10 Em código (13/10/2026; migração 0090)
+
+| O quê | Onde |
+|---|---|
+| o método ganha `entrega` (`morada` ou `ponto`; um `ponto` tem sempre conta e serviço); a sessão conta as procuras (`procuras_pontos`, no máximo 20) | migração 0090 |
+| o contrato: o serviço diz se é de ponto (`ponto`); `procurarPontos` e `pontoDisponivel` (opcionais); a etiqueta leva o `ponto` | `src/envios/adaptador.ts` |
+| a Sendcloud: um serviço com `is_service_point_required` passa a ser de ponto (deixa de ficar de fora, D3); `GET /service-points` com `country_code`, `address_postal_code`, `carrier_code` (a parte do código do serviço antes de «:») e `limit`; `POST /service-points/{id}/check-availability`; `to_service_point.id` no anúncio | `src/envios/sendcloud.ts` |
+| o método e o serviço dizem o mesmo sobre onde entregam (criar e mudar um método; mudar o serviço de uma expedição, §19; pedir a etiqueta) | `src/checkout/repositorio.ts` (`conferirEnviosDoMetodo`), `src/envios/correcoes.ts` (`porQueNaoServeACaixa`) |
+| `GET /checkout/{token}/pickup-points?metodo&pais&codigo_postal` e `PUT /checkout/{token}/pickup-point`; a conferência do ponto antes do botão final; a zona do método pelo ponto | `src/checkout/rotas.ts`, `src/checkout/repositorio.ts` |
+| o «entregue» de um envio para um ponto sem «para levantar» antes fica em «outro» e abre um problema na encomenda | `src/envios/etiquetas.ts` (`aplicarEventos`) |
+| 6 testes pela API com a transportadora de ensaio; 2 do adaptador contra a Sendcloud de ensaio | `test/envios-pontos.test.ts`, `test/envios-sendcloud.test.ts` |
+
+**Desvios do desenho:**
+- **A morada fiscal nunca é a do ponto.** Até aqui, sem morada de
+  faturação, o perfil ficava com a morada de entrega. Numa entrega num
+  ponto, o perfil fica **sem morada**; e, se o cliente der um NIF, o resumo
+  pede a morada de faturação (`morada_faturacao`), porque o software de
+  faturação recusa um cliente com NIF sem morada (`src/faturacao/moloni.ts`).
+  Não estava no §21.3: apareceu ao ler o `concluir`.
+- **Os códigos de erro são do checkout:** `checkout.pickup_point_required`
+  (422), `checkout.pickup_point_unavailable` (409),
+  `checkout.pickup_point_outside_zone` (422), `checkout.too_many_searches`
+  (429) e `checkout.carrier_unavailable` (503), em vez dos `shipping.*` do
+  §21.3. São rotas do checkout.
+- **Reler o ponto** faz-se procurando outra vez com o mesmo código postal: a
+  documentação lida não descreve como ler um ponto pelo id. A escolha conta
+  como uma procura.
+- **Um ponto fora da zona do método** já não aparece na procura, por isso a
+  escolha dá `pickup_point_unavailable`; o `pickup_point_outside_zone` fica
+  como segunda barreira.
+- **O horário do ponto não se mostra:** o formato de `opening_times` não foi
+  lido (V10).
+- **A morada na etiqueta** (`to_address`) é a do ponto, com o nome do
+  cliente: o exemplo da Sendcloud levava a do cliente, mas o Eurolify já
+  não a tem (aprovado: sem morada de casa). Fica para V9.
+- **Em modo teste a Sendcloud só tem o serviço `sendcloud:letter`** (D2),
+  que não é de ponto: um método `ponto` com a Sendcloud só se configura em
+  modo real. Os testes pela API usam a transportadora de ensaio.
+- **As rotas** são `GET /checkout/{token}/pickup-points?metodo&pais&codigo_postal`
+  e `PUT /checkout/{token}/pickup-point`, em vez de um `ponto` no `PUT
+  …/delivery` e de `?postal_code=` (revisão do #439, P3-8).
+
+**Da revisão do agente (#439):**
+- **P1-1:** um método de morada não fica com a morada de um ponto. Escolhê-lo
+  tira-a, e o resumo pede a morada (também quando é o comerciante que muda o
+  método).
+- **P2-1:** numa expedição para um ponto só serve o serviço e a conta
+  vendidos (o ponto é da transportadora com que o cliente o escolheu).
+- **P2-2:** o código postal da procura não vai para o registo da aplicação.
+- **P3-2:** o ponto entra na impressão do resumo e aparece nos portes.
+- **P3-6:** um código com e sem ponto em países diferentes fica de fora em
+  todos.
+- **Ficou como está:**
+  - o `GET` da procura conta para o limite de propósito (P3-1);
+  - um `delivered` gravado como «outro» não passa a entregue sozinho quando
+    o «para levantar» chega depois, e fica para uma pessoa (P3-3, para o lado
+    seguro).
+
+**Por verificar** (além de V7 a V9): V10, o formato do horário dos pontos;
+se `carrier_code` é a parte do código do serviço antes de «:» em todas as
+transportadoras da Sendcloud (**W**).
+
+**Por fazer:** o pedido 2 (Hub: o campo no método e o ponto em «Expedir»,
+com capturas).

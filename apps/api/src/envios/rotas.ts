@@ -137,6 +137,8 @@ export const servicoParaApi = (s: ServicoTransportadora) => ({
   pede_telefone: s.pedeTelefone,
   pede_email: s.pedeEmail,
   aceita_onu: s.aceitaOnu,
+  // Entrega num ponto de recolha: só serve um método `ponto` (docs/36 §21).
+  ponto: s.ponto === true,
 });
 
 /** Uma conta como a API a mostra, pela chave e pelo Hub (docs/22 §29.2). */

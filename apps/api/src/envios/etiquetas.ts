@@ -44,7 +44,10 @@ const INCERTA_IDADE_MINIMA_MS = 15 * 60 * 1000;
  * Nenhuma chamada à transportadora fica à espera para sempre (revisão do
  * #400, P2-6): esgotado o tempo, é como a rede ter falhado.
  */
-function comTempo<T>(cfg: ConfigEnvios | undefined, p: Promise<T>): Promise<T> {
+export function comTempo<T>(
+  cfg: ConfigEnvios | undefined,
+  p: Promise<T>,
+): Promise<T> {
   const ms = cfg?.tempoLimiteMs ?? 30_000;
   let t: NodeJS.Timeout | undefined;
   const limite = new Promise<never>((_, rejeitar) => {
@@ -135,6 +138,7 @@ interface Preparado {
     remetente: MoradaEtiqueta;
     destinatario: MoradaEtiqueta;
     pesoG: number;
+    ponto?: string;
   };
 }
 
@@ -277,8 +281,10 @@ async function preparar(
     // país, o peso, os perigosos e o telefone (R4, L9; revisão do #429, P2-2).
     const entregaPais = (x.entrega as { pais: string }).pais;
     const telefone = (x.contacto as { telefone?: unknown }).telefone;
+    const pontoId = (x.entrega as { ponto?: { id?: unknown } }).ponto?.id;
     const porque = porQueNaoServeACaixa(servico, {
       pais: entregaPais,
+      ponto: pontoId !== undefined,
       temTelefone: temTelefone(telefone),
       pesoG: peso,
       onu,
@@ -340,6 +346,8 @@ async function preparar(
         remetente: { ...r },
         destinatario,
         pesoG: peso,
+        // O ponto escolhido no checkout (§21); a morada acima é a dele.
+        ...(typeof pontoId === "string" ? { ponto: pontoId } : {}),
       },
     };
   });
@@ -669,7 +677,38 @@ export async function aplicarEventos(
   return noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, `seguimento (${origem})`);
     const novos: EventoSeguimento[] = [];
-    for (const e of eventos.filter(eventoValido)) {
+    const problemas: string[] = [];
+    // Num envio para um ponto de recolha, chegar ao ponto não é entregar
+    // (docs/36 §21, L5): um «entregue» que não venha depois de um «para
+    // levantar» pode ser só o depósito no ponto. Fica em «outro», no
+    // histórico, e uma pessoa confirma a entrega (V8, C).
+    const destino = await trx
+      .selectFrom("expedicao")
+      .innerJoin("encomenda", "encomenda.id", "expedicao.encomenda_id")
+      .select("encomenda.entrega")
+      .where("expedicao.id", "=", id)
+      .executeTakeFirst();
+    const paraPonto =
+      (destino?.entrega as { ponto?: unknown } | undefined)?.ponto !==
+      undefined;
+    let levantar =
+      paraPonto &&
+      (await trx
+        .selectFrom("evento_seguimento")
+        .select("id")
+        .where("expedicao_id", "=", id)
+        .where("estado_normalizado", "=", "disponivel_para_levantar")
+        .executeTakeFirst()) !== undefined;
+    const ordenados = [...eventos.filter(eventoValido)].sort(
+      (a, b) => a.em.getTime() - b.em.getTime(),
+    );
+    const prudentes = ordenados.map((e) => {
+      if (!paraPonto) return e;
+      if (e.estadoNormalizado === "disponivel_para_levantar") levantar = true;
+      if (e.estadoNormalizado !== "entregue" || levantar) return e;
+      return { ...e, estadoNormalizado: "outro" as const };
+    });
+    for (const [n, e] of prudentes.entries()) {
       const r = await trx
         .insertInto("evento_seguimento")
         .values({
@@ -686,10 +725,16 @@ export async function aplicarEventos(
         )
         .returning("id")
         .executeTakeFirst();
-      if (r !== undefined) novos.push(e);
+      if (r !== undefined) {
+        novos.push(e);
+        if (e.estadoNormalizado !== ordenados[n]?.estadoNormalizado) {
+          problemas.push(
+            `A transportadora deu a expedição shp_${id}, para um ponto de recolha, como entregue (${e.em.toISOString()}) sem antes a dar como disponível para levantar. Pode ser só a chegada ao ponto: confirmar com a transportadora e marcar a entrega à mão (docs/36 §21).`,
+          );
+        }
+      }
     }
     novos.sort((a, b) => a.em.getTime() - b.em.getTime());
-    const problemas: string[] = [];
     const passar = async (
       estado: "expedida" | "entregue" | "devolvida_ao_remetente" | "perdida",
       prova?: string,

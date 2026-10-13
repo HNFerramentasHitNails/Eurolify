@@ -31,9 +31,19 @@ import {
   regrasDosMetodos,
   type MotivoNaoServe,
 } from "./entrega.js";
-import type { ConfigEnvios } from "../envios/adaptador.js";
+import {
+  type AdaptadorTransportadora,
+  type ConfigEnvios,
+  type CredenciaisTransportadora,
+  type PontoRecolha,
+} from "../envios/adaptador.js";
 import { ErroEnvios } from "../envios/erros.js";
-import { conferirServico } from "../envios/repositorio.js";
+import {
+  adaptadorDe,
+  conferirServico,
+  credenciaisDe,
+} from "../envios/repositorio.js";
+import { comTempo } from "../envios/etiquetas.js";
 
 // O checkout (docs/25; migração 0041): o carrinho da API da Loja, a sessão
 // do checkout alojado, o total (preço do mercado + IVA do Motor + portes),
@@ -708,6 +718,11 @@ export interface Entrega {
   linha1: string;
   linha2: string | null;
   localidade: string;
+  /**
+   * Entrega num ponto de recolha (docs/36 §21): a morada acima é a do
+   * ponto, nunca a de casa do cliente.
+   */
+  ponto?: { id: string; nome: string };
 }
 
 export interface Faturacao {
@@ -795,16 +810,52 @@ export async function porEntrega(
     }
     mercado = outro.id;
   }
+  // Uma morada de casa tira o ponto de recolha: um método `ponto` já não
+  // tem para onde entregar e sai (docs/36 §21).
+  const metodoPonto =
+    s.metodo_entrega_id !== null &&
+    (await entregaDoMetodo(trx, s.metodo_entrega_id)) === "ponto";
   await trx
     .updateTable("sessao_checkout")
     .set({
       entrega: JSON.stringify(entrega),
       mercado_id: mercado,
-      ...(mercado === s.mercado_id ? {} : { metodo_entrega_id: null }),
+      ...(mercado === s.mercado_id && !metodoPonto
+        ? {}
+        : { metodo_entrega_id: null }),
     })
     .where("id", "=", s.id)
     .execute();
 }
+
+/** Onde entrega um método: na morada ou num ponto (docs/36 §21). */
+async function entregaDoMetodo(
+  trx: Transaction<BaseDados>,
+  metodoId: string,
+): Promise<"morada" | "ponto" | null> {
+  const m = await trx
+    .selectFrom("metodo_entrega")
+    .select("entrega")
+    .where("id", "=", metodoId)
+    .executeTakeFirst();
+  return m?.entrega ?? null;
+}
+
+/**
+ * A entrega que conta para a zona de um método (docs/36 R4, §21): num
+ * método `ponto`, só a morada do ponto; a morada de casa não conta.
+ */
+const entregaParaZona = (
+  entrega: Entrega | null,
+  onde: "morada" | "ponto",
+): Entrega | null =>
+  onde === "ponto"
+    ? entrega?.ponto === undefined
+      ? null
+      : entrega
+    : entrega?.ponto === undefined
+      ? entrega
+      : null;
 
 export async function porFaturacao(
   trx: Transaction<BaseDados>,
@@ -840,12 +891,19 @@ export async function porMetodoEntrega(
 ) {
   const m = await trx
     .selectFrom("metodo_entrega")
-    .select(["id"])
+    .select(["id", "entrega"])
     .where("id", "=", metodoId)
     .where("mercado_id", "=", s.mercado_id)
     .where("estado", "=", "activo")
     .executeTakeFirst();
   if (m === undefined) throw naoExiste("o método de entrega neste mercado");
+  // Um método `ponto` escolhe-se com o ponto (PUT …/pickup-point).
+  if (m.entrega === "ponto") {
+    throw new ErroCheckout(
+      "checkout.pickup_point_required",
+      "este método entrega num ponto de recolha: escolha o ponto (PUT /checkout/{token}/pickup-point)",
+    );
+  }
   // Um método que não serve esta morada ou este conteúdo não se escolhe
   // (docs/36 R4); sem morada, a zona confere-se no resumo.
   const motivo = await porQueNaoServeASessao(trx, s, m.id);
@@ -856,9 +914,14 @@ export async function porMetodoEntrega(
       { motivo },
     );
   }
+  // A morada de um ponto não serve um método de morada: sai, e o resumo
+  // pede a morada de casa (revisão do #439, P1-1).
   await trx
     .updateTable("sessao_checkout")
-    .set({ metodo_entrega_id: m.id })
+    .set({
+      metodo_entrega_id: m.id,
+      ...(s.entrega?.ponto === undefined ? {} : { entrega: null }),
+    })
     .where("id", "=", s.id)
     .execute();
 }
@@ -881,7 +944,7 @@ async function porQueNaoServeASessao(
   return porQueNaoServe(
     regras,
     regras.contaPronta,
-    s.entrega,
+    entregaParaZona(s.entrega, regras.entrega),
     await conteudoDe(trx, await linhasDaSessao(trx, s)),
   );
 }
@@ -928,9 +991,17 @@ export async function metodosDaSessao(
     const motivo =
       r === undefined
         ? null
-        : porQueNaoServe(r, r.contaPronta, s.entrega, conteudo);
+        : porQueNaoServe(
+            r,
+            r.contaPronta,
+            entregaParaZona(s.entrega, r.entrega),
+            conteudo,
+          );
     return {
       id: m.id,
+      // Onde entrega (docs/36 §21): num `ponto`, o cliente procura e
+      // escolhe o ponto (GET …/pickup-points, PUT …/pickup-point).
+      entrega: r?.entrega ?? "morada",
       nome: m.nome,
       prazo: m.prazo,
       tarifa: Number(m.tarifa),
@@ -944,6 +1015,337 @@ export async function metodosDaSessao(
       motivo,
     };
   });
+}
+
+// ------------------------------------------ Pontos de recolha (docs/36 §21)
+
+/** No máximo, procuras de pontos numa sessão (§21.3). */
+export const MAX_PROCURAS_PONTOS = 20;
+/** Pontos por procura (§21.3). */
+export const PONTOS_POR_PROCURA = 10;
+
+/** O que uma procura de pontos precisa, lido na transacção da sessão. */
+export interface ProcuraDePontos {
+  metodo: string;
+  servico: string;
+  adaptador: AdaptadorTransportadora;
+  credenciais: CredenciaisTransportadora;
+  codigos_postais: string[];
+}
+
+const pontoIndisponivel = (pormenor?: unknown) =>
+  new ErroCheckout(
+    "checkout.no_delivery_method",
+    "este método de entrega não está disponível",
+    pormenor ?? { motivo: "indisponivel" },
+  );
+
+/**
+ * Prepara uma procura (ou a releitura) de pontos de um método `ponto` do
+ * mercado da sessão, para um país do mercado, e conta-a (no máximo
+ * {@link MAX_PROCURAS_PONTOS}). Corre na transacção da sessão; a chamada à
+ * transportadora fica fora dela.
+ */
+export async function prepararProcuraDePontos(
+  trx: Transaction<BaseDados>,
+  s: SessaoLida,
+  metodoId: string,
+  pais: string,
+  cfg: ConfigEnvios | undefined,
+): Promise<ProcuraDePontos> {
+  const m = await trx
+    .selectFrom("metodo_entrega")
+    .leftJoin(
+      "conta_transportadora",
+      "conta_transportadora.id",
+      "metodo_entrega.conta_transportadora_id",
+    )
+    .select([
+      "metodo_entrega.id",
+      "metodo_entrega.entrega",
+      "metodo_entrega.servico",
+      "metodo_entrega.codigos_postais",
+      "conta_transportadora.id as conta_id",
+      "conta_transportadora.transportadora",
+      "conta_transportadora.credenciais_cifra",
+      "conta_transportadora.chave_versao",
+    ])
+    .where("metodo_entrega.id", "=", metodoId)
+    .where("metodo_entrega.mercado_id", "=", s.mercado_id)
+    .where("metodo_entrega.estado", "=", "activo")
+    .executeTakeFirst();
+  if (m === undefined) throw naoExiste("o método de entrega neste mercado");
+  if (m.entrega !== "ponto") {
+    throw new ErroCheckout(
+      "checkout.invalid_field",
+      "checkout.invalid_field: este método entrega na morada, não num ponto",
+    );
+  }
+  const { paises } = await trx
+    .selectFrom("mercado")
+    .select("paises")
+    .where("id", "=", s.mercado_id)
+    .executeTakeFirstOrThrow();
+  if (!paises.includes(pais)) {
+    throw new ErroCheckout(
+      "checkout.country_not_served",
+      "o ponto tem de ser num país do mercado da sessão",
+    );
+  }
+  // O conteúdo tem de caber no método (peso, perigosos, conta); a zona
+  // confere-se pelo ponto (R4).
+  const motivo = await porQueNaoServeASessao(trx, s, m.id);
+  if (motivo !== null && motivo !== "zona_nao_servida") {
+    throw pontoIndisponivel({
+      motivo:
+        motivo === "conta_indisponivel" || motivo === "peso_desconhecido"
+          ? "indisponivel"
+          : motivo,
+    });
+  }
+  const contada = await trx
+    .updateTable("sessao_checkout")
+    .set((eb) => ({ procuras_pontos: eb("procuras_pontos", "+", 1) }))
+    .where("id", "=", s.id)
+    .where("procuras_pontos", "<", MAX_PROCURAS_PONTOS)
+    .returning("procuras_pontos")
+    .executeTakeFirst();
+  if (contada === undefined) {
+    throw new ErroCheckout(
+      "checkout.too_many_searches",
+      `no máximo ${String(MAX_PROCURAS_PONTOS)} procuras de pontos por sessão`,
+    );
+  }
+  if (m.conta_id === null || m.transportadora === null || m.servico === null) {
+    throw pontoIndisponivel();
+  }
+  try {
+    const { adaptador, chave } = adaptadorDe(cfg, m.transportadora);
+    if (
+      adaptador.procurarPontos === undefined ||
+      adaptador.pontoDisponivel === undefined
+    ) {
+      throw pontoIndisponivel();
+    }
+    return {
+      metodo: m.id,
+      servico: m.servico,
+      adaptador,
+      credenciais: credenciaisDe(
+        {
+          id: m.conta_id,
+          credenciais_cifra: m.credenciais_cifra,
+          chave_versao: m.chave_versao,
+        },
+        chave,
+      ),
+      codigos_postais: m.codigos_postais,
+    };
+  } catch (erro) {
+    // A conta ou o servidor sem envios: o cliente vê «indisponível».
+    if (erro instanceof ErroEnvios) throw pontoIndisponivel();
+    throw erro;
+  }
+}
+
+/**
+ * Os pontos de recolha perto de um código postal (§21.3): só os do país e
+ * da zona do método. Fora de qualquer transacção.
+ */
+export async function procurarPontos(
+  p: ProcuraDePontos,
+  pais: string,
+  codigoPostal: string,
+  cfg: ConfigEnvios | undefined,
+): Promise<PontoRecolha[]> {
+  if (p.adaptador.procurarPontos === undefined) throw pontoIndisponivel();
+  let pontos: PontoRecolha[];
+  try {
+    pontos = await comTempo(
+      cfg,
+      p.adaptador.procurarPontos(p.credenciais, {
+        servico: p.servico,
+        pais,
+        codigoPostal,
+        limite: PONTOS_POR_PROCURA,
+      }),
+    );
+  } catch (erro) {
+    throw new ErroCheckout(
+      "checkout.carrier_unavailable",
+      "a transportadora não respondeu: tente outra vez",
+      undefined,
+      { cause: erro },
+    );
+  }
+  return pontos
+    .filter(
+      (x) =>
+        x.pais === pais &&
+        porQueNaoServe(
+          {
+            conta_transportadora_id: null,
+            codigos_postais: p.codigos_postais,
+            aceita_onu: [],
+            peso_max_g: null,
+            prazo_max_dias: 30,
+            entrega: "ponto",
+          },
+          true,
+          { codigo_postal: x.codigo_postal },
+          { pesoG: 0, onu: new Set() },
+        ) === null,
+    )
+    .slice(0, PONTOS_POR_PROCURA);
+}
+
+/**
+ * O ponto escolhido (§21.3): o método `ponto` e a morada do ponto como a
+ * transportadora a devolveu, nunca a que o navegador mandou. A morada de
+ * casa, se a havia, sai.
+ */
+export async function porPonto(
+  trx: Transaction<BaseDados>,
+  s: SessaoLida,
+  metodoId: string,
+  ponto: PontoRecolha,
+) {
+  const m = await trx
+    .selectFrom("metodo_entrega")
+    .select(["id", "entrega"])
+    .where("id", "=", metodoId)
+    .where("mercado_id", "=", s.mercado_id)
+    .where("estado", "=", "activo")
+    .executeTakeFirst();
+  if (m === undefined || m.entrega !== "ponto") {
+    throw naoExiste("o método de entrega neste mercado");
+  }
+  const { paises } = await trx
+    .selectFrom("mercado")
+    .select("paises")
+    .where("id", "=", s.mercado_id)
+    .executeTakeFirstOrThrow();
+  if (!paises.includes(ponto.pais)) {
+    throw new ErroCheckout(
+      "checkout.country_not_served",
+      "o ponto tem de ser num país do mercado da sessão",
+    );
+  }
+  const entrega: Entrega = {
+    pais: ponto.pais,
+    codigo_postal: ponto.codigo_postal,
+    linha1: ponto.linha1,
+    linha2: null,
+    localidade: ponto.localidade,
+    ponto: { id: ponto.id, nome: ponto.nome },
+  };
+  const motivo = await porQueNaoServeASessao(trx, { ...s, entrega }, m.id);
+  if (motivo === "zona_nao_servida") {
+    throw new ErroCheckout(
+      "checkout.pickup_point_outside_zone",
+      "o ponto fica fora das regiões que este método serve",
+    );
+  }
+  if (motivo !== null) {
+    throw pontoIndisponivel({
+      motivo:
+        motivo === "conta_indisponivel" || motivo === "peso_desconhecido"
+          ? "indisponivel"
+          : motivo,
+    });
+  }
+  await trx
+    .updateTable("sessao_checkout")
+    .set({ entrega: JSON.stringify(entrega), metodo_entrega_id: m.id })
+    .where("id", "=", s.id)
+    .execute();
+}
+
+/**
+ * O ponto da sessão a conferir antes do botão final (§21.3), ou `null` se
+ * a entrega não é num ponto. Na transacção da sessão; a chamada fica fora.
+ */
+export async function pontoAConferir(
+  trx: Transaction<BaseDados>,
+  s: SessaoLida,
+  cfg: ConfigEnvios | undefined,
+): Promise<{
+  ponto: string;
+  adaptador: AdaptadorTransportadora;
+  credenciais: CredenciaisTransportadora;
+} | null> {
+  if (s.estado !== "aberta" || s.metodo_entrega_id === null) return null;
+  const m = await trx
+    .selectFrom("metodo_entrega")
+    .innerJoin(
+      "conta_transportadora",
+      "conta_transportadora.id",
+      "metodo_entrega.conta_transportadora_id",
+    )
+    .select([
+      "metodo_entrega.entrega",
+      "conta_transportadora.id as conta_id",
+      "conta_transportadora.transportadora",
+      "conta_transportadora.credenciais_cifra",
+      "conta_transportadora.chave_versao",
+    ])
+    .where("metodo_entrega.id", "=", s.metodo_entrega_id)
+    .executeTakeFirst();
+  if (m === undefined || m.entrega !== "ponto") return null;
+  // Sem ponto, o resumo diz o que falta (`ponto_recolha`).
+  if (s.entrega?.ponto === undefined) return null;
+  try {
+    const { adaptador, chave } = adaptadorDe(cfg, m.transportadora);
+    return {
+      ponto: s.entrega.ponto.id,
+      adaptador,
+      credenciais: credenciaisDe(
+        {
+          id: m.conta_id,
+          credenciais_cifra: m.credenciais_cifra,
+          chave_versao: m.chave_versao,
+        },
+        chave,
+      ),
+    };
+  } catch (erro) {
+    if (erro instanceof ErroEnvios) throw pontoIndisponivel();
+    throw erro;
+  }
+}
+
+/**
+ * O ponto ainda recebe encomendas? Fora de qualquer transacção. Um «não»,
+ * ou a transportadora sem resposta, bloqueia o botão final: na dúvida,
+ * não vende (R4).
+ */
+export async function conferirPonto(
+  p: NonNullable<Awaited<ReturnType<typeof pontoAConferir>>>,
+  cfg: ConfigEnvios | undefined,
+) {
+  let disponivel = false;
+  if (p.adaptador.pontoDisponivel !== undefined) {
+    try {
+      disponivel = await comTempo(
+        cfg,
+        p.adaptador.pontoDisponivel(p.credenciais, p.ponto),
+      );
+    } catch (erro) {
+      // Sem resposta (ErroDeRede) ou recusada: não se sabe se o ponto recebe.
+      throw new ErroCheckout(
+        "checkout.pickup_point_unavailable",
+        "não foi possível confirmar o ponto de recolha: escolha-o outra vez ou tente mais tarde",
+        undefined,
+        { cause: erro },
+      );
+    }
+  }
+  if (!disponivel) {
+    throw new ErroCheckout(
+      "checkout.pickup_point_unavailable",
+      "o ponto de recolha já não recebe encomendas: escolha outro",
+    );
+  }
 }
 
 export async function porMetodoPagamento(
@@ -1020,6 +1422,8 @@ export interface Resumo {
     nome: Record<string, string>;
     /** A data-limite de entrega se encomendar agora (docs/36 L1), AAAA-MM-DD. */
     data_limite: string;
+    /** O ponto de recolha escolhido, num método `ponto` (docs/36 §21). */
+    ponto: { id: string; nome: string } | null;
     tarifa: number;
     decisao: Decisao;
     base: number;
@@ -1097,9 +1501,31 @@ export async function calcularResumo(
   );
 
   const em_falta: string[] = [];
+  const onde =
+    s.metodo_entrega_id === null
+      ? null
+      : await entregaDoMetodo(trx, s.metodo_entrega_id);
   if (s.email === null || s.nome === null) em_falta.push("contacto");
-  if (s.entrega === null) em_falta.push("entrega");
+  // Num método `ponto`, a entrega é o ponto escolhido (docs/36 §21).
+  if (onde === "ponto") {
+    if (s.entrega?.ponto === undefined) em_falta.push("ponto_recolha");
+  } else if (s.entrega === null || s.entrega.ponto !== undefined) {
+    // Um método de morada com a morada de um ponto (o comerciante mudou o
+    // método, ou outro separador): falta a morada (revisão do #439, P1-1).
+    em_falta.push("entrega");
+  }
   if (s.faturacao === null) em_falta.push("faturacao");
+  // A morada do ponto nunca é a morada fiscal: com NIF, o documento pede a
+  // morada do cliente (o Moloni recusa um cliente com NIF sem ela), e numa
+  // entrega num ponto ela não vem da entrega (docs/36 §21).
+  if (
+    s.entrega?.ponto !== undefined &&
+    s.faturacao !== null &&
+    s.faturacao.nif !== null &&
+    s.faturacao.morada === null
+  ) {
+    em_falta.push("morada_faturacao");
+  }
   if (s.metodo_entrega_id === null) em_falta.push("metodo_entrega");
   if (s.metodo_pagamento === null) em_falta.push("metodo_pagamento");
   // Um método de entrega que pede telefone (revisão do #276, P3-5).
@@ -1264,7 +1690,7 @@ export async function calcularResumo(
       const motivo = porQueNaoServe(
         regras,
         regras.contaPronta,
-        s.entrega,
+        entregaParaZona(s.entrega, regras.entrega),
         await conteudoDe(trx, pedidas),
       );
       if (motivo !== null) {
@@ -1274,6 +1700,11 @@ export async function calcularResumo(
     portes = {
       metodo_id: m.id,
       nome: m.nome,
+      // O ponto que o cliente viu entra na impressão (revisão do #439, P3-2).
+      ponto:
+        onde === "ponto" && s.entrega?.ponto !== undefined
+          ? s.entrega.ponto
+          : null,
       data_limite: dataLimite(
         momento,
         comerciante.fuso,
@@ -1391,6 +1822,9 @@ export const impressaoDo = (r: Resumo) => ({
           // A data-limite que o cliente viu (docs/36 L1; revisão do #397,
           // P1-1): se mudar até ao botão final, a encomenda não se faz.
           r.portes.data_limite,
+          // O ponto de recolha, só quando há (docs/36 §21; revisão do #439,
+          // P3-2): as impressões sem ponto ficam as de antes.
+          ...(r.portes.ponto === null ? [] : [`ponto:${r.portes.ponto.id}`]),
         ],
   total: r.totais.total,
   textos: r.textos.map((t) => t.versao_id),
@@ -1523,18 +1957,24 @@ export async function concluir(
     lingua: s.lingua,
     pais: entrega.pais,
   });
-  const morada = faturacao.morada ?? entrega;
+  // A morada do ponto de recolha nunca passa a morada fiscal (docs/36 §21):
+  // sem morada de faturação, o perfil fica sem morada.
+  const morada =
+    faturacao.morada ?? (entrega.ponto === undefined ? entrega : null);
   const perfilId = await criarPerfil(trx, c, clienteId, {
     tipo: faturacao.tipo,
     nome_documento: faturacao.nome_documento,
     nif: faturacao.nif,
-    morada: {
-      linha1: morada.linha1,
-      linha2: morada.linha2,
-      codigo_postal: morada.codigo_postal,
-      localidade: morada.localidade,
-      pais: morada.pais,
-    },
+    morada:
+      morada === null
+        ? null
+        : {
+            linha1: morada.linha1,
+            linha2: morada.linha2,
+            codigo_postal: morada.codigo_postal,
+            localidade: morada.localidade,
+            pais: morada.pais,
+          },
   });
   const perfil = await trx
     .selectFrom("perfil_faturacao")
@@ -2001,6 +2441,8 @@ export interface EnviosDoMetodo {
   codigos_postais: string[];
   aceita_onu: string[];
   peso_max_g: number | null;
+  /** Onde entrega: na morada ou num ponto de recolha (docs/36 §21). */
+  entrega: "morada" | "ponto";
 }
 
 const ENVIOS_POR_OMISSAO: EnviosDoMetodo = {
@@ -2010,6 +2452,7 @@ const ENVIOS_POR_OMISSAO: EnviosDoMetodo = {
   codigos_postais: [],
   aceita_onu: [],
   peso_max_g: null,
+  entrega: "morada",
 };
 
 /**
@@ -2039,10 +2482,27 @@ async function conferirEnviosDoMetodo(
       "a conta e o serviço vão juntos (ou nenhum, num método manual)",
     );
   }
+  // Um método num ponto de recolha precisa de uma transportadora que
+  // procure os pontos (docs/36 §21).
+  if (e.entrega === "ponto" && e.conta === null) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      "um método que entrega num ponto de recolha precisa de conta e serviço",
+    );
+  }
   if (e.conta === null || e.servico === null) {
     return { ...e, codigos_postais, aceita_onu };
   }
   const s = await conferirServico(trx, e.conta, e.servico, cfg);
+  // O serviço e o método dizem o mesmo sobre onde entrega (§21).
+  if ((s.ponto === true) !== (e.entrega === "ponto")) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      s.ponto === true
+        ? "o serviço entrega num ponto de recolha: o método tem de ter entrega «ponto»"
+        : "o serviço não entrega em pontos de recolha",
+    );
+  }
   const { paises } = await trx
     .selectFrom("mercado")
     .select("paises")
@@ -2116,6 +2576,7 @@ export async function criarMetodoEntrega(
           dados.codigos_postais ?? ENVIOS_POR_OMISSAO.codigos_postais,
         aceita_onu: dados.aceita_onu ?? ENVIOS_POR_OMISSAO.aceita_onu,
         peso_max_g: dados.peso_max_g ?? ENVIOS_POR_OMISSAO.peso_max_g,
+        entrega: dados.entrega ?? ENVIOS_POR_OMISSAO.entrega,
       },
       dados.pede_telefone,
       cfg,
@@ -2137,6 +2598,7 @@ export async function criarMetodoEntrega(
         codigos_postais: envios.codigos_postais,
         aceita_onu: envios.aceita_onu,
         peso_max_g: envios.peso_max_g,
+        entrega: envios.entrega,
       })
       .returning("id")
       .executeTakeFirstOrThrow();
@@ -2170,6 +2632,7 @@ export async function mudarMetodoEntrega(
       dados.codigos_postais !== undefined ||
       dados.aceita_onu !== undefined ||
       dados.peso_max_g !== undefined ||
+      dados.entrega !== undefined ||
       dados.pede_telefone !== undefined ||
       dados.estado === "activo";
     const envios = tocaNosEnvios
@@ -2190,6 +2653,7 @@ export async function mudarMetodoEntrega(
               dados.peso_max_g === undefined
                 ? actual.peso_max_g
                 : dados.peso_max_g,
+            entrega: dados.entrega ?? actual.entrega,
           },
           dados.pede_telefone ?? actual.pede_telefone,
           cfg,
@@ -2207,6 +2671,7 @@ export async function mudarMetodoEntrega(
               codigos_postais: envios.codigos_postais,
               aceita_onu: envios.aceita_onu,
               peso_max_g: envios.peso_max_g,
+              entrega: envios.entrega,
             }),
         ...(dados.nome === undefined
           ? {}

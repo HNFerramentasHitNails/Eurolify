@@ -483,6 +483,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
     expect((servicos["dados"] as Json[]).map((x) => x["codigo"])).toEqual([
       "EXPRESSO_48",
       "COM_TELEFONE",
+      "PONTO_48",
       "SO_ESPANHA",
     ]);
     // O gestor não liga contas (shipping:accounts é só do dono).
@@ -741,6 +742,7 @@ describe.skipIf(URL_BASE === undefined)("API dos envios (parte A)", () => {
       aceita_onu: [],
       peso_max_g: 50,
       prazo_max_dias: 30,
+      entrega: "morada" as const,
     };
     expect(
       porQueNaoServe(regras, false, null, { pesoG: null, onu: new Set() }),
