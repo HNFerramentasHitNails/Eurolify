@@ -31,10 +31,38 @@ desenho do `docs/36` §17 (issue #393).
   Não eram só leituras (houve POST), o que a regra 1 da VPS não dá por
   livre: fica aqui registado (revisão do pedido, P3-4).
 
+- 13/10/2026, **aplicado na VPS** (#423 junto como `a8b6033`; fluxo
+  `aplicar-script`, execução 38381970891, 10:14 UTC):
+  - o `--mostrar` deu 5 alterações e 1 aviso, e a aplicação deu 6
+    alterações e 2 avisos (lidos no registo da execução). Os avisos: a
+    chave dos envios acabou de nascer (esperado) e o do número 1000
+    (`ubuntu`), que já vinha de antes;
+  - feito: a lib e o `eurolify-publicar` instalados, a chave gerada, a API
+    recriada (o `/health` respondeu) e o `eurolify-hub.conf` instalado,
+    com o nginx recarregado (o passo 14 só recarrega depois do `nginx -t`);
+  - às 10:15:20 UTC, o fluxo `publicar` do mesmo commit publicou a imagem
+    `sha256:a97d1dca…`, já com o `eurolify-publicar` novo.
+- 13/10/2026, fluxo `medir` (execução 38382102795, 10:15 UTC):
+  - o `/health` da API deu `{"estado":"ok"}`;
+  - as migrações estão iguais na base e na versão no ar (79);
+  - abertas para fora, só a 22 e a 443 (`ss` e `ufw`); a 8080 da API só
+    nesta máquina;
+  - **O fluxo não media** se a `ENVIOS_CHAVE` chegou à API nem as
+    respostas de `/webhooks/`. Pedi-las daqui ao `hub.eurolify.eu` foi
+    recusado pelas permissões da sessão, e bem: a regra é medir pelo fluxo.
+    Por isso o #424 acrescenta ao `eurolify-medir` a secção «envios»: a
+    chave no contentor (só sim ou não) e quatro pedidos à própria máquina
+    (`--noproxy` e `--resolve` para 127.0.0.1), com uma conta fictícia que
+    não grava nada. O teste `publicar.sh` passou a 213 verificações verdes
+    (13/10/2026, local, contadas pelas linhas `ok:`).
+- Visto de passagem no `medir`: a tarefa `verificacao` **falhou** às 07:00
+  UTC de 13/10/2026 (`exit-code`). Não é deste pedido: está por investigar.
+
 ## O que ficou por verificar
 
-- **Na VPS:** a chave gerada, a API com os envios, as medições do §17.2 e a
-  cópia da chave fora da máquina (passo do Diogo, à mão).
+- **Na VPS:** a `ENVIOS_CHAVE` na API no ar e as respostas de `/webhooks/`
+  (§17.2, ponto 4), pelo `medir` depois de o #424 estar aplicado; e a
+  cópia da chave fora da máquina (passo do Diogo ou do Bruno, à mão).
 - **O `preparar.sh --mostrar`** num Ubuntu vazio corre no GitHub (fluxo
   `script-vps`), e não aqui.
 - **O nginx da VPS (Ubuntu)** é outra versão que a 1.27 do ensaio local; o

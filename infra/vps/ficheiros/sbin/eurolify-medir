@@ -104,6 +104,36 @@ else
   echo "VIES_URL na API no ar: não"
 fi
 
+seccao "envios (docs/36 §17)"
+# A chave chegou ao contentor da API? Só sim ou não, nunca o valor. O
+# eurolify-publicar só passa uma chave válida (docs/36 §17.3).
+if docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null |
+  grep -qE '^ENVIOS_CHAVE=.'; then
+  echo "ENVIOS_CHAVE na API no ar: sim (a variável está no contentor)"
+else
+  echo "ENVIOS_CHAVE na API no ar: não (os envios estão desligados)"
+fi
+# Os avisos pelo nginx do Hub, a partir da própria máquina e sem assinatura:
+# o POST da Sendcloud chega à API (401 em application/problem+json); o GET
+# leva 403 do nginx (limit_except) e o resto de /webhooks/ 404 do nginx, em
+# HTML. Uma conta que não existe, sem dados nenhuns: a API responde-lhe como
+# a uma assinatura errada, sem gravar nada (envios/rotas.ts). Nunca por um
+# proxy: com --noproxy e --resolve, o pedido não sai da máquina. Do corpo da
+# resposta não se mostra nada.
+aviso() {
+  local metodo="$1" caminho="$2" r
+  r="$(curl -sS -m 5 -o /dev/null -w '%{http_code} %{content_type}' -X "$metodo" \
+    --noproxy '*' --resolve hub.eurolify.eu:443:127.0.0.1 \
+    -H 'content-type: application/json' ${3:+--data "$3"} \
+    "https://hub.eurolify.eu${caminho}" 2>/dev/null)" || r="sem resposta (código do curl $?)"
+  echo "$metodo $caminho: $r"
+}
+CONTA_FICTICIA="cac_00000000-0000-4000-8000-000000000000"
+aviso POST "/webhooks/carriers/sendcloud/${CONTA_FICTICIA}" '{}'
+aviso GET "/webhooks/carriers/sendcloud/${CONTA_FICTICIA}"
+aviso POST "/webhooks/carriers/ctt/${CONTA_FICTICIA}" '{}'
+aviso POST "/webhooks/payments/x" '{}'
+
 seccao "actualizações"
 /usr/lib/update-notifier/apt-check --human-readable 2>&1
 [[ -f /var/run/reboot-required ]] && echo "Reinício pedido pelas actualizações."
