@@ -1235,3 +1235,47 @@ Fica de fora, da revisão do #411: a lista das fichas parecidas só se vê antes
 exportação (P3-3); a exportação lê em READ COMMITTED, dentro da transacção
 da idempotência (P3-5).
 
+
+### 15.11 O aviso quando as duas tarefas param (desenho de 13/10/2026)
+
+Pedido do Diogo, 13/10/2026 (*«A»*, à pergunta «pego nos avisos dessas duas
+tarefas automáticas?»). Fecha o desvio ao §15.6 que ficou na §15.10: a fila
+do titular (`src/clientes/titular-fila.ts`) e a limpeza das sessões de
+checkout (`src/checkout/limpeza-sessoes.ts`) correm de hora a hora dentro da
+API e, se pararem ou falharem sempre, só o registo da aplicação o diz —
+ninguém o lê. Ex.: a API arranca sem a tarefa por um erro de configuração;
+a Ana pediu o apagamento e a encomenda dela acabou há uma semana, mas o
+contacto e a morada continuam lá, e ninguém sabe. Lição dos sistemas
+actuais: o recálculo diário esteve parado 15 dias sem ninguém saber
+(`docs/11` §3.8). Skill: `observability-security` («tarefas automáticas que
+não param em silêncio»).
+
+**O que já existe e se segue** (lido a 13/10/2026): a verificação diária da
+VPS (`infra/vps/ficheiros/sbin/eurolify-verificacao`, 07:00, ADR-0027) já
+confere duas tarefas pelo **efeito na base**, não por um sinal da tarefa: a
+limpeza dos prazos das contas (`contas_prazos_em_atraso()`) e a dos
+ficheiros sem uso (`ficheiros_sem_uso_em_atraso()`, 0035). Cada função conta
+o que já devia ter sido feito há mais de um dia; com mais de zero, a
+verificação avisa o Diogo pelo Healthchecks.io, com a frase do problema.
+
+| # | O quê | Proposta | Porquê |
+|---|---|---|---|
+| T1 | **Como se vê que parou** | pelo efeito, como as outras duas: o que a tarefa já devia ter limpo e continua lá | apanha a tarefa parada, a que falha sempre e a que nunca arrancou, sem a tarefa ter de dizer nada |
+| T2 | **A fila do titular** | `titular_pendentes_em_atraso()`: as linhas por aplicar há mais de **1 dia** (`criado_em`) cuja encomenda já acabou (`titular_encomenda_acabou`, a mesma regra da tarefa). A encomenda não guarda quando mudou de estado, por isso conta-se pela idade da linha | a tarefa corre de hora a hora; um dia é folga para uma volta que falhou por acaso |
+| T3 | **As sessões de checkout** | `checkout_sessoes_em_atraso()`: as sessões que ainda têm dados e que pela regra da §15.4 já deviam estar limpas há mais de **1 dia** (o mesmo critério de `checkout_sessoes_limpar`, com 8 dias em vez de 7) | o mesmo |
+| T4 | **O que as funções devolvem** | só uma contagem, de todos os comerciantes, sem dados pessoais nem identificadores; `SECURITY DEFINER`, fechadas a todos e abertas só ao papel da limpeza (`eurolify_limpeza`), como a da 0035 | quem lê é a verificação da máquina, que não entra como a API |
+| T5 | **O aviso** | a verificação diária chama as duas; com mais de zero, uma linha no aviso: «N encomenda(s) de pedidos de apagamento por limpar há mais de um dia: a fila do titular (clientes/titular-fila.ts) não está a correr (docker logs eurolify-api)» e o mesmo para as sessões. Sem a função (migração por publicar), não avisa; uma consulta que falhe ou uma resposta que não seja número avisa | o padrão das outras duas |
+| T6 | **Para quem** | o Diogo, como hoje (ADR-0027); na produção, o Diogo e o Bruno (`docs/11` §3.8) | não muda quem recebe |
+
+**Fica de fora:** as outras tarefas da API que correm sozinhas (a fila do
+VIES, os pagamentos, os documentos, os avisos de prazo e de tarefas, as
+notificações, os envios; 14 ao todo em `servidor.ts`) também não avisam se
+pararem. Ficam para outro pedido, uma a uma, com o mesmo padrão, se o Diogo
+ou o Bruno o pedirem. **Por onde pode sair errado:** um aviso falso quando
+uma encomenda que estava na fila há mais de um dia acaba na hora antes das
+07:00 e a tarefa ainda não teve a volta seguinte (ex.: a encomenda da Ana,
+na fila desde 2/10, passa a concluída às 06:40) — no dia seguinte já não
+aparece. A janela é de até uma hora por dia.
+
+**Pergunta para o Diogo ou o Bruno.** Q-T1: aprovas o desenho, com **1 dia**
+de folga e o aviso pela verificação diária das 07:00?
