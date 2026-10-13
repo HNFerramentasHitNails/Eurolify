@@ -330,6 +330,34 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
 
   type Cenario = Awaited<ReturnType<typeof cenario>>;
 
+  /**
+   * Uma contagem da verificação diária da VPS, como ela a chama: com o papel
+   * da limpeza, sem comerciante posto (docs/23 §15.11). A função corre com o
+   * dono das tabelas, que não salta o RLS forçado.
+   */
+  async function contarComoLimpeza(
+    funcao: "titular_pendentes_em_atraso" | "checkout_sessoes_em_atraso",
+  ): Promise<number> {
+    return base.dono.transaction().execute(async (trx) => {
+      await sql`set local role eurolify_limpeza`.execute(trx);
+      // O contexto de quem chama volta ao que era (revisão do #433, P3-8).
+      const marca = randomUUID();
+      await sql`select set_config('eurolify.comerciante', ${marca}, true)`.execute(
+        trx,
+      );
+      const { rows } = await sql<{
+        n: string;
+      }>`select ${sql.raw(funcao)}() as n`.execute(trx);
+      const { rows: depois } = await sql<{
+        c: string;
+      }>`select current_setting('eurolify.comerciante', true) as c`.execute(
+        trx,
+      );
+      expect(depois[0]?.c).toBe(marca);
+      return Number(rows[0]?.n);
+    });
+  }
+
   /** Um carrinho com as linhas, o checkout aberto e o token. */
   async function checkoutCom(s: Cenario, linhas: [string, number][]) {
     const loja = { authorization: `Bearer ${s.publica}` };
@@ -1474,6 +1502,78 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     // Dois comerciantes, dez sessões e duas encomendas.
   }, 60_000);
 
+  it("a verificação diária conta as sessões por limpar há mais de um dia (docs/23 §15.11, T3)", async () => {
+    const atraso = () => contarComoLimpeza("checkout_sessoes_em_atraso");
+    const s = await cenario();
+    const s2 = await cenario();
+    const nova = async (cen: Cenario) => {
+      const x = await checkoutCom(cen, [[cen.v1, 1]]);
+      await ok(
+        pedir("PUT", `/checkout/${x.token}/contact`, {
+          email: "ana@exemplo.pt",
+          nome: "Ana",
+        }),
+      );
+      return x;
+    };
+    /** Muda a sessão com o gatilho desligado (só o superutilizador do teste). */
+    const mudar = (sessao: string, alteracao: string) =>
+      base.dono.transaction().execute(async (trx) => {
+        await sql`alter table sessao_checkout disable trigger sessao_checkout_antes_de_gravar`.execute(
+          trx,
+        );
+        await sql`update sessao_checkout set ${sql.raw(alteracao)}
+          where id = ${sessao.slice(4)}::uuid`.execute(trx);
+        await sql`alter table sessao_checkout enable always trigger sessao_checkout_antes_de_gravar`.execute(
+          trx,
+        );
+      });
+    const antes = await atraso();
+    // Expirada há 9 dias: a tarefa devia tê-la limpo há 2.
+    await mudar(
+      (await nova(s)).sessao,
+      `estado = 'expirada', actualizado_em = now() - interval '9 days', expira_em = now() - interval '9 days'`,
+    );
+    // Aberta esquecida de outro comerciante, expirada há 9 dias.
+    await mudar(
+      (await nova(s2)).sessao,
+      `estado = 'aberta', actualizado_em = now() - interval '1 day', expira_em = now() - interval '9 days'`,
+    );
+    // Expirada há 7 dias e meio: a tarefa já a limpa, mas está na folga.
+    await mudar(
+      (await nova(s)).sessao,
+      `estado = 'expirada', actualizado_em = now() - interval '7 days 12 hours', expira_em = now() - interval '7 days 12 hours'`,
+    );
+    // Concluída há dois dias e ainda com dados (devia sair ao concluir).
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    await ok(
+      botao(k.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    await mudar(
+      k.sessao,
+      `email = 'rui@exemplo.pt', actualizado_em = now() - interval '2 days'`,
+    );
+    // Concluída há pouco, ainda com dados: a próxima volta limpa-a.
+    const k2 = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k2.token);
+    await ok(
+      botao(k2.token, { aceita_condicoes: true, versoes: s.versoes }),
+      201,
+    );
+    await mudar(k2.sessao, `email = 'rui@exemplo.pt'`);
+    expect(await atraso()).toBe(antes + 3);
+    // A tarefa corre (todos os comerciantes): nada fica atrasado.
+    await correrLimpezaDasSessoes(base.api);
+    expect(await atraso()).toBe(0);
+    await expect(
+      comComerciante(base.api, s.c, (trx) =>
+        sql`select checkout_sessoes_em_atraso()`.execute(trx),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  }, 60_000);
+
   it("a confirmação pelo token só nos 30 dias depois da encomenda", async () => {
     const s = await cenario();
     const k = await checkoutCom(s, [[s.v1, 1]]);
@@ -1705,6 +1805,39 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
         base.dono,
       ),
     ).rejects.toThrow(/append_only/);
+  });
+
+  it("a verificação diária conta as encomendas da fila acabadas há mais de um dia por limpar (docs/23 §15.11, T2)", async () => {
+    const atraso = () => contarComoLimpeza("titular_pendentes_em_atraso");
+    const s = await cenario();
+    const enc = await porPagar(s);
+    await pseudonimizar(s.c, enc.cliente_id);
+    const antes = await atraso();
+    // Na fila há dois dias (o gatilho só deixa marcá-la como aplicada).
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`alter table titular_pendente disable trigger titular_pendente_antes_de_gravar`.execute(
+        trx,
+      );
+      await sql`update titular_pendente set criado_em = now() - interval '2 days'
+        where encomenda_id = ${enc.id}::uuid`.execute(trx);
+      await sql`alter table titular_pendente enable always trigger titular_pendente_antes_de_gravar`.execute(
+        trx,
+      );
+    });
+    // Ainda em curso: espera, não está atrasada.
+    expect(await atraso()).toBe(antes);
+    // Acabou e a tarefa não correu: conta.
+    await cancelar(s.c, enc.id);
+    expect(await atraso()).toBe(antes + 1);
+    // A tarefa corre: deixa de contar.
+    await correrApagamentosPendentes(base.api);
+    expect(await atraso()).toBe(0);
+    // A API não a chama (só a verificação da VPS).
+    await expect(
+      comComerciante(base.api, s.c, (trx) =>
+        sql`select titular_pendentes_em_atraso()`.execute(trx),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it("com a marca, só as colunas pessoais abrem; sem ela, nada (revisão do #374, P2-5)", async () => {
