@@ -2288,8 +2288,9 @@ nunca o NIF nem o nome do cliente.
 
 Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho da ligação ao
 Moloni no Hub»*). É a parte que a Q1 do §30 deixou para depois: «entram numa
-parte seguinte, com a leitura das listas do Moloni». **Estado: desenho, por
-aprovar.**
+parte seguinte, com a leitura das listas do Moloni». **Aprovado pelo Diogo a
+13/10/2026**, com a Q1 em A (*«sim, aprovo o desenho com a Q1 em A»*;
+`docs/06`, EH).
 
 Hoje a ligação, a série e os mapas só se criam pela integração. É preciso
 escrever os números do Moloni à mão: a série, cada (país, taxa) → `tax_id`,
@@ -2376,7 +2377,9 @@ estas leituras contam para o limite de pedidos (§13.5).
 | Dados pessoais dos clientes do Moloni no Hub | a pesquisa de clientes só devolve o id, o número e o nome; o contribuinte e a morada não saem |
 | A leitura gastar o limite do Moloni | o limite próprio por empresa (§13.5); as listas lêem-se só ao abrir e ao gravar |
 
-### 31.6 Por decidir
+### 31.6 Decidido
+
+✅ **Q1: A** (Diogo, 13/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
 
 **Q1. O ecrã sugere a taxa do Moloni quando o valor e a zona fiscal batem?**
 Ex.: para «IVA 23 % · Portugal», o Moloni tem a «Taxa Normal» (23 %, zona
