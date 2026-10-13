@@ -1410,7 +1410,7 @@ a 3/11 o mês passou e o Eurolify não o sabe.
 | T3 | **Fechar** | o pedido recebido fecha quando: (a) se executa o pedido correspondente (`pedido_titular`, ligado ao recebido); (b) se marca **respondido** fora do Eurolify (rectificação, oposição, acesso respondido por e-mail), com a data; (c) se marca **recusado**, com a data em que se informou o titular das razões (n.º 4) | três fins, todos com data: a prova de que se respondeu dentro do mês |
 | T4 | **A lista «A decidir»** | fila nova `pedido_titular` (`docs/33`): está na lista enquanto aberto; quem decide `customers:privacy` (o dono); prazo da tarefa por omissão **7 dias antes do prazo legal** (proposta, **não é lei**), nunca depois dele | a peça 21 já dá dono, prazo e aviso ao vencer |
 | T5 | **O aviso** | o da peça 21 (`task.overdue`) ao vencer o prazo da tarefa, e um segundo, uma vez, se o **prazo legal** passar com o pedido aberto | o primeiro dá tempo para responder; o segundo diz que se falhou a lei |
-| T6 | **Sem identidade ainda** | o registo pede uma ficha (`cus_…`). Um pedido de quem ainda não se identificou fica fora do Eurolify até se saber a ficha (**decisão**, Q-P2) | nunca decidir identidade pelo nome (regra fiscal 6) |
+| T6 | **Sem identidade ainda** | o registo pede uma ficha (`cus_…`). Um pedido de quem ainda não se identificou fica fora do Eurolify até se saber a ficha (decidido, Q-P2) | nunca decidir identidade pelo nome (regra fiscal 6) |
 | T7 | **Dados** | o registo guarda só o tipo, as datas, o canal, quem registou e o estado; a pseudonimização não lhe toca (é a prova de que se respondeu) | minimização (art. 5.º, n.º 1, c)) e prova (art. 5.º, n.º 2) |
 
 **Fica de fora:** o pedido pela Loja (o login dos clientes, Q5 da CX); o
@@ -1421,6 +1421,6 @@ contagem de dias úteis ou feriados (o RGPD conta em meses).
 - **Q-P1, decidida:** aprovado pelo Diogo a 13/10/2026 (*«A»*; `docs/06`
   EO), com a fila nova na lista «A decidir» e o prazo da tarefa 7 dias antes
   do prazo legal.
-- **Q-P2:** um pedido de quem ainda não tem ficha (ex.: um e-mail de um
-  endereço que não está em nenhuma ficha) fica fora do Eurolify até se saber
-  quem é (proposta), ou regista-se sem ficha?
+- **Q-P2, decidida:** um pedido de quem ainda não tem ficha fica fora do
+  Eurolify até se saber quem é; o registo pede sempre uma ficha (Diogo,
+  13/10/2026, *«A»*).
