@@ -2974,10 +2974,12 @@ try {
             mercado_nome: "Portugal",
             loja_nome: "Loja online",
             estado: "publicado",
+            variantes_fora: [],
             verificado_em: null,
             publicado_em: "2026-10-09T10:00:00Z",
             arquivado_em: null,
             motivo_arquivo: null,
+            versao: 1,
           },
         ],
       }),
@@ -4667,6 +4669,380 @@ try {
   );
   await rp.goto(fichaCoral41);
   await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  // Publicar pelo Hub (docs/22 §27.6; issue #378), com a Ana (dona): o
+  // exemplo da §27 — o «Gel Coral 41» está publicado em «Loja online ·
+  // Portugal» com a ENS-041-B fora (acabada de acrescentar, já com preço);
+  // refaz-se a publicação com ela, só com o teclado.
+  {
+    const pub41 = async () =>
+      rp.evaluate(
+        async ({ c, a }) => {
+          const r = await fetch(`/hub/products/${a}/publications`, {
+            headers: { "eurolify-comerciante": c },
+          });
+          const ficha = await (
+            await fetch(`/hub/products/${a}`, {
+              headers: { "eurolify-comerciante": c },
+            })
+          ).json();
+          const b = ficha.variantes.find((v) => v.sku === "ENS-041-B")?.id;
+          return (await r.json()).dados.map((p) => ({
+            canal_nome: p.canal_nome,
+            estado: p.estado,
+            versao: p.versao,
+            foraB: p.variantes_fora.includes(b),
+            fora: p.variantes_fora.length,
+          }));
+        },
+        { c: `mer_${comerciante}`, a: `prd_${artigoSemPeso}` },
+      );
+    const linhaPt = rp.getByRole("row", {
+      name: /Loja online.*Portugal.*Publicado.*1 variante fora/,
+    });
+    await linhaPt.waitFor();
+    confere(
+      (await linhaPt.count()) === 1,
+      "publicar: na ficha, a publicação publicada diz «1 variante fora»",
+    );
+    await rp
+      .getByRole("link", {
+        name: "Rever a publicação de Loja online · Portugal",
+      })
+      .focus();
+    await rp.keyboard.press("Enter");
+    await rp
+      .getByRole("heading", { name: "Publicar o artigo", level: 1 })
+      .waitFor();
+    const caixaB = rp.getByLabel("ENS-041-B", { exact: true });
+    await caixaB.waitFor();
+    confere(
+      (await rp.getByLabel("ENS-041", { exact: true }).isChecked()) &&
+        !(await caixaB.isChecked()),
+      "publicar: a ENS-041 vem marcada e a ENS-041-B, que está fora, não (Q1)",
+    );
+    await caixaB.focus();
+    await rp.keyboard.press("Space");
+    await rp.getByRole("button", { name: "Verificar" }).focus();
+    await rp.keyboard.press("Enter");
+    await rp.getByText("Pode publicar", { exact: true }).waitFor();
+    confere(
+      (await rp
+        .getByText("A conformidade do produto ainda não é verificada.")
+        .count()) === 1 &&
+        (await rp
+          .getByRole("button", { name: "Publicar outra vez" })
+          .count()) === 1,
+      "publicar: a verificação diz «Pode publicar», que a conformidade não foi verificada, e só então oferece publicar",
+    );
+    for (const [largura, tema] of [
+      [375, "light"],
+      [375, "dark"],
+      [768, "light"],
+      [768, "dark"],
+      [1280, "light"],
+      [1280, "dark"],
+    ]) {
+      await rp.setViewportSize({ width: largura, height: 900 });
+      await rp.emulateMedia({ colorScheme: tema });
+      await rp.getByText("Pode publicar", { exact: true }).waitFor();
+      await rp.evaluate(
+        () =>
+          new Promise((pronto) =>
+            window.requestAnimationFrame(() =>
+              window.requestAnimationFrame(pronto),
+            ),
+          ),
+      );
+      confere(
+        !(await rp.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        )),
+        `publicar: a ${String(largura)} px (${tema}) sem deslocação horizontal`,
+      );
+      await rp.screenshot({
+        path: join(
+          SAIDA,
+          `publicar-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+        ),
+        fullPage: true,
+      });
+    }
+    await rp.setViewportSize({ width: 375, height: 800 });
+    await rp.emulateMedia({ colorScheme: "light" });
+    // Mudar uma escolha esconde «Publicar» e pede outra verificação.
+    await caixaB.focus();
+    await rp.keyboard.press("Space");
+    await rp
+      .getByText("Mudou as escolhas: verifique outra vez antes de publicar.")
+      .waitFor();
+    confere(
+      (await rp.getByRole("button", { name: "Publicar outra vez" }).count()) ===
+        0,
+      "publicar: mudar uma escolha esconde «Publicar» e pede outra verificação",
+    );
+    await caixaB.focus();
+    await rp.keyboard.press("Space");
+    await rp.getByRole("button", { name: "Verificar" }).focus();
+    // A verificação leva o foco para o resultado quando volta: só depois se
+    // passa ao botão de publicar.
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.keyboard.press("Enter"),
+    ]);
+    await rp.getByText("Pode publicar", { exact: true }).waitFor();
+    await rp.getByRole("button", { name: "Publicar outra vez" }).focus();
+    await rp.keyboard.press("Enter");
+    await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+    await rp
+      .getByText("Publicado em Loja online · Portugal.", { exact: true })
+      .waitFor();
+    const depois = await pub41();
+    confere(
+      depois.length === 1 &&
+        depois[0].estado === "publicado" &&
+        !depois[0].foraB &&
+        (await rp
+          .getByRole("row", { name: /Loja online.*Portugal.*Publicado/ })
+          .getByText("variante fora", { exact: false })
+          .count()) === 0,
+      "publicar: só com o teclado, a ENS-041-B entra à venda e a ficha diz «Publicado em Loja online · Portugal.»",
+    );
+
+    // O conflito (409): outra pessoa publica entretanto (pela chave, que
+    // não manda a versão); as escolhas desta ficam e o estado é o de agora.
+    await rp
+      .getByRole("link", {
+        name: "Rever a publicação de Loja online · Portugal",
+      })
+      .click();
+    await caixaB.waitFor();
+    await caixaB.uncheck();
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
+    await rp.getByText("Pode publicar", { exact: true }).waitFor();
+    {
+      const base = abrirBase(urlDaPreparacaoTexto);
+      try {
+        const outra = await publicar(base, comerciante, "pessoa:passagem", {
+          artigo_id: artigoSemPeso,
+          canal_id: canalDaFicha,
+          mercado_id: mercadoDaFicha,
+        });
+        if (!outra.publicada) throw new Error("a outra pessoa devia publicar");
+      } finally {
+        await base.destroy();
+      }
+    }
+    await rp.getByRole("button", { name: "Publicar outra vez" }).click();
+    await rp
+      .getByText("Outra pessoa mudou esta publicação entretanto.", {
+        exact: false,
+      })
+      .first()
+      .waitFor();
+    confere(
+      !(await caixaB.isChecked()) &&
+        (await rp
+          .getByRole("button", { name: "Publicar outra vez" })
+          .count()) === 0,
+      "publicar: o conflito diz que outra pessoa mudou a publicação, mantém as escolhas e pede outra verificação",
+    );
+
+    // A resposta perdida: a publicação grava-se e chega um 502 sem corpo; o
+    // ecrã relê e dá-a por feita (§27.2).
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
+    await rp.getByText("Pode publicar", { exact: true }).waitFor();
+    await rp.route("**/hub/products/*/publications", async (r) => {
+      if (r.request().method() !== "POST") return r.continue();
+      await r.fetch();
+      return r.fulfill({ status: 502, body: "" });
+    });
+    await rp.getByRole("button", { name: "Publicar outra vez" }).click();
+    await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+    await rp.unroute("**/hub/products/*/publications");
+    await rp
+      .getByText("Publicado em Loja online · Portugal.", { exact: true })
+      .waitFor();
+    const perdida = await pub41();
+    confere(
+      perdida[0]?.foraB === true,
+      "publicar: uma resposta perdida com a publicação gravada dá-se por feita (a ENS-041-B ficou fora)",
+    );
+
+    // Os impedimentos (de outro artigo, fingidos na resposta): o peso e o
+    // preço em falta, cada um com a ligação para onde se resolve.
+    await rp
+      .getByRole("link", {
+        name: "Rever a publicação de Loja online · Portugal",
+      })
+      .click();
+    await caixaB.waitFor();
+    await rp.route("**/hub/products/*/publications/check", (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          impedimentos: [
+            { codigo: "peso_em_falta", variantes: ["ENS-041"] },
+            { codigo: "preco_em_falta", variantes: ["ENS-041-B"] },
+          ],
+          nao_verificado: ["conformidade"],
+        }),
+      }),
+    );
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
+    await rp.getByText("Ainda não pode publicar:").waitFor();
+    await rp.unroute("**/hub/products/*/publications/check");
+    // A ligação do preço espera pela lista base, lida à parte: dá-se-lhe
+    // tempo antes de contar (na 3.ª corrida de 13/10/2026 faltou uma vez).
+    await rp
+      .getByRole("link", { name: "Definir o preço de ENS-041-B" })
+      .waitFor({ timeout: 5000 })
+      .catch(() => undefined);
+    for (const [descricao, verdade] of [
+      [
+        "o texto do peso em falta",
+        (await rp.getByText("Falta o peso de ENS-041.").count()) === 1,
+      ],
+      [
+        "a ligação para editar a variante",
+        (await rp.getByRole("link", { name: "Editar ENS-041" }).count()) === 1,
+      ],
+      [
+        "o texto do preço em falta",
+        (await rp
+          .getByText("ENS-041-B não tem preço na lista base de Portugal.")
+          .count()) === 1,
+      ],
+      [
+        "a ligação para o preço",
+        (await rp
+          .getByRole("link", { name: "Definir o preço de ENS-041-B" })
+          .count()) === 1,
+      ],
+      [
+        "sem «Publicar»",
+        (await rp.getByRole("button", { name: /^Publicar/ }).count()) === 0,
+      ],
+    ]) {
+      confere(
+        verdade,
+        `publicar: os impedimentos em linguagem comum — ${descricao}`,
+      );
+    }
+
+    // Publicar noutra loja: um segundo canal que vende em Portugal.
+    {
+      const base = abrirBase(urlDaPreparacaoTexto);
+      try {
+        const loja = await comComerciante(base, comerciante, (trx) =>
+          trx
+            .selectFrom("canal")
+            .select("loja_id")
+            .where("id", "=", canalDaFicha)
+            .executeTakeFirstOrThrow(),
+        );
+        const segundo = await criarCanal(base, comerciante, {
+          loja_id: loja.loja_id,
+          nome: "Revenda",
+        });
+        await definirMercadosDoCanal(base, comerciante, segundo, [
+          mercadoDaFicha,
+        ]);
+      } finally {
+        await base.destroy();
+      }
+    }
+    await rp.goto(fichaCoral41);
+    await rp.getByText("Publicar noutra loja", { exact: true }).click();
+    await rp.getByRole("link", { name: /Revenda.*Portugal/ }).click();
+    await rp.getByLabel("ENS-041-B", { exact: true }).waitFor();
+    confere(
+      (await rp.getByLabel("ENS-041", { exact: true }).isChecked()) &&
+        (await rp.getByLabel("ENS-041-B", { exact: true }).isChecked()),
+      "publicar: num par sem publicação, as variantes activas vêm todas marcadas",
+    );
+    await Promise.all([
+      rp.waitForResponse((r) => r.url().endsWith("/publications/check")),
+      rp.getByRole("button", { name: "Verificar" }).click(),
+    ]);
+    await rp.getByRole("button", { name: "Publicar", exact: true }).click();
+    await rp
+      .getByText("Publicado em Revenda · Portugal.", { exact: true })
+      .waitFor();
+    confere(true, "publicar: publica noutro par pela ficha");
+
+    // Retirar, com a pergunta.
+    let pergunta = "";
+    rp.once("dialog", (d) => {
+      pergunta = d.message();
+      void d.accept();
+    });
+    await rp
+      .getByRole("button", { name: "Retirar de Revenda · Portugal" })
+      .click();
+    await rp
+      .getByText("Retirado de Revenda · Portugal.", { exact: true })
+      .waitFor();
+    confere(
+      pergunta ===
+        "Retirar o Gel Coral 41 de Revenda · Portugal? Deixa de estar à venda nesta loja." &&
+        (await rp
+          .getByRole("row", { name: /Revenda.*Portugal.*Arquivad/ })
+          .count()) === 1,
+      "publicar: retirar pergunta antes e a publicação fica arquivada",
+    );
+
+    // Numa publicação que já não está à venda, nenhuma variante vem
+    // marcada (Diogo, 13/10/2026: «A»; docs/22 §27.5).
+    await rp
+      .getByRole("link", { name: "Rever a publicação de Revenda · Portugal" })
+      .click();
+    await rp.getByLabel("ENS-041-B", { exact: true }).waitFor();
+    confere(
+      !(await rp.getByLabel("ENS-041", { exact: true }).isChecked()) &&
+        !(await rp.getByLabel("ENS-041-B", { exact: true }).isChecked()),
+      "publicar: numa publicação retirada, nenhuma variante vem marcada",
+    );
+    // Sem catalog:publish: nem as acções na ficha nem a página.
+    await rp.route("**/hub/me", async (r) => {
+      const resposta = await r.fetch();
+      const corpo = await resposta.json();
+      for (const c of corpo.comerciantes ?? []) {
+        c.ambitos = (c.ambitos ?? []).filter((a) => a !== "catalog:publish");
+      }
+      return r.fulfill({ response: resposta, json: corpo });
+    });
+    await rp.goto(fichaCoral41);
+    await rp
+      .getByRole("row", { name: /Loja online.*Portugal.*Publicado/ })
+      .waitFor();
+    const semAccoes =
+      (await rp.getByRole("link", { name: /^Rever a publicação/ }).count()) ===
+        0 &&
+      (await rp.getByRole("button", { name: /^Retirar/ }).count()) === 0 &&
+      (await rp.getByText("Publicar noutra loja").count()) === 0;
+    await rp.goto(
+      `${ORIGEM}/artigos/prd_${artigoSemPeso}/publicacoes/chn_${canalDaFicha}/mkt_${mercadoDaFicha}?comerciante=mer_${comerciante}`,
+    );
+    await rp.getByText("Não tem permissão para isto.").waitFor();
+    await rp.unroute("**/hub/me");
+    confere(
+      semAccoes &&
+        (await rp.getByRole("button", { name: "Verificar" }).count()) === 0,
+      "publicar: sem catalog:publish, a ficha não tem acções e a página só o aviso",
+    );
+    await rp.goto(fichaCoral41);
+    await rp.getByRole("heading", { name: "Gel Coral 41", level: 1 }).waitFor();
+  }
   // Num artigo activo com opções («Verniz Verde 31»): sem valor, o ecrã
   // recusa; com a combinação de outra variante, a API recusa; com uma nova,
   // cria.
