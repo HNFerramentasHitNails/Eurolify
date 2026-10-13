@@ -132,9 +132,9 @@ chave da API, ou `pessoa:per_…` por uma pessoa da equipa do comerciante no
 Hub — um identificador pseudónimo, nunca o nome nem o motivo escrito
 (`eu-gdpr-privacy`, minimização). Finalidade: provar quem decidiu um balde ou
 uma data que não veio da prova; fica com os registos (os 10 anos acima).
-`fechado_por`, no fecho, segue a mesma regra. **Não verifiquei** com um jurista se o
-identificador de uma pessoa deve sair no ficheiro que se entrega ao
-contabilista; até lá sai, porque sem ele a decisão à mão não tem autor.
+`fechado_por`, no fecho, segue a mesma regra. **Decisão do Diogo (13/10/2026: *«sim, mantém o identificador no CSV»*):**
+sai no ficheiro, porque sem ele a decisão à mão não tem autor. **C**: não
+verificado com um jurista.
 
 ## 5. A API
 
