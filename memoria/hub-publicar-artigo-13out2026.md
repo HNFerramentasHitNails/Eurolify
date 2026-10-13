@@ -17,5 +17,5 @@
 
 ## O que ficou por verificar
 
-- Uma variante criada com o ecrã aberto, num par sem publicação publicada, entra se a pessoa não recarregar (o servidor grava as `variantes_fora` do ecrã; passa pela verificação do preço e do peso).
+- Uma variante criada com o ecrã aberto, num par sem publicação publicada, entra se a pessoa não recarregar (o servidor grava as `variantes_fora` do ecrã; passa pela verificação do preço e do peso). **Tratado a 13/10/2026:** o ecrã manda as `variantes_vistas` e uma activa que lá não esteja dá 409 (`docs/22` §27.2; teste em `hub-publicar.test.ts`).
 - Safari e um telemóvel real.

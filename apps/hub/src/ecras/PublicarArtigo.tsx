@@ -363,6 +363,9 @@ export function PublicarArtigo({
         mercado,
         variantes_fora: pedidas,
         versao: versaoLida,
+        // As que o ecrã mostrou: uma criada entretanto dá conflito e o ecrã
+        // relê (§27.2).
+        variantes_vistas: activas,
       });
       if (!aindaAqui()) return;
       // Lê-se sempre `publicada`, nunca só o estado HTTP (§27.2).
