@@ -6604,6 +6604,7 @@ try {
             peso_corrigido_g: 1450,
             vendido: { conta, servico: "sendcloud:letter" },
             escolhido: null,
+            escolhido_nao_serve: null,
             opcoes: [
               {
                 conta,
