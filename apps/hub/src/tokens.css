@@ -103,6 +103,9 @@
   --estado-conta-pronta: var(--estado-sucesso);
   --estado-conta-rascunho: var(--estado-aviso);
   --estado-conta-arquivada: var(--texto-secundario);
+  /* O estado de um método de entrega (docs/22 §31.3). */
+  --estado-metodo-activo: var(--estado-sucesso);
+  --estado-metodo-arquivado: var(--texto-secundario);
   /* O vidro da entrada: uma cor, a opacidade (percentagem, para o
      color-mix) e o fundo estático com um gradiente muito leve. O teste de
      contraste mede as cores compostas. */

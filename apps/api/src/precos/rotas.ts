@@ -172,7 +172,7 @@ const Mercado = Type.Object({
   actualizado_em: Instante,
 });
 type LinhaMercado = Awaited<ReturnType<typeof obterMercado>>;
-const paraMercado = (m: LinhaMercado): Static<typeof Mercado> => ({
+export const paraMercado = (m: LinhaMercado): Static<typeof Mercado> => ({
   id: `mkt_${m.id}`,
   loja: `sto_${m.loja_id}`,
   nome: m.nome,

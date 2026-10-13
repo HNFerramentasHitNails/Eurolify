@@ -439,6 +439,43 @@ code {
   color: var(--estado-conta-arquivada);
 }
 
+/* Os métodos de entrega e a embalagem (docs/22 §31.3): os separadores do
+   módulo, o estado do método e um cartão por armazém. */
+.separadores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2) var(--espaco-4);
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--espaco-4);
+  border-bottom: var(--borda-fina) solid var(--borda);
+}
+.separadores a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--alvo-minimo);
+  border-bottom: var(--borda-realce) solid transparent;
+}
+.separadores a[aria-current="page"] {
+  font-weight: 600;
+  border-bottom-color: var(--accao-principal);
+}
+.estado-metodo {
+  font-weight: 600;
+}
+.estado-metodo[data-estado="activo"] {
+  color: var(--estado-metodo-activo);
+}
+.estado-metodo[data-estado="arquivado"] {
+  color: var(--estado-metodo-arquivado);
+}
+.lista-embalagem {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--espaco-4);
+}
+
 /* O ecrã «A decidir» (docs/22 §28.3): o vencido diz-se em texto e com a cor
    do estado; o filtro escolhido marca-se também pelo aria-pressed. */
 .tarefa-vencida {

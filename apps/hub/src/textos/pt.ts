@@ -1193,6 +1193,124 @@ export const pt = {
     "Os envios estão ocupados neste momento. Tente outra vez daqui a pouco.",
   enviosServicosFalha:
     "Não foi possível ler os serviços da conta agora. O resto da página funciona; recarregue mais tarde.",
+  // Os métodos de entrega e a embalagem (docs/22 §31).
+  enviosSeparadores: "Secções dos envios",
+  enviosSeparadorContas: "Contas",
+  enviosSeparadorMetodos: "Métodos de entrega",
+  enviosSeparadorEmbalagem: "Embalagem",
+  metodosTitulo: "Métodos de entrega",
+  metodosExplicacao:
+    "Os métodos que o checkout oferece em cada mercado, com a tarifa, o prazo máximo e as regiões servidas. O cliente vê o prazo máximo e as restrições antes de encomendar.",
+  metodosSemMercados:
+    "Ainda não há mercados. Os métodos de entrega são de um mercado: crie primeiro um mercado.",
+  metodosCriar: "Criar um método",
+  metodosMercado: "Mercado",
+  metodosTodosOsMercados: "Todos os mercados",
+  metodosVazio: "Ainda não há métodos de entrega.",
+  metodosContagemUm: "1 método.",
+  metodosContagem: "{n} métodos.",
+  metodosMostrarArquivados: "Mostrar os arquivados ({n})",
+  metodosColunaMetodo: "Método",
+  metodosColunaTarifa: "Tarifa",
+  metodosColunaGratis: "Grátis a partir de",
+  metodosColunaPrazo: "Prazo máximo",
+  metodosColunaTransportadora: "Transportadora",
+  metodosColunaEstado: "Estado",
+  metodosGratis: "Grátis",
+  metodosNada: "—",
+  metodosAteDias: "até {n} dias",
+  metodosManual: "Manual",
+  metodosManualLongo: "Manual (sem etiquetas pelo Eurolify)",
+  metodosManualAjuda:
+    "Com uma conta, o Eurolify pede as etiquetas a essa transportadora. «Manual» quer dizer que a transportadora e o seguimento se escrevem à mão.",
+  metodosSemContasProntas:
+    "Não há contas prontas: só «Manual». Ligue e teste uma conta em",
+  metodosEstadoActivo: "Activo",
+  metodosEstadoArquivado: "Arquivado",
+  metodosVoltar: "Voltar aos métodos de entrega",
+  metodosNovoTitulo: "Criar um método de entrega",
+  metodosMetodoTitulo: "Método de entrega",
+  metodosNaoExiste: "Este método não existe ou não é deste comerciante.",
+  metodosArquivado:
+    "O método está arquivado: o checkout não o oferece. Pode mudá-lo e reactivá-lo. Se a conta dele já não estiver pronta, escolha outra (ou «Manual») e guarde antes de reactivar.",
+  metodosContaIndisponivel:
+    "A conta deste método não está pronta (por testar ou arquivada): o checkout não oferece o método até a conta voltar a passar o teste, ou até escolher outra.",
+  metodosSoVer: "O seu papel só vê os envios: os campos não se mudam.",
+  metodosMercadoAjuda: "O mercado não muda depois de criado.",
+  metodosMercadoFixo:
+    "O mercado não muda depois de criado: para outro mercado, crie outro método.",
+  metodosNome: "Nome que o cliente vê",
+  metodosNaLingua: "Em {lingua}",
+  metodosNaLinguaPrincipal: "Em {lingua} (a língua principal, obrigatório)",
+  metodosPrazoTexto: "Prazo indicado (opcional)",
+  metodosPrazoTextoAjuda: "Um texto curto, ex.: «2 a 3 dias úteis».",
+  metodosTarifaComIva: "Tarifa por encomenda ({moeda}, com IVA)",
+  metodosTarifaSemIva: "Tarifa por encomenda ({moeda}, sem IVA)",
+  metodosGratisAPartir: "Grátis a partir de ({moeda}, opcional)",
+  metodosGratisAjuda:
+    "Conta o total das linhas, como o cliente o vê. Em branco, nunca é grátis.",
+  metodosPedeTelefone: "Pede o telefone do cliente",
+  metodosServico: "Serviço",
+  metodosEscolherServico: "Escolha um serviço",
+  metodosServicoAjuda:
+    "Só os serviços que entregam em todos os países do mercado. O peso máximo vem do serviço: confirme-o.",
+  metodosSemServicosNoMercado:
+    "Esta conta não tem serviços para todos os países do mercado. Teste a conta outra vez ou escolha outra.",
+  metodosPrazoMax: "Prazo máximo de entrega, em dias (1 a 30)",
+  metodosPrazoMaxAjuda:
+    "Conta a partir do dia seguinte à encomenda. O cliente vê a data-limite de entrega antes de comprar e na confirmação.",
+  metodosPrefixos: "Códigos postais servidos (opcional)",
+  metodosPrefixosAjuda:
+    "O início dos códigos postais, separados por vírgulas (ex.: 1, 2, 3 para os que começam por esses algarismos). Em branco, o país todo. O cliente vê a restrição antes de encomendar. O ecrã não confere os prefixos contra uma tabela de regiões.",
+  metodosPesoMax: "Peso máximo da caixa, em gramas (opcional)",
+  metodosPesoMaxAjuda:
+    "Uma encomenda mais pesada não vê este método. Em branco, sem limite.",
+  metodosOnu: "Mercadorias perigosas (números ONU)",
+  metodosOnuNenhum: "Nenhuma aceite.",
+  metodosOnuAjuda:
+    "Não se muda aqui: a classificação é de um profissional, e muda-se pela API.",
+  metodosCriarBotao: "Criar",
+  metodosGuardar: "Guardar",
+  metodosGuardado: "Guardado.",
+  metodosNadaMudou: "Nada mudou.",
+  metodosArquivar: "Arquivar o método",
+  metodosReactivar: "Reactivar o método",
+  metodosArquivarConfirmar:
+    "Arquivar o método «{nome}»? O checkout deixa de o oferecer. Pode reactivá-lo depois.",
+  metodosArquivadoAgora: "O método foi arquivado.",
+  metodosReactivadoAgora: "O método foi reactivado.",
+  metodosTalvezCriado:
+    "Não chegou resposta: o método pode ter ficado criado. Confira a lista dos métodos antes de tentar outra vez.",
+  metodosFaltaNome: "Escreva o nome na língua principal do mercado.",
+  metodosTarifaErrada: "A tarifa é um montante, ex.: 4,99 (ou 0 para grátis).",
+  metodosGratisErrado:
+    "«Grátis a partir de» é um montante maior do que zero, ou fica em branco.",
+  metodosFaltaServico: "Escolha o serviço da conta, ou «Manual».",
+  metodosPrazoErrado: "O prazo máximo é um número de dias de 1 a 30.",
+  metodosPrefixosErrados:
+    "Um dos códigos postais não é um início de código postal (letras, algarismos, espaço ou hífen, até 12), ou são mais de 200.",
+  metodosPesoErrado:
+    "O peso máximo é um número de gramas de 1 a 1 000 000, ou fica em branco.",
+  metodosContaNaoPronta:
+    "A conta escolhida não está pronta: teste-a primeiro em «Contas».",
+  metodosContaNaoExiste: "A conta escolhida já não existe.",
+  metodosServicoDesconhecido:
+    "A conta não tem este serviço. Teste a conta outra vez para reler os serviços.",
+  metodosServicoNaoServe:
+    "O serviço não serve este método: confira se entrega em todos os países do mercado, o peso máximo e se pede telefone.",
+  metodosConflito:
+    "O método mudou entretanto. O que escreveu continua no formulário; «Tentar outra vez» carrega a versão actual e substitui-o.",
+  embalagemTitulo: "Embalagem",
+  embalagemExplicacao:
+    "O peso da embalagem de cada armazém, em gramas. Soma-se ao peso das variantes na etiqueta.",
+  embalagemSemArmazens: "Ainda não há armazéns. Os armazéns criam-se no stock.",
+  embalagemArquivado: "Armazém arquivado.",
+  embalagemGramas: "Peso da embalagem, em gramas (0 a 100 000)",
+  embalagemErrada: "O peso da embalagem é um número de gramas de 0 a 100 000.",
+  embalagemGuardada: "Guardado: {g} g.",
+  metodosMercadoNaoExiste:
+    "Este mercado já não existe. Recarregue a página e escolha outro.",
+  embalagemNaoExiste: "Este armazém já não existe ou não é deste comerciante.",
 };
 
 export type Textos = typeof pt;

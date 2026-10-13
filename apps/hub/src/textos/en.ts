@@ -1191,4 +1191,126 @@ export const en: Textos = {
   enviosTentarDeNovo: "Shipping is busy right now. Try again in a moment.",
   enviosServicosFalha:
     "The account services could not be read right now. The rest of the page works; reload later.",
+  // Os métodos de entrega e a embalagem (docs/22 §31).
+  enviosSeparadores: "Shipping sections",
+  enviosSeparadorContas: "Accounts",
+  enviosSeparadorMetodos: "Delivery methods",
+  enviosSeparadorEmbalagem: "Packaging",
+  metodosTitulo: "Delivery methods",
+  metodosExplicacao:
+    "The methods the checkout offers in each market, with the rate, the maximum delivery time and the regions served. Customers see the maximum time and the restrictions before ordering.",
+  metodosSemMercados:
+    "There are no markets yet. Delivery methods belong to a market: create a market first.",
+  metodosCriar: "Create a method",
+  metodosMercado: "Market",
+  metodosTodosOsMercados: "All markets",
+  metodosVazio: "There are no delivery methods yet.",
+  metodosContagemUm: "1 method.",
+  metodosContagem: "{n} methods.",
+  metodosMostrarArquivados: "Show archived ({n})",
+  metodosColunaMetodo: "Method",
+  metodosColunaTarifa: "Rate",
+  metodosColunaGratis: "Free from",
+  metodosColunaPrazo: "Maximum time",
+  metodosColunaTransportadora: "Carrier",
+  metodosColunaEstado: "Status",
+  metodosGratis: "Free",
+  metodosNada: "—",
+  metodosAteDias: "up to {n} days",
+  metodosManual: "Manual",
+  metodosManualLongo: "Manual (no labels through Eurolify)",
+  metodosManualAjuda:
+    "With an account, Eurolify requests labels from that carrier. «Manual» means the carrier and tracking are entered by hand.",
+  metodosSemContasProntas:
+    "No accounts are ready: only «Manual». Connect and test an account in",
+  metodosEstadoActivo: "Active",
+  metodosEstadoArquivado: "Archived",
+  metodosVoltar: "Back to delivery methods",
+  metodosNovoTitulo: "Create a delivery method",
+  metodosMetodoTitulo: "Delivery method",
+  metodosNaoExiste:
+    "This method does not exist or does not belong to this merchant.",
+  metodosArquivado:
+    "The method is archived: the checkout does not offer it. You can change and reactivate it. If its account is no longer ready, choose another (or «Manual») and save before reactivating.",
+  metodosContaIndisponivel:
+    "This method's account is not ready (not tested or archived): the checkout does not offer the method until the account passes the test again, or another is chosen.",
+  metodosSoVer:
+    "Your role can only view shipping: the fields cannot be changed.",
+  metodosMercadoAjuda: "The market cannot change once created.",
+  metodosMercadoFixo:
+    "The market cannot change once created: for another market, create another method.",
+  metodosNome: "Name the customer sees",
+  metodosNaLingua: "In {lingua}",
+  metodosNaLinguaPrincipal: "In {lingua} (the main language, required)",
+  metodosPrazoTexto: "Stated delivery time (optional)",
+  metodosPrazoTextoAjuda: "A short text, e.g. «2 to 3 working days».",
+  metodosTarifaComIva: "Rate per order ({moeda}, VAT included)",
+  metodosTarifaSemIva: "Rate per order ({moeda}, VAT excluded)",
+  metodosGratisAPartir: "Free from ({moeda}, optional)",
+  metodosGratisAjuda:
+    "Counts the line total as the customer sees it. Blank means never free.",
+  metodosPedeTelefone: "Asks for the customer's phone",
+  metodosServico: "Service",
+  metodosEscolherServico: "Choose a service",
+  metodosServicoAjuda:
+    "Only the services that deliver to every country of the market. The maximum weight comes from the service: confirm it.",
+  metodosSemServicosNoMercado:
+    "This account has no services for every country of the market. Test the account again or choose another.",
+  metodosPrazoMax: "Maximum delivery time, in days (1 to 30)",
+  metodosPrazoMaxAjuda:
+    "Counted from the day after the order. The customer sees the delivery deadline before buying and in the confirmation.",
+  metodosPrefixos: "Postcodes served (optional)",
+  metodosPrefixosAjuda:
+    "The start of the postcodes, separated by commas (e.g. 1, 2, 3 for those starting with those digits). Blank means the whole country. The customer sees the restriction before ordering. This screen does not check the prefixes against a table of regions.",
+  metodosPesoMax: "Maximum parcel weight, in grams (optional)",
+  metodosPesoMaxAjuda:
+    "A heavier order does not see this method. Blank means no limit.",
+  metodosOnu: "Dangerous goods (UN numbers)",
+  metodosOnuNenhum: "None accepted.",
+  metodosOnuAjuda:
+    "Not changed here: the classification is a professional's, and it is changed through the API.",
+  metodosCriarBotao: "Create",
+  metodosGuardar: "Save",
+  metodosGuardado: "Saved.",
+  metodosNadaMudou: "Nothing changed.",
+  metodosArquivar: "Archive the method",
+  metodosReactivar: "Reactivate the method",
+  metodosArquivarConfirmar:
+    "Archive the method «{nome}»? The checkout stops offering it. You can reactivate it later.",
+  metodosArquivadoAgora: "The method was archived.",
+  metodosReactivadoAgora: "The method was reactivated.",
+  metodosTalvezCriado:
+    "No response arrived: the method may have been created. Check the list of methods before trying again.",
+  metodosFaltaNome: "Write the name in the market's main language.",
+  metodosTarifaErrada: "The rate is an amount, e.g. 4.99 (or 0 for free).",
+  metodosGratisErrado: "«Free from» is an amount greater than zero, or blank.",
+  metodosFaltaServico: "Choose the account's service, or «Manual».",
+  metodosPrazoErrado: "The maximum time is a number of days from 1 to 30.",
+  metodosPrefixosErrados:
+    "One of the postcodes is not a postcode start (letters, digits, space or hyphen, up to 12), or there are more than 200.",
+  metodosPesoErrado:
+    "The maximum weight is a number of grams from 1 to 1,000,000, or blank.",
+  metodosContaNaoPronta:
+    "The chosen account is not ready: test it first in «Accounts».",
+  metodosContaNaoExiste: "The chosen account no longer exists.",
+  metodosServicoDesconhecido:
+    "The account does not have this service. Test the account again to re-read the services.",
+  metodosServicoNaoServe:
+    "The service does not fit this method: check that it delivers to every country of the market, the maximum weight and whether it needs a phone.",
+  metodosConflito:
+    "The method changed in the meantime. What you wrote is still in the form; «Try again» loads the current version and replaces it.",
+  embalagemTitulo: "Packaging",
+  embalagemExplicacao:
+    "The packaging weight of each warehouse, in grams. It is added to the variants' weight on the label.",
+  embalagemSemArmazens:
+    "There are no warehouses yet. Warehouses are created in stock.",
+  embalagemArquivado: "Archived warehouse.",
+  embalagemGramas: "Packaging weight, in grams (0 to 100,000)",
+  embalagemErrada:
+    "The packaging weight is a number of grams from 0 to 100,000.",
+  embalagemGuardada: "Saved: {g} g.",
+  metodosMercadoNaoExiste:
+    "This market no longer exists. Reload the page and choose another.",
+  embalagemNaoExiste:
+    "This warehouse no longer exists or does not belong to this merchant.",
 };
