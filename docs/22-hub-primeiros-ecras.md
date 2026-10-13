@@ -2468,7 +2468,7 @@ Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho da ligação ao
 Moloni no Hub»*). É a parte que a Q1 do §30 deixou para depois: «entram numa
 parte seguinte, com a leitura das listas do Moloni». **Aprovado pelo Diogo a
 13/10/2026**, com a Q1 em A (*«sim, aprovo o desenho com a Q1 em A»*;
-`docs/06`, EH).
+`docs/06`, EI).
 
 Hoje a ligação, a série e os mapas só se criam pela integração. É preciso
 escrever os números do Moloni à mão: a série, cada (país, taxa) → `tax_id`,

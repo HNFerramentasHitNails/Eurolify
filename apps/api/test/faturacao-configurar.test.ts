@@ -24,7 +24,7 @@ import { hubDeTeste } from "./hub-de-teste.js";
 import { moloniFalso } from "./moloni-falso.js";
 
 // Criar a ligação ao Moloni e configurá-la pelo Hub (docs/22 §32; docs/06,
-// EH): só o dono; as listas lidas do Moloni (simulado) com o que o Eurolify
+// EI): só o dono; as listas lidas do Moloni (simulado) com o que o Eurolify
 // precisa de mapear; a pesquisa de clientes sem contribuinte nem morada; ao
 // gravar, o servidor relê as listas e recusa um id que lá não exista.
 
