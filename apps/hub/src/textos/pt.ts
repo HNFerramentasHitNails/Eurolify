@@ -1311,6 +1311,124 @@ export const pt = {
   metodosMercadoNaoExiste:
     "Este mercado já não existe. Recarregue a página e escolha outro.",
   embalagemNaoExiste: "Este armazém já não existe ou não é deste comerciante.",
+  // Expedir (docs/22 §32).
+  modulo_expedir: "Expedir",
+  termos_expedir: "encomendas expedições etiquetas armazém seguimento enviar",
+  expedirTitulo: "Expedir",
+  expedirExplicacao:
+    "As encomendas pagas que falta enviar, das mais antigas para as mais recentes. Aqui não aparecem preços, NIF nem e-mail.",
+  expedirVazio: "Não há encomendas por expedir.",
+  expedirContagemUm: "1 encomenda por expedir.",
+  expedirContagem: "{n} encomendas por expedir.",
+  expedirContagemMaximo:
+    "Mostram-se as {n} mais antigas; há mais por expedir. Expeça estas para ver as seguintes.",
+  expedirColunaEncomenda: "Encomenda",
+  expedirColunaEstado: "Estado",
+  expedirColunaMetodo: "Método de entrega",
+  expedirColunaPorExpedir: "Artigos por expedir",
+  expedirColunaLocalidade: "Localidade",
+  expedirEncomendaDe: "Encomenda de {data}",
+  expedirEncomendaTitulo: "Encomenda a expedir",
+  expedirEstadoPaga: "Paga",
+  expedirEstadoEmPreparacao: "Em preparação",
+  expedirEstadoExpedidaParcial: "Expedida em parte",
+  expedirEstadoExpedida: "Expedida",
+  expedirVoltar: "Voltar a «Expedir»",
+  expedirSoVer: "O seu papel só vê as expedições: não cria nem muda.",
+  expedirQuemRecebe: "Quem recebe",
+  expedirTelefone: "Telefone:",
+  expedirLinhas: "Artigos",
+  expedirColunaArtigo: "Artigo",
+  expedirColunaQuantidade: "Quantidade",
+  expedirColunaJaSaiu: "Já numa expedição",
+  expedirColunaNestaExpedicao: "Nesta expedição",
+  expedirQuantidadeDe: "Quantidade de {nome} nesta expedição",
+  expedirCriar: "Criar a expedição",
+  expedirTudoSaiu: "Todos os artigos já estão numa expedição.",
+  expedirNadaEscolhido: "Escreva a quantidade de pelo menos um artigo.",
+  expedirQuantidadeErrada: "A quantidade é um número inteiro.",
+  expedirMaisDoQueFalta:
+    "A quantidade passa do que falta expedir deste artigo.",
+  expedirTalvezCriada:
+    "Não chegou resposta: a expedição pode ter ficado criada. A página foi relida; confira as expedições antes de tentar outra vez.",
+  expedirExpedicoes: "Expedições",
+  expedirSemExpedicoes: "Ainda não há expedições desta encomenda.",
+  expedirExpedicaoNumero: "Expedição {n}",
+  expedirSaiuEm: "Saiu a {data}.",
+  expedicaoCriada: "Por sair",
+  expedicaoExpedida: "Expedida",
+  expedicaoEntregue: "Entregue",
+  expedicaoDevolvida: "Devolvida ao remetente",
+  expedicaoPerdida: "Perdida",
+  expedicaoCancelada: "Cancelada",
+  expedirTransportadora: "Transportadora (opcional)",
+  expedirSeguimento: "Número de seguimento (opcional)",
+  expedirMarcar: "Marcar como expedida",
+  expedirMarcarConfirmar:
+    "Marcar como expedida? O stock sai agora, com os lotes que expiram primeiro, e o ecrã não o desfaz.",
+  expedirMarcadaAgora: "A expedição saiu.",
+  expedirCancelar: "Cancelar a expedição",
+  expedirCancelarConfirmar:
+    "Cancelar esta expedição? Os artigos voltam a estar por expedir.",
+  expedirCanceladaAgora: "A expedição foi cancelada.",
+  expedirEntregue: "Marcar como entregue",
+  expedirEntregueAgora: "A expedição foi entregue.",
+  expedirDevolvida: "Devolvida ao remetente",
+  expedirDevolvidaConfirmar: "Marcar como devolvida ao remetente?",
+  expedirDevolvidaAgora: "A expedição ficou como devolvida ao remetente.",
+  expedirPerdida: "Marcar como perdida",
+  expedirPerdidaConfirmar:
+    "Marcar como perdida? Uma expedição perdida fica a cargo do comerciante.",
+  expedirPerdidaAgora: "A expedição ficou como perdida.",
+  expedirRecusada:
+    "O servidor recusou a expedição: confira as quantidades (não mais do que falta).",
+  expedirConflito:
+    "A expedição mudou entretanto. «Tentar outra vez» relê a página.",
+  expedirSemArmazem: "A loja desta encomenda não tem armazém: crie-o no stock.",
+  expedirSemLote:
+    "Uma das variantes exige lote e não há lote com stock dentro da validade. Registe a entrada com o lote.",
+  expedirSemStock: "Não há stock físico suficiente para esta saída.",
+  expedirNaoExiste:
+    "Esta encomenda ou expedição não existe, ou não é deste comerciante.",
+  expedirTransicaoImpossivel: "Esta mudança de estado não é possível agora.",
+  etiquetaTitulo: "Etiqueta:",
+  etiquetaPorPedir: "Por pedir",
+  etiquetaAPedir: "A pedir…",
+  etiquetaEmitida: "Emitida",
+  etiquetaIncerta: "Incerta",
+  etiquetaRecusada: "Recusada",
+  etiquetaAnulada: "Anulada",
+  etiquetaMotivo:
+    "A transportadora recusou: {motivo}. Corrija e peça outra vez.",
+  etiquetaIncertaExplicacao:
+    "Não se sabe se a transportadora criou a etiqueta. Não se pede outra: carregue em «Consultar a transportadora».",
+  etiquetaSeguimento: "Seguimento",
+  etiquetaPeso: "Peso da caixa",
+  etiquetaGramas: "{g} g",
+  etiquetaPedir: "Pedir a etiqueta",
+  etiquetaPedidaAgora: "A etiqueta foi emitida.",
+  etiquetaDescarregar: "Descarregar a etiqueta",
+  etiquetaFicheiroApaga:
+    "O ficheiro tem os dados de quem recebe e apaga-se 30 dias depois de a expedição acabar.",
+  etiquetaConsultar: "Consultar a transportadora",
+  etiquetaConsultadaAgora: "A transportadora foi consultada.",
+  etiquetaAnular: "Anular a etiqueta",
+  etiquetaAnularConfirmar:
+    "Anular a etiqueta? Só é possível antes de a transportadora recolher a caixa.",
+  etiquetaAnuladaAgora: "A etiqueta foi anulada.",
+  etiquetaEventos: "Seguimento da transportadora",
+  etiquetaSemEventos: "Ainda sem eventos da transportadora.",
+  etiquetaJaExiste: "Já há uma etiqueta: anule-a antes de pedir outra.",
+  etiquetaIncertaConsultar:
+    "Não se sabe se a etiqueta existe: carregue em «Consultar a transportadora».",
+  etiquetaNaoAnula:
+    "A transportadora não deixa anular esta etiqueta (a caixa já foi recolhida, ou não há etiqueta emitida).",
+  etiquetaContaNaoPronta:
+    "A conta da transportadora deste método não está pronta: teste-a em «Envios», «Contas».",
+  etiquetaPedidoRecusado:
+    "O servidor recusou o pedido da etiqueta: confira o peso das variantes e a morada.",
+  etiquetaSemResposta:
+    "A transportadora não respondeu. Tente outra vez daqui a pouco.",
 };
 
 export type Textos = typeof pt;

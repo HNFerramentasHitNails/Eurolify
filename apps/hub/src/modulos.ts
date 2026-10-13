@@ -9,7 +9,13 @@ import type { Textos } from "./textos";
 export type Comerciante = Eu["comerciantes"][number];
 
 export type IdModulo =
-  "equipa" | "artigos" | "decidir" | "envios" | "faturacao" | "chaves";
+  | "equipa"
+  | "artigos"
+  | "decidir"
+  | "expedir"
+  | "envios"
+  | "faturacao"
+  | "chaves";
 
 export interface Modulo {
   id: IdModulo;
@@ -23,6 +29,7 @@ export interface Modulo {
     | "/equipa"
     | "/artigos"
     | "/a-decidir"
+    | "/expedir"
     | "/envios"
     | "/faturacao"
     | "/chaves";
@@ -43,6 +50,8 @@ export const MODULOS: readonly Modulo[] = [
     ],
     caminho: "/a-decidir",
   },
+  // Expedir (docs/22 §32): o dono, o gestor e o armazém expedem; o apoio vê.
+  { id: "expedir", ambitoNecessario: "fulfilment:read", caminho: "/expedir" },
   // As contas de transportadora (docs/22 §29): os quatro papéis vêem.
   { id: "envios", ambitoNecessario: "shipping:read", caminho: "/envios" },
   {

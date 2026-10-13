@@ -2466,7 +2466,8 @@ Eurolify», e o ecrã di-lo.
 
 Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
 envios»*, depois de aprovar o aspecto do §31 (*«aprovo; junta quando ficar
-verde»*). **Este desenho está por aprovar.**
+verde»*). Desenho aprovado pelo Diogo a 13/10/2026 (*«sim, aprovo; avança
+com o código»*).
 
 A API já tem tudo:
 - a vista do armazém (`docs/27` §6, `GET /fulfilment/orders`);
@@ -2576,3 +2577,39 @@ dados de quem recebe não vão para o título da janela.
   - a etiqueta recusada, a incerta e o conflito;
   - o apoio só a ver;
   - capturas a 375, 768 e 1280 px, em claro e escuro, para o OK do aspecto.
+
+### 32.6 Em código (13/10/2026)
+
+- **API:**
+  - as dez rotas do §32.2 estão em `src/envios/rotas-hub-expedir.ts`;
+  - a sessão com o âmbito e a escrita com `eurolify.quem` passam a uma
+    função partilhada (`ferramentasDoHub`, em `src/envios/rotas-hub.ts`);
+  - a vista do armazém, os esquemas das expedições e as formas da etiqueta
+    e dos eventos passam ao nível do módulo, para a chave e o Hub usarem os
+    mesmos;
+  - sem migração.
+- **Hub:**
+  - o módulo «Expedir» (`fulfilment:read`), antes de «Envios»;
+  - `src/ecras/Expedir.tsx` e o apoio em `src/expedir.ts`;
+  - o descarregamento da etiqueta usa um endereço `blob:` que se revoga
+    logo a seguir;
+  - o nome de quem recebe nunca vai para o título da janela.
+- **Testes:**
+  - `test/envios-hub-expedir.test.ts` (API, 3). A encomenda paga vem do
+    cenário partilhado `test/envios-cenario.ts`, que passou a servir também
+    o teste das etiquetas.
+  - `test/expedir.test.ts` (Hub, 5).
+- **Capturas:**
+  - a lista vazia é contra a API verdadeira;
+  - a lista com uma encomenda e a página da encomenda usam **respostas
+    simuladas da API**, porque o ensaio não tem uma encomenda paga. Os dados
+    são fictícios.
+  - Nas capturas confere-se:
+    - o título da janela sem o nome de quem recebe;
+    - que, com a etiqueta emitida, não se pode pedir outra;
+    - que uma quantidade a mais fica marcada no campo.
+- **Sem prova:**
+  - a passagem só com o teclado;
+  - a etiqueta recusada e a incerta no ecrã (estão nos testes da API das
+    etiquetas);
+  - o apoio só a ver, nas capturas.
