@@ -1438,3 +1438,38 @@ contagem de dias úteis ou feriados (o RGPD conta em meses).
 - **Q-P2, decidida:** um pedido de quem ainda não tem ficha fica fora do
   Eurolify até se saber quem é; o registo pede sempre uma ficha (Diogo,
   13/10/2026, *«A»*).
+
+### 15.15 O aviso quando o prazo legal de um pedido passa (desenho de 13/10/2026)
+
+A parte 2 da §15.14 (T5, segundo aviso). A parte 1 dá o aviso da peça 21
+(`task.overdue`) quando vence o prazo da tarefa, 7 dias antes do prazo legal.
+Este é o segundo: **o prazo legal passou e o pedido continua aberto** — a
+lei já não foi cumprida (RGPD, art. 12.º, n.º 3, **W**; a mesma fonte da
+§15.14).
+
+| # | O quê | Proposta | Porquê |
+|---|---|---|---|
+| A1 | **Quando** | uma vez por pedido, no primeiro dia (no fuso do comerciante) depois do prazo legal — o prorrogado, se houver — com o pedido ainda `aberto`. Prorrogar depois não volta a avisar | o padrão do `refund.deadline_passed` (0067): uma vez, pelo efeito na base |
+| A2 | **Quem recebe** | quem tem `customers:privacy` (hoje só o dono), lido no envio, como o aviso da ligação com erro (0084) | só o dono responde aos pedidos (§15.14, T1) |
+| A3 | **O que leva** | a loja, o identificador do pedido (`prq_…`) e da ficha (`cus_…`), o tipo e as datas (chegou, prazo); **nunca** o nome, o e-mail nem o NIF do cliente | minimização: o e-mail passa pelo servidor de correio só com isto |
+| A4 | **Quem o cria** | uma tarefa de hora a hora em `clientes/`, como a do prazo do reembolso (`posvenda/prazo.ts`, `tarefa:prazos`), com uma função na base que devolve os pedidos com o prazo passado e sem aviso; marca o pedido e a base põe a notificação | uma tarefa a mais na mesma volta; e entra na verificação diária (§15.11) pelo efeito: pedidos com o prazo passado há mais de um dia sem aviso |
+
+**O texto proposto** (o Diogo ou o Bruno aprovam):
+
+- **pt** — assunto: «Pedido de dados pessoais: o prazo legal passou
+  ({prazo})». Corpo: «Olá, / Na loja «{loja}», o pedido {prq} (ficha {cus})
+  — {tipo} — chegou a {recebido} e ainda não tem resposta. O prazo legal para
+  responder era {prazo} (RGPD, art. 12.º, n.º 3). / Responda ao cliente e
+  feche o pedido: POST /privacy-requests/received/{prq}/close. / Este aviso vai
+  para os donos da loja. Não leva dados do cliente. / Eurolify»
+- **es** — «Solicitud de datos personales: el plazo legal ha vencido
+  ({prazo})» e o mesmo corpo em espanhol.
+- **en** — «Personal data request: the legal deadline has passed
+  ({prazo})» e o mesmo corpo em inglês.
+
+**Fica de fora:** um aviso antes do prazo legal além do da peça 21 (que já
+vence 7 dias antes); o aviso ao cliente (o comerciante responde pelo seu
+canal).
+
+**Decidido:** Q-P3, aprovado pelo Diogo a 13/10/2026 (*«a»*), o aviso e o
+texto; programa-se a seguir à parte 1.
