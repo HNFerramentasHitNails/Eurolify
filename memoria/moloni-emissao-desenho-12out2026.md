@@ -32,3 +32,25 @@
   (verificado a 12/10/2026, as quatro em falta): nada medido na conta trial.
 - O ATCUD e o `document_product_id` não aparecem nas páginas do `getOne`;
   casas decimais do `price`; tamanho do `our_reference` (`docs/29` §13.7).
+
+## 13/10/2026 — criar e configurar a ligação pelo Hub (#412)
+
+### O que se fez
+- Desenho no `docs/22` §31, aprovado pelo Diogo com a Q1 em A (`docs/06`,
+  EH); código no pedido #412 (`docs/22` §31.8).
+- O Moloni simulado mostrou que as isenções do Moloni (`{code, name,
+  description}`) eram lidas como erro: agora um erro é só `{code,
+  description}` com o código a começar por um número (página «Controlo de
+  erros», lida a 13/10/2026).
+- Revisão de um agente (Sonnet 5.5; 0 P0, 1 P1, 6 P2, 12 P3), publicada no
+  #412 e tratada.
+
+### Números (com data e como se contaram)
+- 13/10/2026, PostgreSQL local (Docker) e Moloni simulado: bateria da API
+  antes da revisão 1556 a passar e 1 saltado; Hub 231 a passar.
+- Abrir «Configurar» são 8 pedidos ao Moloni; gravar até 10; as leituras do
+  Hub ficam com 2/3 do limite por empresa (40 de 60).
+
+### O que ficou por verificar
+- Nada lido no Moloni real: as credenciais continuam fora do ambiente.
+- `fiscal_zone`, `saft_type` e a paginação acima de 50 por medir.

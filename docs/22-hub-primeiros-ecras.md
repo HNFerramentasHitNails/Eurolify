@@ -2433,13 +2433,44 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
   regiões (Açores, Madeira) podem ter zonas próprias no Moloni, por medir.
 - **O artigo e o cliente conferem-se por id** com `products/getOne` e
   `customers/getOne` (páginas do Moloni lidas a 13/10/2026), em vez de uma
-  lista.
+  lista; o «Consumidor final» tem de ter o NIF 999999990 no Moloni.
+- **Ao gravar, confere-se só o que muda** (revisão, P2-1), e só se aceitam
+  taxas de IVA (P2-2).
 
 **Encontrado pelo Moloni simulado:** a lista das isenções do Moloni
 (`{code, name, description}`) tinha a mesma forma que um erro com
 `human_errors` e o adaptador lia-a como erro. Um erro é agora só
 `{code, description}` com o código a começar pelo número do erro (página
 «Controlo de erros» do Moloni, lida a 13/10/2026).
+
+**Revisão do #412** (agente da sessão, Sonnet 5.5; 0 P0, 1 P1, 6 P2, 12 P3):
+- **P1-1, corrigido:** o que se pesquisa (`q` de `issuer-search`, que pode
+  ser o NIF ou o nome de um cliente) sai tapado do registo da API.
+- **P2-1, corrigido:** ao gravar, o servidor confere só o que muda; uma
+  escolha antiga que o Moloni já não tem não impede de gravar o resto.
+- **P2-2, corrigido:** só as taxas de IVA do Moloni (`saft_type` 1, como na
+  leitura dos documentos) entram na lista e podem gravar-se.
+- **P2-3, corrigido:** gravar já não desmonta o formulário; o foco vai para
+  «Testar»; uma lista vazia não tem rótulo a apontar para texto.
+- **P2-4, corrigido:** as leituras do Hub usam no máximo dois terços do
+  limite por empresa e nunca esperam; o resto fica para as emissões.
+- **P2-5, corrigido:** teste com a base de mercados em PT e ES, taxas antiga,
+  vigente e futura, as regiões, uma categoria de outra entidade, um método de
+  pagamento e credenciais recusadas (401) sem pôr a ligação com erro.
+- **P2-6, não feito:** o Hub não tem testes que desenhem ecrãs (não há
+  biblioteca para isso no repositório; acrescentá-la é outra decisão). Os
+  estados ficam cobertos pelas capturas e pelas funções testadas.
+- **P3 corrigidos:** 1 (só os mercados e os meios da entidade; sem
+  categorias arquivadas), 4 (a mensagem segue o estado devolvido), 5 (o texto
+  do `invalid_field`), 6 (o «Consumidor final» confere-se ao gravar, pelo
+  NIF, sem o mostrar), 7 (criar outra quando a ligação está desligada), 8 (uma
+  releitura falhada não apaga as escolhas), 10 (ler sem trancar a ligação),
+  12 (uma entidade com sistema próprio não ganha ligação ao Moloni).
+- **P3 que ficam:** 2 (só «hoje» e o fuso de Lisboa: a retenção apanha o
+  resto), 3 (um método em falta não tem motivo de retenção próprio: rebenta
+  na emissão como erro do emissor), 9 (o texto da lista vazia é o mesmo para
+  todas as listas), 11 (como o Moloni responde a um id que não existe está
+  por medir).
 
 **Por fazer:**
 - **Ler as listas na conta de teste do Moloni** antes de abrir isto a um
