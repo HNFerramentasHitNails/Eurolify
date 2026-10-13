@@ -1006,3 +1006,87 @@ pedido):
   - **P3-6:** a base recusa o motivo só com espaços;
   - **P3-7:** é intencional: arquivar uma conta escolhida faz a etiqueta
     dizer que a conta não está pronta.
+
+## 20. O aviso ao comerciante: «tentativa falhada» e «para levantar» (desenho; Q4, issue #393)
+
+Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
+envios»*; aprovado no mesmo dia, com o aviso para o dono, o gestor e o
+armazém: *«sim, aprovo; avança com o código»*. Completa o último ponto da Q4
+(`docs/06`, ED) que ficou por fazer: o §4.2 diz que a «tentativa falhada» e o
+«disponível para levantar» *«só ficam no histórico (e o aviso ao comerciante,
+Q4)»*, e o §15 deixou o aviso *«para quando houver notificações»*. Já há: a
+fila de e-mails do `docs/34` (§3–§4, §12, §12.1). Skills: `order-fulfilment`,
+`eu-gdpr-privacy`, `observability-security`.
+
+Ex.: a transportadora diz, às 11:20 de 14/11/2026, que não encontrou ninguém
+na morada da expedição `shp_…` (seguimento `3SYZXG1234567`). O dono, o gestor
+e o armazém recebem um e-mail: «A transportadora não conseguiu entregar a
+expedição shp_… (3SYZXG1234567) em 14/11/2026, 11:20. Veja o seguimento no
+Hub, em «Expedir».» Sem o nome nem a morada de quem recebe.
+
+### 20.1 O que entra
+
+| O quê | Regra |
+|---|---|
+| **Quando** | um evento de seguimento novo com o estado `tentativa_falhada` ou `disponivel_para_levantar` (§4.2), numa expedição que ainda não acabou |
+| **Uma vez** | um aviso por expedição e por estado: a segunda tentativa falhada da mesma expedição fica só no histórico (o seguimento mostra-a). Um «para levantar» depois de uma «tentativa falhada» avisa outra vez, porque é outra coisa a fazer |
+| **O tipo** | `shipment.needs_attention`, com o estado nos `dados` |
+| **A quem** | quem expede: o dono, o gestor e o armazém (`fulfilment:write`), lido outra vez no envio (`notificacao_destino()`), como no §12.1. O apoio não |
+| **No envio** | fica `cancelada`, com `expedicao_ja_acabou`, se a expedição já estiver entregue, devolvida, perdida ou cancelada |
+| **O que diz** | a loja, a expedição (`shp_…`), a transportadora, o número de seguimento, o estado (traduzido) e a data do evento no fuso do comerciante, e onde a ver no Hub. **Nunca** o nome, a morada nem o telefone de quem recebe, nem o texto da transportadora (pode trazê-los) |
+| **Língua** | a do Hub do comerciante (N4) |
+| **Dados pessoais** | os mesmos da N9 (a pessoa da equipa; 90 dias, **C**). O tratamento T10 do `docs/17` alarga-se: a finalidade inclui este aviso e os titulares passam a incluir o armazém |
+
+### 20.2 O que fica de fora, e porquê
+
+| Fica de fora |
+|---|
+| **Avisar o cliente**: espera pela escolha do serviço transaccional (`docs/34` §9) |
+| **Abrir um problema na pós-venda**: a Q4 manda para a fila só a perdida, a devolvida, a incerta e a parada. Uma tentativa falhada resolve-se quase sempre com a transportadora |
+| **SMS, WhatsApp ou aviso no Hub**: só o e-mail que já existe |
+| **Os CTT**: sem adaptador real ainda (§11) |
+
+### 20.3 Por onde é que isto ainda pode sair errado
+
+- **Muitos e-mails** numa loja com muitas expedições: um por expedição e por
+  estado, nunca por evento. Uma transportadora que repete o mesmo evento não
+  repete o aviso.
+- **Um evento atrasado** depois de a expedição estar entregue: não avisa (a
+  expedição já acabou) e, se o aviso já estava na fila, cancela-se no envio.
+- **O armazém recebe um e-mail** que antes não recebia: fica no T10, e cada
+  um vê só a sua loja.
+
+### 20.4 Testes que têm de falhar sem a protecção
+
+- uma tentativa falhada dá um aviso a cada pessoa com `fulfilment:write`, e
+  nenhum ao apoio, a quem saiu ou a uma pessoa desactivada;
+- a segunda tentativa falhada da mesma expedição não dá outro; um «para
+  levantar» dá;
+- um evento numa expedição já entregue não dá nada; uma entregue antes do
+  envio fica `cancelada`;
+- o corpo não tem o nome, a morada, o telefone nem o texto da transportadora;
+- outro comerciante não vê estas notificações;
+- o texto em PT, ES e EN.
+
+### 20.5 Como entra no código
+
+Um pedido só: a migração 0087 (o tipo, o gatilho no `evento_seguimento`, o
+destino e a conferência no envio), os modelos PT, ES e EN, o T10 do
+`docs/17`, os testes e a revisão do agente. Sem ecrã novo.
+
+### 20.6 Em código (13/10/2026; migração 0087)
+
+| O quê | Onde |
+|---|---|
+| o tipo `shipment.needs_attention`; o gatilho no `evento_seguimento` (sem `ALWAYS`, regra da 0053); quem recebe (`envios_aviso_pode_receber()`, `fulfilment:write`); a referência por expedição e estado; a conferência no envio (`envios_aviso_espera()`); `notificacao_destino()` com o tipo novo | migração 0087 |
+| os textos PT, ES e EN (o número de seguimento e a transportadora numa linha curta; um estado desconhecido falha com `dados_invalidos`) | `src/notificacoes/modelos.ts` |
+| no envio: `expedicao_ja_acabou` | `src/notificacoes/repositorio.ts` |
+| 4 testes com o PostgreSQL 18.6 | `test/envios-aviso-tentativa.test.ts` |
+| o T10 do `docs/17` e o `docs/34` §12.2 | — |
+
+**Desvio do desenho:**
+- **Um evento no mesmo lote da entrega** (a tentativa e o «entregue» chegam
+  juntos): o evento grava-se antes de a expedição mudar, e o aviso entra na
+  fila. No envio cancela-se, sem e-mail. Um evento que chega depois da
+  entrega não entra na fila (o §20.3 dizia só «não avisa»; o resultado é o
+  mesmo: nenhum e-mail).

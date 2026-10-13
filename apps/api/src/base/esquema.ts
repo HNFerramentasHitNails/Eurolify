@@ -1585,6 +1585,7 @@ export const TIPOS_NOTIFICACAO = [
   "refund.deadline_passed",
   "task.overdue",
   "invoicing.connection_error",
+  "shipment.needs_attention",
 ] as const;
 export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
 export const ESTADOS_NOTIFICACAO = [
