@@ -2720,7 +2720,7 @@ PDF, imprime-o, cola-o na caixa e carrega em «Marcar como expedida».
 | Fica de fora, e porquê |
 |---|
 | **Escolher os lotes à mão:** o servidor escolhe os que expiram primeiro. Escolher outro lote vai para um pedido à parte. |
-| **Mudar o serviço de uma expedição:** é uma decisão de uma pessoa, com motivo (`docs/27` R6). O ecrã não o oferece. |
+| **Mudar o serviço de uma expedição:** é uma decisão de uma pessoa, com motivo (`docs/27` R6). O ecrã não o oferecia; desde 13/10/2026 oferece-o, com a correcção do peso (`docs/36` §19). |
 | **Imprimir ou pedir etiquetas em lote:** nesta parte, uma expedição de cada vez. |
 | **Corrigir à mão o estado de uma expedição com etiqueta.** Nesse caso, quem decide «entregue» é o seguimento da transportadora (`docs/36` §4.2). O ecrã não oferece estes botões. |
 | **O resto da encomenda:** os preços, o pagamento, a linha do tempo (`orders:read`), cancelar e as devoluções. Ficam para os ecrãs das encomendas e da pós-venda. |

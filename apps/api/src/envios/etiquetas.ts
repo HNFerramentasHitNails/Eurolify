@@ -105,6 +105,9 @@ export async function lerEtiqueta(
         "url_seguimento",
         "peso_g",
         "conta_transportadora_id",
+        "peso_corrigido_g",
+        "conta_escolhida_id",
+        "servico_escolhido",
         "versao",
       ])
       .where("id", "=", id)
@@ -167,6 +170,9 @@ async function preparar(
         "expedicao.etiqueta",
         "expedicao.etiqueta_tentativa",
         "expedicao.metodo_entrega",
+        "expedicao.peso_corrigido_g",
+        "expedicao.conta_escolhida_id",
+        "expedicao.servico_escolhido",
         "armazem.embalagem_g",
         "encomenda.entrega",
         "encomenda.contacto",
@@ -191,11 +197,16 @@ async function preparar(
         "a expedição já tem uma etiqueta (anula-se primeiro)",
       );
     }
+    // O serviço escolhido por uma pessoa, com motivo, ganha ao vendido
+    // (docs/36 §19); sem ele, o vendido (R1).
     const metodo = x.metodo_entrega as MetodoVendido;
-    if (metodo.conta === undefined || metodo.servico === undefined) {
+    const escolhido = x.conta_escolhida_id !== null;
+    const contaId = x.conta_escolhida_id ?? metodo.conta;
+    const codigoServico = x.servico_escolhido ?? metodo.servico;
+    if (contaId === undefined || codigoServico === undefined) {
       throw new ErroEnvios(
         "shipping.invalid_field",
-        "o método vendido é manual (sem transportadora): a etiqueta faz-se fora do Eurolify",
+        "o método vendido é manual (sem transportadora): a etiqueta faz-se fora do Eurolify, ou escolhe-se um serviço (PUT …/service)",
       );
     }
     const conta = await trx
@@ -209,13 +220,15 @@ async function preparar(
         "chave_versao",
         "servicos",
       ])
-      .where("id", "=", metodo.conta)
+      .where("id", "=", contaId)
       .forShare()
       .executeTakeFirst();
     if (conta?.estado !== "pronta") {
       throw new ErroEnvios(
         "shipping.account_not_ready",
-        "a conta da transportadora do método vendido não está pronta",
+        escolhido
+          ? "a conta da transportadora escolhida não está pronta"
+          : "a conta da transportadora do método vendido não está pronta",
       );
     }
     const { adaptador, chave } = adaptadorDe(cfg, conta.transportadora);
@@ -224,12 +237,12 @@ async function preparar(
     // #400, P1-1).
     const credenciais = credenciaisDe(conta, chave);
     const servico = servicosDe(adaptador, conta.servicos).find(
-      (s) => s.codigo === metodo.servico,
+      (s) => s.codigo === codigoServico,
     );
     if (servico === undefined) {
       throw new ErroEnvios(
         "shipping.service_unknown",
-        "a transportadora já não tem o serviço vendido: muda-o uma pessoa, com motivo",
+        "a transportadora já não tem este serviço: muda-o uma pessoa, com motivo (PUT …/service)",
       );
     }
     const linhas = await trx
@@ -242,14 +255,23 @@ async function preparar(
       .select(["linha_encomenda.variante_id", "linha_expedicao.quantidade"])
       .where("linha_expedicao.expedicao_id", "=", id)
       .execute();
-    const { pesoG } = await conteudoDe(trx, linhas);
-    if (pesoG === null) {
+    const { pesoG, onu } = await conteudoDe(trx, linhas);
+    // O peso corrigido por uma pessoa ganha ao calculado (docs/36 §19).
+    if (x.peso_corrigido_g === null && pesoG === null) {
       throw new ErroEnvios(
         "shipping.invalid_field",
-        "uma variante da expedição não tem peso",
+        "uma variante da expedição não tem peso: corrija o peso da expedição (PUT …/weight) ou o da variante",
       );
     }
-    const peso = pesoG + x.embalagem_g;
+    const peso = x.peso_corrigido_g ?? (pesoG ?? 0) + x.embalagem_g;
+    // Um serviço escolhido não passou pelo checkout (R4): os perigosos
+    // confirmam-se aqui também (L9).
+    if (escolhido && [...onu].some((n) => !servico.aceitaOnu.includes(n))) {
+      throw new ErroEnvios(
+        "shipping.invalid_field",
+        "o serviço escolhido não aceita uma mercadoria perigosa desta expedição",
+      );
+    }
     if (servico.pesoMaxG !== null && peso > servico.pesoMaxG) {
       throw new ErroEnvios(
         "shipping.invalid_field",

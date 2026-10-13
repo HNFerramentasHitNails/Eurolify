@@ -6,7 +6,9 @@ import {
   comEtiqueta,
   conferirQuantidades,
   erroDeExpedir,
+  motivoServe,
   nomeDoMetodo,
+  pesoDoTexto,
   quantidadesPorOmissao,
   TEXTO_DO_CODIGO,
   totalPorExpedir,
@@ -156,5 +158,35 @@ describe("expedir no Hub", () => {
       "expedirSemLote",
     );
     expect(erro("outro.codigo")).toBeInstanceOf(ErroHub);
+  });
+});
+
+describe("corrigir o peso e mudar o serviço (docs/36 §19)", () => {
+  it("o peso é um número inteiro de 1 g a 1 000 000 g", () => {
+    expect(pesoDoTexto("1450")).toBe(1450);
+    expect(pesoDoTexto(" 60 ")).toBe(60);
+    for (const mau of ["", "0", "1,5", "1.5", "-3", "1000001", "abc"]) {
+      expect(pesoDoTexto(mau)).toBeNull();
+    }
+    expect(pesoDoTexto("1000000")).toBe(1_000_000);
+  });
+
+  it("o motivo tem de 3 a 500 caracteres, sem contar os espaços das pontas", () => {
+    expect(motivoServe("  ab ")).toBe(false);
+    expect(motivoServe("caixa grande")).toBe(true);
+    expect(motivoServe("x".repeat(501))).toBe(false);
+  });
+
+  it("o conflito e a IA dos envios têm texto", () => {
+    expect(
+      erroDeExpedir(
+        new ErroHub(409, "shipping.version_conflict", {}, undefined, undefined),
+      ),
+    ).toEqual(new ErroDoEcra("expedirConflito"));
+    expect(
+      erroDeExpedir(
+        new ErroHub(403, "shipping.ai_not_allowed", {}, undefined, undefined),
+      ),
+    ).toEqual(new ErroDoEcra("iaNaoMudaServico"));
   });
 });

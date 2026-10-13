@@ -285,6 +285,41 @@ export interface EtiquetaExpedicao {
   peso_g: number | null;
   /** «pdf», «zpl» ou null quando já não há ficheiro. */
   ficheiro: string | null;
+  /** Corrigidos por uma pessoa, com motivo (docs/36 §19). */
+  peso_corrigido_g?: number | null;
+  escolhido?: { conta: string; servico: string } | null;
+  versao?: number;
+}
+
+/** Um serviço que serve a expedição (docs/36 §19). */
+export interface OpcaoDeServico {
+  conta: string;
+  conta_nome: string;
+  transportadora: string;
+  servico: string;
+  nome: Record<string, string>;
+  vendido: boolean;
+  escolhido: boolean;
+}
+
+/** O peso e os serviços possíveis de uma expedição (docs/36 §19). */
+export interface ServicosDaExpedicao {
+  versao: number;
+  peso_calculado_g: number | null;
+  peso_corrigido_g: number | null;
+  vendido: { conta: string; servico: string } | null;
+  escolhido: { conta: string; servico: string } | null;
+  opcoes: OpcaoDeServico[];
+}
+
+/** Uma correcção do peso ou do serviço, com o motivo (docs/36 §19). */
+export interface CorrecaoExpedicao {
+  campo: "peso" | "servico";
+  antes: unknown;
+  depois: unknown;
+  motivo: string | null;
+  quem: string;
+  em: string;
 }
 
 /** Um evento do seguimento, normalizado (docs/36 §3.4). */
@@ -1199,6 +1234,43 @@ export const api = {
       "POST",
       `/hub/shipments/${encodeURIComponent(id)}/refresh`,
       { comerciante },
+    ),
+  servicosDaExpedicao: (comerciante: string, id: string) =>
+    pedir<ServicosDaExpedicao>(
+      "GET",
+      `/hub/shipments/${encodeURIComponent(id)}/services`,
+      { comerciante },
+    ),
+  correcoesDaExpedicao: (comerciante: string, id: string) =>
+    pedir<{ dados: CorrecaoExpedicao[] }>(
+      "GET",
+      `/hub/shipments/${encodeURIComponent(id)}/corrections`,
+      { comerciante },
+    ),
+  corrigirPeso: (
+    comerciante: string,
+    id: string,
+    corpo: { versao: number; peso_g: number | null; motivo: string },
+  ) =>
+    pedir<{ versao: number }>(
+      "PUT",
+      `/hub/shipments/${encodeURIComponent(id)}/weight`,
+      { comerciante, corpo },
+    ),
+  mudarServico: (
+    comerciante: string,
+    id: string,
+    corpo: {
+      versao: number;
+      conta: string | null;
+      servico: string | null;
+      motivo: string;
+    },
+  ) =>
+    pedir<{ versao: number }>(
+      "PUT",
+      `/hub/shipments/${encodeURIComponent(id)}/service`,
+      { comerciante, corpo },
     ),
   eventosSeguimento: (comerciante: string, id: string) =>
     pedir<{ dados: EventoSeguimento[] }>(

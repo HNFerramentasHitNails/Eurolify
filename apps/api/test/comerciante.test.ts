@@ -172,6 +172,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0083_envios_eventos_depois_do_apagamento",
         "0084_ligacao_com_erro_na_fila",
         "0085_envios_encomenda_parada",
+        "0086_envios_correcoes_da_expedicao",
       ]);
     });
 
@@ -313,11 +314,11 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // (0066), as notificações (0067), as contas de transportadora (0074),
       // as 3 do relatório OSS (0078) e o ficheiro da etiqueta, os eventos de
       // seguimento e os avisos das transportadoras (0079) e as autorizações
-      // das ligações de faturação (0081) e as encomendas paradas avisadas
-      // (0085).
+      // das ligações de faturação (0081), as encomendas paradas avisadas
+      // (0085) e as correcções da expedição (0086).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(93);
+      ).toHaveLength(94);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {

@@ -860,3 +860,111 @@ P3-4 (estes textos e a memória). Ficam, com a razão:
   encomenda, que tem o RLS forçado também para o dono das funções. Para
   escolher os comerciantes conta-se o fuso mais adiantado (UTC+14); o dia de
   cada loja decide-se dentro dela.
+
+## 19. Corrigir o peso e mudar o serviço de uma expedição (desenho; issue #393)
+
+Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
+envios»*; aprovado no mesmo dia, com o serviço só para o dono e o gestor:
+*«sim, aprovo; avança com o código»*. O §3.3 já o previa: *«a pessoa
+pode corrigir [o peso] com motivo»* e *«mudar de serviço é uma decisão de uma
+pessoa, com motivo (`docs/27`, R6)»*. Ficou por fazer na parte B (§15,
+«Desvios»: *«não tem rota ainda: entra com os ecrãs do Hub»*), e o «Expedir»
+deixou-o de fora (`docs/22` §33.1). Skills: `order-fulfilment`,
+`consumer-rights-eu`, `eurolify-transport-logistics-eu`,
+`observability-security`.
+
+**Hoje há dois becos sem saída** (lido em `src/envios/etiquetas.ts` a
+13/10/2026):
+- **Uma variante sem peso** faz o pedido da etiqueta falhar com
+  `shipping.invalid_field`, e a pessoa não tem como avançar.
+- **Um serviço que a transportadora deixou de ter** falha com
+  `shipping.service_unknown`, e a mensagem diz «muda-o uma pessoa, com
+  motivo» quando isso ainda não existe.
+
+Ex.: uma encomenda de 3 frascos sai do armazém de Lisboa. A balança diz
+1 450 g, e o Eurolify calculou 1 290 g, porque a caixa maior não é a de
+omissão. O armazém escreve «1450» com o motivo «caixa grande, pesada na
+balança» e pede a etiqueta com esse peso.
+
+### 19.1 O que entra
+
+| O quê | Regra |
+|---|---|
+| **Corrigir o peso** | `PUT /shipments/{id}/weight` com `peso_g` (1 a 1 000 000) e `motivo` (3 a 500 caracteres, sem dados de clientes). `peso_g: null` volta ao calculado. A etiqueta usa o corrigido em vez da soma. Âmbito `fulfilment:write` (o dono, o gestor e o armazém: quem pesa a caixa) |
+| **Mudar o serviço** | `PUT /shipments/{id}/service` com `conta`, `servico` e `motivo`. `null` volta ao vendido. A conta tem de estar `pronta` e o serviço tem de ser dela e de servir o país da morada, o peso, os números ONU da expedição e o telefone, se o pedir. Âmbito `shipping:write` (o dono e o gestor): muda o custo e a transportadora, por isso o armazém não decide |
+| **Quando se pode** | só com a expedição `criada` e a etiqueta `por_pedir`, `recusada` ou `anulada`. Com uma etiqueta viva (`a_pedir`, `emitida`, `incerta`), anula-se primeiro (R2) |
+| **O vendido não muda** | a encomenda e a cópia do método na expedição (`metodo_entrega`) ficam como foram vendidas: o preço, a data-limite (L1) e o método para a livre resolução (L10). O serviço escolhido fica em colunas próprias da expedição |
+| **O rasto** | cada correcção grava quem, quando, o valor antigo, o novo e o motivo (`docs/28`, `eurolify.motivo`). A expedição mostra «peso corrigido» e «serviço mudado», com o motivo |
+| **Concorrência** | as duas rotas levam a `versao` da expedição: a segunda pessoa recebe `shipping.version_conflict` e relê |
+| **Hub («Expedir»)** | na expedição: «Corrigir o peso» (com o calculado à vista) e «Mudar o serviço» (só os serviços que servem esta expedição, de contas prontas), cada um com o motivo obrigatório. O erro `shipping.service_unknown` passa a apontar para «Mudar o serviço» |
+
+### 19.2 O que fica de fora, e porquê
+
+| Fica de fora |
+|---|
+| **Cobrar a diferença ao cliente** ou mudar o preço dos portes: o cliente pagou o método vendido (L2), e a diferença é do comerciante |
+| **Mudar o serviço depois de a etiqueta existir**: anula-se e pede-se outra, como hoje |
+| **Mudar o peso de uma variante a partir daqui**: corrige-se no artigo (catálogo). Aqui só se corrige esta caixa |
+| **Vários volumes** numa expedição (Q6): continua um volume |
+| **Escolher um serviço de um método manual**: uma expedição manual não tem etiqueta pelo Eurolify. Para passar a ter, muda-se o serviço com esta rota, que aceita uma conta mesmo quando o vendido era manual |
+
+### 19.3 Por onde é que isto ainda pode sair errado
+
+- **Um serviço mais lento** pode falhar a data-limite prometida (L1, L4). O
+  Hub mostra a data-limite ao lado da escolha. Os serviços não declaram
+  prazos (§8), por isso o Eurolify não o pode conferir.
+- **Um serviço que não aceita um perigoso**: a rota confere os números ONU
+  da expedição contra os do serviço (R4, L9). Na dúvida, recusa.
+- **O peso corrigido muito abaixo do real** pode dar uma taxa extra da
+  transportadora. O motivo fica no rasto e o calculado fica à vista.
+- **Uma IA pela chave**: as rotas aceitam chaves com o âmbito, mas o rasto
+  diz que foi uma chave, e o motivo é obrigatório. Uma chave de agente de IA
+  não muda o serviço (como o R11 do `docs/33`).
+
+### 19.4 Testes que têm de falhar sem a protecção
+
+- a etiqueta sai com o peso corrigido, e volta ao calculado com `null`;
+- a etiqueta sai com o serviço escolhido; a encomenda e o `metodo_entrega`
+  da expedição não mudam;
+- recusa: sem motivo; com etiqueta viva; com a expedição já expedida;
+  conta não pronta; serviço de outra conta; país não servido; peso acima do
+  máximo; perigoso não aceite; telefone pedido e em falta;
+- o armazém corrige o peso e não muda o serviço (403);
+- `versao` antiga dá 409;
+- isolamento: a conta de outro comerciante não serve;
+- o rasto tem o valor antigo, o novo e o motivo.
+
+### 19.5 Como entra no código
+
+Um pedido com a API e os ecrãs, tal como o «Expedir»:
+- a migração 0086 (no desenho, 0085; ver §19.6): as colunas
+  `peso_corrigido_g`, `conta_escolhida_id` e `servico_escolhido`, o rasto
+  `correcao_expedicao` e o gatilho que as guarda;
+- as rotas da chave e as do Hub;
+- os ecrãs, com as capturas para o teu OK do aspecto;
+- este §19 com «Em código».
+
+### 19.6 Em código (13/10/2026; migração 0086)
+
+| O quê | Onde |
+|---|---|
+| o peso corrigido e o serviço escolhido na expedição; o vendido (`metodo_entrega`) não muda | migração 0086 |
+| o gatilho: só com a expedição `criada` e a etiqueta `por_pedir`, `recusada` ou `anulada`; sempre com motivo (3 a 500); uma linha no rasto por campo mudado, com o antes, o depois, o motivo e o contexto da transacção | `expedicao_correcao()`; `correcao_expedicao` (só se acrescenta, RLS forçado) |
+| a etiqueta usa o corrigido e o escolhido; um serviço escolhido confere também os perigosos ao pedir (L9) | `src/envios/etiquetas.ts` (`preparar`) |
+| os serviços que servem a caixa (país, peso, ONU, telefone), de contas prontas; corrigir o peso; mudar o serviço, com a `versao` | `src/envios/correcoes.ts` |
+| rotas da chave: `GET /shipments/{id}/services`, `GET /shipments/{id}/corrections`, `PUT /shipments/{id}/weight` (`fulfilment:write`), `PUT /shipments/{id}/service` (`shipping:write`; nunca uma IA) | `src/envios/rotas.ts` |
+| as mesmas pelo Hub (`/hub/shipments/{id}/…`), com a pessoa como «quem» | `src/envios/rotas-hub-expedir.ts` |
+| o «Expedir»: «Corrigir o peso» (com o calculado à vista) e «Mudar o serviço» (só o dono e o gestor; os serviços que a API devolve), o motivo obrigatório, as notas «peso corrigido» e «serviço escolhido» e a lista das correcções | `apps/hub/src/ecras/Expedir.tsx` |
+| 4 testes da API com o PostgreSQL 18.6 e 3 do Hub | `test/envios-correcoes.test.ts`; `apps/hub/test/expedir.test.ts` |
+
+**Desvios do desenho:**
+- **O motivo fica só no rasto** (`correcao_expedicao`), e não em colunas da
+  expedição: uma regra num sítio, e a lista das correcções lê-o de lá.
+- **Duas rotas de leitura a mais** (`…/services` e `…/corrections`): o ecrã
+  precisa de saber que serviços servem a caixa sem os decidir ele.
+- **Um código novo**, `shipping.ai_not_allowed` (403), para a IA que tenta
+  mudar o serviço.
+- **Um método manual passa a ter etiqueta só pela API**: o «Expedir» mostra
+  as correcções só nas expedições com conta (o ecrã de um método manual não
+  tem a parte da etiqueta).
+- **A migração é a 0086**: a 0084 e a 0085 entraram entretanto.

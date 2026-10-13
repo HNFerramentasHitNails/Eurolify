@@ -18,6 +18,7 @@ import { ErroEnvios, type CodigoErroEnvios } from "./erros.js";
 
 const CODIGOS_DA_BASE: CodigoErroEnvios[] = [
   "shipping.immutable",
+  "shipping.invalid_field",
   "shipping.invalid_transition",
   "shipping.label_exists",
   "shipping.void_not_allowed",
