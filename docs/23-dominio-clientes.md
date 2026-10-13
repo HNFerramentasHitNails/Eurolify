@@ -583,13 +583,11 @@ a fatia 7.
 | 7 testes no titular e 1 no checkout (uma encomenda real); 13 mutações antes da revisão e 12 nas correcções, todas apanhadas | `test/clientes-titular.test.ts`; `test/checkout-api.test.ts` |
 
 **Fica por fazer, e onde:**
-- **os dados pessoais que o checkout e as encomendas guardam** (o contacto,
-  a entrega, a cópia do perfil): são desses domínios; a pseudonimização de
-  um cliente não lhes toca (a exportação lê as encomendas). Têm de se juntar
-  ao apagamento com a regra deles (o que a lei obriga a guardar de uma
-  encomenda) — fatia 9 e fatia 10;
-- **o prazo de resposta** (um mês, prorrogável) e **os prazos de guarda**
-  fora de Portugal: **não verifiquei** — **C** (R9);
+- **os dados pessoais que o checkout e as encomendas guardam**: feito na
+  §15.10, parte 1 (migração 0072) e parte 2 (0077);
+- **o prazo de resposta**: verificado no RGPD (art. 12.º, n.º 3, **W**);
+  controlá-lo é a §15.14 (desenho). **Os prazos de guarda** fora de
+  Portugal: **não verifiquei** — **C** (R9);
 - **a verificação da identidade** é um texto que a pessoa escreve; o
   Eurolify não a prova;
 - **a rectificação** faz-se pelas rotas que já existem (`PATCH`), com a
@@ -608,8 +606,7 @@ a fatia 7.
   lê o nome, o NIF e a morada (decidido a 13/10/2026, EM; §15.12);
 - **levantar a limitação** é um `DELETE` com corpo; uma variante `POST` para
   clientes que descartam o corpo de um `DELETE` fica para depois (P3-7);
-- **a exportação** ainda não junta o que os outros domínios guardarem
-  depois (expedições, devoluções, documentos).
+- **a exportação** dos outros domínios: feita na §15.10, parte 3.
 
 ## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
 
@@ -1378,3 +1375,51 @@ entrega, mas `perfil_copia: null` e `guardado_por_obrigacao_fiscal: true`.
   relatório OSS** (`invoices:read`, `tax:read`): são os documentos fiscais
   que se entregam e se declaram (Diogo, 13/10/2026, «A»).
 - **Fonte:** a mesma da §15.12 (RGPD, art. 25.º, n.º 2); **C**, jurista.
+
+### 15.14 O prazo de resposta a um pedido do titular (desenho de 13/10/2026)
+
+**O que diz a lei** (RGPD, art. 12.º, n.os 3 e 4 — `eur-lex`
+`corpus/dados-e-privacidade/32016R0679-rgpd.md`, versão consolidada
+02016R0679-20160504, obtido_em 2026-10-12): o responsável responde a um
+pedido apresentado nos termos dos artigos 15.º a 20.º (acesso,
+rectificação, apagamento, limitação, notificação, portabilidade) «sem demora
+injustificada e no prazo de um mês a contar da data de receção do pedido»
+(**W**). Para a oposição (art. 21.º) a lista também a aceita, mas o prazo do
+n.º 3 é para os artigos 15.º a 20.º: a oposição segue o mesmo mês por
+proposta nossa (**C**, jurista). O prazo «pode ser
+prorrogado até dois meses» por complexidade ou número de pedidos, e o
+titular é informado da prorrogação e dos motivos dentro do primeiro mês
+(**W** quanto à obrigação; **C** quanto à conta do prazo máximo, um mês mais
+dois ou dois no total: a versão portuguesa diz «até dois meses» e não
+verifiquei as outras línguas — jurista). Se não se der seguimento, informa-se
+o titular, no mesmo mês, das razões e da possibilidade de reclamar à
+autoridade de controlo (n.º 4, **W**).
+
+**O que o Eurolify faz hoje** (lido a 13/10/2026): o `pedido_titular` (0049)
+regista o pedido **quando é executado** (`em`), com a verificação e o
+resultado. Não sabe quando chegou: o prazo de um mês não se vê nem se
+avisa. Ex.: a Ana escreve a 2/10 a pedir o apagamento; ninguém o regista;
+a 3/11 o mês passou e o Eurolify não o sabe.
+
+**Proposta:**
+
+| # | O quê | Proposta | Porquê |
+|---|---|---|---|
+| T1 | **Registar a chegada** | `POST /customers/{id}/privacy-requests/received`: o tipo (`acesso`, `apagamento`, `limitacao`, `rectificacao`, `portabilidade`, `oposicao`, `outro`), `recebido_em` (a data em que chegou, por omissão agora; nunca no futuro) e o canal (`email`, `telefone`, `carta`, `presencial`, `loja`, `outro`; sem texto livre). Âmbito `customers:privacy` (só o dono) | a lei conta do dia em que chegou, não do dia em que se trata; sem texto livre não entram dados novos da pessoa |
+| T2 | **O prazo** | `prazo_legal = recebido_em + 1 mês` (no calendário), guardado; a prorrogação é uma acção com motivo (texto curto, sem dados da pessoa) que muda o prazo até ao limite que o jurista confirmar (**C**) e regista que o titular foi informado | a regra num sítio (a base), lida pela lista e pelo aviso |
+| T3 | **Fechar** | o pedido recebido fecha quando: (a) se executa o pedido correspondente (`pedido_titular`, ligado ao recebido); (b) se marca **respondido** fora do Eurolify (rectificação, oposição, acesso respondido por e-mail), com a data; (c) se marca **recusado**, com a data em que se informou o titular das razões (n.º 4) | três fins, todos com data: a prova de que se respondeu dentro do mês |
+| T4 | **A lista «A decidir»** | fila nova `pedido_titular` (`docs/33`): está na lista enquanto aberto; quem decide `customers:privacy` (o dono); prazo da tarefa por omissão **7 dias antes do prazo legal** (proposta, **não é lei**), nunca depois dele | a peça 21 já dá dono, prazo e aviso ao vencer |
+| T5 | **O aviso** | o da peça 21 (`task.overdue`) ao vencer o prazo da tarefa, e um segundo, uma vez, se o **prazo legal** passar com o pedido aberto | o primeiro dá tempo para responder; o segundo diz que se falhou a lei |
+| T6 | **Sem identidade ainda** | o registo pede uma ficha (`cus_…`). Um pedido de quem ainda não se identificou fica fora do Eurolify até se saber a ficha (**decisão**, Q-P2) | nunca decidir identidade pelo nome (regra fiscal 6) |
+| T7 | **Dados** | o registo guarda só o tipo, as datas, o canal, quem registou e o estado; a pseudonimização não lhe toca (é a prova de que se respondeu) | minimização (art. 5.º, n.º 1, c)) e prova (art. 5.º, n.º 2) |
+
+**Fica de fora:** o pedido pela Loja (o login dos clientes, Q5 da CX); o
+envio da resposta ao titular (o comerciante responde pelo seu canal); a
+contagem de dias úteis ou feriados (o RGPD conta em meses).
+
+**Perguntas para o Diogo ou o Bruno.**
+- **Q-P1:** aprovas o desenho, com a fila nova na lista «A decidir» e o
+  prazo da tarefa 7 dias antes do prazo legal?
+- **Q-P2:** um pedido de quem ainda não tem ficha (ex.: um e-mail de um
+  endereço que não está em nenhuma ficha) fica fora do Eurolify até se saber
+  quem é (proposta), ou regista-se sem ficha?
