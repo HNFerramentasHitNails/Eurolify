@@ -1233,8 +1233,6 @@ export const es: Textos = {
   enviosAvisos: "Avisos del transportista",
   enviosAvisosExplicacao:
     "En el transportista, indique esta ruta, en la dirección de la API de Eurolify:",
-  enviosAvisosVps:
-    "En el VPS de pruebas, los avisos aún no llegan: falta publicar esta ruta en el servidor. Hasta entonces, Eurolify consulta el seguimiento cada hora.",
   enviosTestar: "Probar la conexión",
   enviosATestar: "Probando…",
   enviosTestarExplicacao:

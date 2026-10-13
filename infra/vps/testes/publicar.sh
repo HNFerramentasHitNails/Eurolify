@@ -18,6 +18,7 @@ img() { echo "$repo_img@$(r "$1")"; }
 install -d /usr/local/lib/eurolify /etc/eurolify /var/log/eurolify /run/lock
 install -m 644 "$f/lib/comum.sh" /usr/local/lib/eurolify/comum.sh
 install -m 644 "$f/lib/chave-totp.sh" /usr/local/lib/eurolify/chave-totp.sh
+install -m 644 "$f/lib/chave-envios.sh" /usr/local/lib/eurolify/chave-envios.sh
 printf 'IMAGEM_REPO=%s\nGHCR_UTILIZADOR=ensaio\nBASE_NOME=eurolify\n' "$repo_img" >/etc/eurolify/ensaio.conf
 echo token >/etc/eurolify/ghcr.token
 : >/etc/eurolify/migrar.env
@@ -111,7 +112,7 @@ export PATH="$falsos:$PATH" FALSOS="$falsos"
 # Antes de cada caso: publicadas 1, depois 2, depois 3, que está no ar.
 # As imagens conhecem: 1 → a; 2 → a b; 3 → a b c.
 preparar() {
-  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-vies.env \
+  rm -f "$falsos"/ls-* "$falsos"/sem-migrador-* "$falsos"/sem-mcp-* "$falsos"/run-falha-* "$falsos"/erro-docker-* "$falsos"/hub-* "$falsos/docker-chamado" /etc/eurolify/api-base.env /etc/eurolify/api-hub.env /etc/eurolify/api-totp.env /etc/eurolify/api-envios.env /etc/eurolify/api-vies.env \
     "$falsos/fora-da-maquina" "$falsos/systemd-run-chamado" "$falsos/sem-media" /var/log/eurolify/acoes.log
   echo token >/etc/eurolify/ghcr.token
   cat >/var/log/eurolify/publicacoes.log <<REG
@@ -571,6 +572,25 @@ confere sim "publica" arrancou 4
 confere nao "não passa a chave estragada" grep -q -- "api-totp.env" "$falsos/docker-chamado"
 confere sim "avisa" na_saida "a API arranca sem a palavra-passe"
 confere sim "regista-o" no_registo "chave TOTP inválida"
+# A chave dos envios (docs/36 §17): como a TOTP, uma chave nova recria a
+# API e a API recebe-a; sem ela ou estragada, não se passa.
+preparar
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=1\n' "$(printf 'b%.0s' {1..43})=" >/etc/eurolify/api-envios.env
+touch -d @2000000000.5 /etc/eurolify/api-envios.env
+OPCAO=--so-recriar caso "--so-recriar com a chave dos envios nova" 3 CRIADO=2033-05-18T03:33:20Z
+confere sim "recria a API" arrancou 3
+confere sim "passa a chave dos envios à API" grep -q -- "--env-file /etc/eurolify/api-envios.env" "$falsos/docker-chamado"
+preparar
+caso "publicar sem a chave dos envios" 4
+confere sim "publica" arrancou 4
+confere nao "não passa a chave que não existe" grep -q -- "api-envios.env" "$falsos/docker-chamado"
+preparar
+printf 'ENVIOS_CHAVE=x\nENVIOS_CHAVE_VERSAO=1\n' >/etc/eurolify/api-envios.env
+caso "publicar com a chave dos envios estragada" 4
+confere sim "publica" arrancou 4
+confere nao "não passa a chave estragada" grep -q -- "api-envios.env" "$falsos/docker-chamado"
+confere sim "avisa" na_saida "a API arranca sem os envios"
+confere sim "regista-o" no_registo "chave dos envios inválida"
 # O endereço do VIES (docs/23 §13): o api-vies.env novo recria a API, e a API
 # recebe-o; sem ele, não se passa.
 preparar

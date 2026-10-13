@@ -1216,10 +1216,6 @@ export const pt = {
   enviosAvisos: "Avisos da transportadora",
   enviosAvisosExplicacao:
     "Na transportadora, indique este caminho, no endereço da API do Eurolify:",
-  // Rede temporária (AGENTS.md): retira-se quando o nginx da VPS publicar
-  // /webhooks/carriers/ (pedido à VPS pelo GitHub, ADR-0028); docs/22 §29.
-  enviosAvisosVps:
-    "Na VPS de ensaio, os avisos ainda não chegam: falta publicar este caminho no servidor. Até lá, o Eurolify consulta o seguimento de hora a hora.",
   enviosTestar: "Testar a ligação",
   enviosATestar: "A testar…",
   enviosTestarExplicacao:
