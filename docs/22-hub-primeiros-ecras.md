@@ -2283,3 +2283,126 @@ nunca o NIF nem o nome do cliente.
 - **O relatório OSS nas capturas:** não entra, porque o script não sabe o id
   da entidade.
 - **A passagem com uma passkey real e no Safari de um iPhone.**
+
+## 31. Faturação: criar a ligação ao Moloni e os mapas no Hub (issue #310)
+
+Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho da ligação ao
+Moloni no Hub»*). É a parte que a Q1 do §30 deixou para depois: «entram numa
+parte seguinte, com a leitura das listas do Moloni». **Estado: desenho, por
+aprovar.**
+
+Hoje a ligação, a série e os mapas só se criam pela integração. É preciso
+escrever os números do Moloni à mão: a série, cada (país, taxa) → `tax_id`,
+cada código de isenção → motivo do Moloni e os ids da configuração (`docs/29`
+§13.2). Um número errado põe uma taxa errada numa fatura (`docs/04`).
+
+Skills: `eu-vat-oss-ioss`, `third-party-extensions`, `headless-commerce`,
+`eurolify-design`, `eurolify-hub-modular`, `eurolify-hub-quality-gate`,
+`observability-security`.
+
+Ex.: a dona da «Loja Exemplo»:
+1. Carrega em «Criar a ligação ao Moloni», liga a conta (§30) e testa.
+2. Abre «Configurar». Escolhe a série «Loja online 2026» e, para «IVA 23 %
+   (PT)», a taxa «Taxa Normal 23 % · PT» do Moloni. Para o motivo «M16»,
+   escolhe o «M16» do Moloni.
+3. Procura «Portes» e escolhe o artigo; procura «Consumidor final» e escolhe
+   o cliente.
+4. Grava. A ligação fica «por testar», testa outra vez e fica «Pronta».
+
+### 31.1 O que diz o Moloni (páginas lidas a 12/10 e 13/10/2026, **M**; nenhuma lida pela API: as credenciais da conta de teste não estão no ambiente)
+
+| O que se escolhe | Método do Moloni | O que devolve |
+|---|---|---|
+| a série | `documentSets/getAll` (`company_id`; até 50) | `document_set_id`, `name`, `active_by_default` |
+| as taxas | `taxes/getAll` | `tax_id`, `value`, `saft_type`, `fiscal_zone` (`docs/eurolify/fontes-api-moloni-11out2026.md` §9) |
+| as isenções | `taxExemptions/getAll` | `code`, `name`, `description` |
+| os métodos de pagamento | `paymentMethods/getAll` (`company_id`; até 50) | `payment_method_id`, `name` |
+| a língua | `languages/getAll` (sem parâmetros) | `language_id`, `code`, `title` |
+| o vencimento | `maturityDates/getAll` (`company_id`) | `maturity_date_id`, `name`, `days` |
+| a unidade dos artigos criados | `measurementUnits/getAll` (`company_id`) | `unit_id`, `name`, `short_name` |
+| a categoria dos artigos criados | `productCategories/getAll` (`company_id`, `parent_id` = 0 para as de topo) | `category_id`, `name`, `num_categories` |
+| o artigo dos portes | `products/getBySearch` (`search` no nome, na referência ou no EAN; até 50) | `product_id`, `name`, `reference`, `price` |
+| o cliente «Consumidor final» | `customers/getBySearch` (`search` no número, no contribuinte ou no nome; até 50) | `customer_id`, `vat`, `name`, `number` |
+
+**Por medir na conta de teste:** os campos exactos de cada resposta e se
+estas leituras contam para o limite de pedidos (§13.5).
+
+### 31.2 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **Criar a ligação ao Moloni** de uma entidade que não tem nenhuma activa: sem série nem mapas, «por testar» |
+| **Configurar**: a série, as taxas, as isenções, os métodos de pagamento, a língua, o vencimento, a unidade e a categoria dos artigos criados, o artigo dos portes e o cliente «Consumidor final», **sempre escolhidos de uma lista lida do Moloni** |
+| **Ver o que falta**: o Eurolify diz que pares (país, taxa), que códigos de isenção e que meios de pagamento precisam de mapa. O que falta não impede gravar, mas fica à vista, e uma fatura que precise dele fica retida (`taxa_sem_mapa`, `isencao_sem_mapa`, motivos que já existem) |
+
+| Fica de fora, e porquê |
+|---|
+| **Escolher o emissor da entidade** (Eurolify ou sistema próprio): como no §30.1, entra com o ecrã dos documentos fiscais |
+| **Criar séries, taxas ou artigos no Moloni**: nunca a partir do Eurolify; cria-se no Moloni e escolhe-se aqui |
+| **O adaptador de ensaio**: não lê listas; continua só pela integração |
+| **Desligar a ligação**: fica pela integração, porque desligar com documentos a meio tem regras próprias (R15) |
+
+### 31.3 Como o Hub lê e escreve
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `POST /hub/invoicing-connections` `{ entidade_legal }` | `invoices:accounts` (o dono) | a mesma `criarLigacao`, com `adaptador = moloni`, sem série nem mapas; uma activa por entidade (a base já o garante) |
+| `GET /hub/invoicing-connections/{id}/issuer-options` | `invoices:accounts` | **lê do Moloni**, com as credenciais da ligação: as séries, as taxas, as isenções, os métodos de pagamento, as línguas, os vencimentos, as unidades e as categorias de topo. **Junta o que o Eurolify precisa de mapear**: os pares (país, taxa) da tabela do Motor de IVA vigentes hoje nos países dos mercados activos do comerciante, os códigos de motivo de isenção do Motor (os de `GET /tax/reasons`) e os meios de pagamento que o comerciante aceita (a régua método → conta, `docs/26`). Nunca escolhe nada |
+| `GET /hub/invoicing-connections/{id}/issuer-search?tipo=artigo\|cliente&q=` | `invoices:accounts` | pesquisa no Moloni (`products/getBySearch` ou `customers/getBySearch`), até 50; de cada cliente só o id, o número e o nome, **nunca o contribuinte nem a morada** |
+| `PATCH /hub/invoicing-connections/{id}` `{ versao, serie, taxas, isencoes, config }` | `invoices:accounts` | a mesma `mudarLigacao` da chave: fica por testar e, com documentos a meio no emissor, recusa (R15). **Antes de gravar, o servidor relê as listas do Moloni e confere que cada id escolhido existe lá** (uma série apagada entretanto, ou um id escrito à mão por uma integração do Hub, é recusado com `invoices.invalid_field`) |
+
+- **Os erros do Moloni** (credenciais mortas, rede) saem como na ligação
+  (`invoices.issuer_error`, tapados). A ligação passa a «com erro» só pela
+  renovação, nunca por uma leitura de listas.
+- **O limite próprio por empresa** (§13.5) conta também estas leituras.
+- **Sem cópia das listas na base.** Lêem-se quando se abre «Configurar» e
+  quando se grava. Nada do Moloni fica guardado além dos ids escolhidos.
+
+### 31.4 O ecrã
+
+| Onde | O que muda | Estados além do normal |
+|---|---|---|
+| **Faturação** (§30.3), uma entidade sem ligação | Para o dono: «Criar a ligação ao Moloni» (em vez da frase da Q1 do §30). Cria e mostra a ligação «Por testar», com «Ligar o Moloni» | já existe uma activa (relê); sem `invoices:accounts` (só a frase) |
+| **Faturação**, uma entidade com ligação Moloni ligada | «Configurar», e por baixo do estado «Faltam 2 taxas e 1 método de pagamento» (do `issuer-options`), ou nada quando nada falta | — |
+| **Configurar** (`/faturacao/configurar?comerciante=…&ligacao=isx_…`) | Uma secção por grupo, cada uma com listas de escolha preenchidas pelo Moloni, sempre com o nome e o id do Moloni lado a lado (`Taxa Normal 23 % · PT (id 11)`): **Série**; **Taxas** (uma linha por par do Eurolify, «IVA 23 % · Portugal», e a taxa do Moloni a escolher); **Isenções** (uma linha por código); **Métodos de pagamento** (uma linha por meio); **Para os clientes criados** (língua, vencimento); **Para os artigos criados** (unidade, categoria); **Portes** e **Consumidor final** (um campo de pesquisa que mostra até 50 resultados). Por baixo, «Faltam: …» actualizado à medida que se escolhe. «Gravar» grava tudo de uma vez, com a versão lida. Depois de gravar, «A ligação ficou por testar.» e o botão «Testar» | a ler o Moloni; o Moloni recusou ou não respondeu (a frase, tapada, e «Tentar outra vez»); lista vazia no Moloni («O Moloni não tem nenhuma série; crie-a no Moloni e volte.»); conflito (409: «Outra pessoa mudou esta ligação entretanto.», com as escolhas da pessoa guardadas no ecrã); um id que deixou de existir (`invoices.invalid_field`: a frase da API e a lista relida); documentos a meio (`invoices.issuer_busy`); sem permissão |
+
+### 31.5 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o evita |
+|---|---|
+| **Escolher a taxa errada do Moloni** (uma de 23 % de outra zona fiscal, ou de 13 % em vez de 23 %) | a lista mostra o valor, a zona fiscal e o id; nada vem escolhido (Q1); o teste da ligação não chega para isto. **O contabilista confere os mapas antes do primeiro comerciante de fora** (**C**, `docs/05`) |
+| Escolher por nome um cliente ou artigo com nome parecido | a pesquisa mostra o número e a referência ao lado do nome, e guarda-se o id (`AGENTS.md`, «Não se erra», regra 6) |
+| Um id que deixa de existir no Moloni depois de gravado | o servidor confere ao gravar; depois disso, a emissão falha no Moloni e o documento fica retido com a frase dele (§13.5), nunca sai com outra coisa |
+| Dados pessoais dos clientes do Moloni no Hub | a pesquisa de clientes só devolve o id, o número e o nome; o contribuinte e a morada não saem |
+| A leitura gastar o limite do Moloni | o limite próprio por empresa (§13.5); as listas lêem-se só ao abrir e ao gravar |
+
+### 31.6 Por decidir
+
+**Q1. O ecrã sugere a taxa do Moloni quando o valor e a zona fiscal batem?**
+Ex.: para «IVA 23 % · Portugal», o Moloni tem a «Taxa Normal» (23 %, zona
+PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
+- **A (proposta):** não sugere nem escolhe. As taxas do Moloni com o mesmo
+  valor e a mesma zona aparecem **no topo da lista**, e a pessoa escolhe
+  sempre. Nada fica escolhido sem alguém o escolher («Não se erra», regra
+  6), e duas taxas iguais no Moloni são justamente o caso em que adivinhar
+  sai caro.
+- **B:** vem pré-escolhida quando só há uma que bate; a pessoa confirma. Poupa
+  cliques, mas um «Gravar» distraído grava uma escolha que ninguém fez.
+
+### 31.7 Antes de dizer que está feito (o pedido do código)
+
+- **API**:
+  - as quatro rotas pelo papel: só o dono; o gestor, o apoio e o armazém
+    recebem 403; outro comerciante, 404;
+  - as listas contra o Moloni simulado, incluindo a recusa e a rede;
+  - a pesquisa de clientes sem contribuinte nem morada;
+  - o `PATCH` recusa um id que não existe no Moloni, com a versão (409) e
+    com documentos a meio;
+  - o «o que falta» bate com os motivos de retenção (uma fatura com uma
+    taxa por mapear fica retida).
+- **Hub**:
+  - criar, ligar, configurar e testar só com o teclado;
+  - o conflito, a lista vazia e a recusa do Moloni;
+  - capturas a 375, 768 e 1280 px, em claro e escuro.
+- **Na conta de teste do Moloni** (com as credenciais no ambiente e o OK de
+  cada escrita): ler as listas a sério antes de abrir isto a um comerciante.
