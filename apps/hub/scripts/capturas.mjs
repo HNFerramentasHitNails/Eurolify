@@ -4866,19 +4866,37 @@ try {
     ]);
     await rp.getByText("Ainda não pode publicar:").waitFor();
     await rp.unroute("**/hub/products/*/publications/check");
-    confere(
-      (await rp.getByText("Falta o peso de ENS-041.").count()) === 1 &&
-        (await rp.getByRole("link", { name: "Editar ENS-041" }).count()) ===
-          1 &&
+    for (const [descricao, verdade] of [
+      [
+        "o texto do peso em falta",
+        (await rp.getByText("Falta o peso de ENS-041.").count()) === 1,
+      ],
+      [
+        "a ligação para editar a variante",
+        (await rp.getByRole("link", { name: "Editar ENS-041" }).count()) === 1,
+      ],
+      [
+        "o texto do preço em falta",
         (await rp
           .getByText("ENS-041-B não tem preço na lista base de Portugal.")
-          .count()) === 1 &&
+          .count()) === 1,
+      ],
+      [
+        "a ligação para o preço",
         (await rp
           .getByRole("link", { name: "Definir o preço de ENS-041-B" })
-          .count()) === 1 &&
+          .count()) === 1,
+      ],
+      [
+        "sem «Publicar»",
         (await rp.getByRole("button", { name: /^Publicar/ }).count()) === 0,
-      "publicar: os impedimentos em linguagem comum, com a ligação para onde se resolvem, e sem «Publicar»",
-    );
+      ],
+    ]) {
+      confere(
+        verdade,
+        `publicar: os impedimentos em linguagem comum — ${descricao}`,
+      );
+    }
 
     // Publicar noutra loja: um segundo canal que vende em Portugal.
     {
