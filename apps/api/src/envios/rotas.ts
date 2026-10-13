@@ -617,6 +617,7 @@ export function rotasDosEnvios(
             chave.comercianteId,
             semPrefixo(pedido.params.id),
             pedido.body,
+            cfg,
             `chave:key_${chave.chaveId}`,
           ),
         })),
@@ -797,6 +798,7 @@ export function paraServicosDaExpedicao(
     peso_corrigido_g: r.peso_corrigido_g,
     vendido: servico(r.vendido),
     escolhido: servico(r.escolhido),
+    escolhido_nao_serve: r.escolhido_nao_serve,
     opcoes: r.opcoes.map((o) => ({ ...o, conta: `cac_${o.conta}` })),
   };
 }

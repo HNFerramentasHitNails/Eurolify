@@ -199,7 +199,7 @@ export const TEXTO_DO_CODIGO: Record<string, keyof Textos> = {
   "shipping.void_not_allowed": "etiquetaNaoAnula",
   "shipping.invalid_transition": "etiquetaTransicaoImpossivel",
   "shipping.account_not_ready": "etiquetaContaNaoPronta",
-  "shipping.service_unknown": "etiquetaContaNaoPronta",
+  "shipping.service_unknown": "etiquetaServicoDesconhecido",
   "shipping.invalid_field": "etiquetaPedidoRecusado",
   "shipping.carrier_unavailable": "etiquetaSemResposta",
 };

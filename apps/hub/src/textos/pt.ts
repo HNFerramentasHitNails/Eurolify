@@ -1549,6 +1549,10 @@ export const pt = {
   etiquetaSeguimento: "Seguimento",
   etiquetaPeso: "Peso da caixa",
   etiquetaGramas: "{g} g",
+  escolhidoNaoServe:
+    "O serviço escolhido já não serve esta expedição (o peso, o país ou a conta mudaram). Escolha outro ou volte ao vendido.",
+  etiquetaServicoDesconhecido:
+    "A transportadora já não tem este serviço. O dono ou o gestor escolhe outro em «Mudar o serviço».",
   corrigirPeso: "Corrigir o peso",
   corrigirPesoAjuda:
     "O peso calculado é {g} (as variantes mais a embalagem do armazém). Escreva o que a balança diz.",
@@ -1605,7 +1609,7 @@ export const pt = {
   etiquetaContaNaoPronta:
     "A conta da transportadora deste método não está pronta: teste-a em «Envios», «Contas».",
   etiquetaPedidoRecusado:
-    "O servidor recusou o pedido da etiqueta: confira o peso das variantes e a morada.",
+    "O servidor recusou o pedido da etiqueta: confira o peso (pode corrigi-lo em «Corrigir o peso»), o serviço e a morada.",
   etiquetaSemResposta:
     "A transportadora não respondeu. Tente outra vez daqui a pouco.",
   expedirLinhaNaoEDaEncomenda:

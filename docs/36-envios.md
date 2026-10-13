@@ -906,12 +906,13 @@ balança» e pede a etiqueta com esse peso.
 | **Mudar o serviço depois de a etiqueta existir**: anula-se e pede-se outra, como hoje |
 | **Mudar o peso de uma variante a partir daqui**: corrige-se no artigo (catálogo). Aqui só se corrige esta caixa |
 | **Vários volumes** numa expedição (Q6): continua um volume |
-| **Escolher um serviço de um método manual**: uma expedição manual não tem etiqueta pelo Eurolify. Para passar a ter, muda-se o serviço com esta rota, que aceita uma conta mesmo quando o vendido era manual |
+| **Escolher um serviço de um método manual pelo Hub**: uma expedição manual não tem etiqueta pelo Eurolify. Para passar a ter, muda-se o serviço **só pela API** (`PUT …/service`), que aceita uma conta mesmo quando o vendido era manual |
 
 ### 19.3 Por onde é que isto ainda pode sair errado
 
 - **Um serviço mais lento** pode falhar a data-limite prometida (L1, L4). O
-  Hub mostra a data-limite ao lado da escolha. Os serviços não declaram
+  Hub avisa disso ao lado da escolha (o aviso, sem a data: o ecrã da
+  expedição não a tem; revisão do #429, P2-6). Os serviços não declaram
   prazos (§8), por isso o Eurolify não o pode conferir.
 - **Um serviço que não aceita um perigoso**: a rota confere os números ONU
   da expedição contra os do serviço (R4, L9). Na dúvida, recusa.
@@ -955,7 +956,7 @@ Um pedido com a API e os ecrãs, tal como o «Expedir»:
 | rotas da chave: `GET /shipments/{id}/services`, `GET /shipments/{id}/corrections`, `PUT /shipments/{id}/weight` (`fulfilment:write`), `PUT /shipments/{id}/service` (`shipping:write`; nunca uma IA) | `src/envios/rotas.ts` |
 | as mesmas pelo Hub (`/hub/shipments/{id}/…`), com a pessoa como «quem» | `src/envios/rotas-hub-expedir.ts` |
 | o «Expedir»: «Corrigir o peso» (com o calculado à vista) e «Mudar o serviço» (só o dono e o gestor; os serviços que a API devolve), o motivo obrigatório, as notas «peso corrigido» e «serviço escolhido» e a lista das correcções | `apps/hub/src/ecras/Expedir.tsx` |
-| 4 testes da API com o PostgreSQL 18.6 e 3 do Hub | `test/envios-correcoes.test.ts`; `apps/hub/test/expedir.test.ts` |
+| 9 testes da API com o PostgreSQL 18.6 (8 com a base, 1 da regra «serve a caixa») e 3 do Hub | `test/envios-correcoes.test.ts`; `apps/hub/test/expedir.test.ts` |
 
 **Desvios do desenho:**
 - **O motivo fica só no rasto** (`correcao_expedicao`), e não em colunas da
@@ -968,3 +969,40 @@ Um pedido com a API e os ecrãs, tal como o «Expedir»:
   as correcções só nas expedições com conta (o ecrã de um método manual não
   tem a parte da etiqueta).
 - **A migração é a 0086**: a 0084 e a 0085 entraram entretanto.
+
+**Revisão do #429** (Sonnet 5.5; 0 P0, 2 P1, 7 P2, 7 P3; publicada no
+pedido):
+- corrigidos:
+  - **P1-1:** uma expedição acabada dava 500 pelo gatilho da 0079; agora o
+    código confere o estado antes e responde 409;
+  - **P1-2:** testes da chave de agente de IA e do cabeçalho `Eurolify-IA`
+    pela chave, sem linha no rasto. Tirar o `chave.agenteIa` não os faz
+    falhar: a chave de agente já põe a IA no rasto do pedido, e a recusa
+    apanha-a por aí também;
+  - **P2-1:** os testes do §19.4 que faltavam: conta não pronta, peso acima
+    do máximo, etiqueta viva, sem motivo na base, rasto de outro
+    comerciante, variante sem peso, e a regra «serve a caixa» com o país,
+    o peso, os perigosos e o telefone;
+  - **P2-2:** a etiqueta volta a conferir o país, o peso, os perigosos e o
+    telefone, do vendido e do escolhido;
+  - **P2-3:** a leitura dos serviços já não prende a expedição;
+  - **P2-4:** a API diz se o escolhido deixou de servir, e o ecrã avisa;
+  - **P2-5:** `shipping.service_unknown` aponta para «Mudar o serviço», e a
+    recusa da etiqueta para «Corrigir o peso»;
+  - **P2-6:** estes textos;
+  - **P3-1:** o telefone conta igual nos dois sítios;
+  - **P3-3:** com um serviço escolhido, um peso que não cabe nele
+    recusa-se logo;
+  - **P3-4:** numa recusa, o formulário fica aberto com o que se escreveu,
+    e ao abrir o foco vai para o título dele.
+- ficam, com a razão:
+  - **P2-7** (o motivo fora do apagamento do titular): vai à decisão do
+    Diogo ou do Bruno. Até lá, o ecrã avisa para não escrever dados de
+    clientes;
+  - **P3-2:** um 200 vazio na lista de outra expedição não mostra nada
+    (RLS);
+  - **P3-5:** o `quem` é um identificador (`pessoa:per_…`) que não diz nada
+    a quem lê a lista;
+  - **P3-6:** a base recusa o motivo só com espaços;
+  - **P3-7:** é intencional: arquivar uma conta escolhida faz a etiqueta
+    dizer que a conta não está pronta.

@@ -256,6 +256,7 @@ export function rotasDeExpedirNoHub(
               s.comercianteId,
               semPrefixo(pedido.params.id),
               pedido.body,
+              cfg,
               quem(s.pessoaId),
             ),
           ),

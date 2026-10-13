@@ -309,6 +309,8 @@ export interface ServicosDaExpedicao {
   peso_corrigido_g: number | null;
   vendido: { conta: string; servico: string } | null;
   escolhido: { conta: string; servico: string } | null;
+  /** Porque é que o serviço escolhido já não serve (em português), ou null. */
+  escolhido_nao_serve: string | null;
   opcoes: OpcaoDeServico[];
 }
 

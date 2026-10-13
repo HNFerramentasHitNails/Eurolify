@@ -28,17 +28,23 @@ que já estava previsto no §3.3 (issue #393).
 
 - 13/10/2026, local, com o PostgreSQL 18.6 num contentor (contados pelo
   resumo do `vitest`):
-  - `test/envios-correcoes.test.ts`: 4 testes verdes;
+  - `test/envios-correcoes.test.ts`: 4 testes verdes; depois da revisão
+    do #429, 9 verdes;
   - as suites `envios-*`, `comerciante`, `rasto-colunas`, `seguranca-base` e
     `stock*`: 137 verdes, antes de juntar o `main`;
   - o Hub: 277 testes verdes, e depois 10 em `test/expedir.test.ts`, com os
-    3 novos.
+    3 novos; depois da revisão, 285 verdes no Hub todo;
+  - prova pela falha: sem a conferência do estado em `correcoes.ts`, o teste
+    da expedição cancelada falha (500 em vez de 409).
+
+- **Revisão do #429** (Sonnet 5.5, 0 P0, 2 P1): os P1, os P2-1 a P2-6 e os
+  P3-1, P3-3 e P3-4 corrigidos; a razão dos outros está no `docs/36` §19.6.
 
 ## O que ficou por verificar
 
-- **O motivo é texto livre** e pode trazer dados de clientes. O ecrã diz para
-  não os escrever, mas o apagamento do titular não limpa o rasto (como nas
-  outras tabelas de rasto, `docs/33` P2-6).
+- **O motivo é texto livre** e pode trazer dados de clientes. O ecrã diz
+  para não os escrever, mas o apagamento do titular não limpa o rasto.
+  **Decisão pedida ao Diogo** (revisão do #429, P2-7).
 - **Um serviço mais lento** pode falhar a data-limite: os serviços não
   declaram prazos, e o Eurolify não o confere. O ecrã avisa.
 - **Um método manual** só passa a ter etiqueta pela API. O ecrã não o

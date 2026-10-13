@@ -805,7 +805,13 @@ function Expedicao({
                   expedicao={x.id}
                   mudaServico={mudaServico}
                   ocupado={ocupado !== null}
-                  correr={correr}
+                  concluido={async (texto) => {
+                    setFalha(null);
+                    setConflito(false);
+                    setSucesso(texto);
+                    await depois();
+                    await lerEtiqueta();
+                  }}
                 />
               ) : null}
               {correccoes.length === 0 ? null : (
@@ -985,18 +991,18 @@ function Correccoes({
   expedicao,
   mudaServico,
   ocupado,
-  correr,
+  concluido,
 }: {
   comerciante: string;
   expedicao: string;
   mudaServico: boolean;
   ocupado: boolean;
-  correr: (
-    qual: string,
-    fn: () => Promise<keyof Textos | null>,
-  ) => Promise<void>;
+  /** Depois de gravar: o texto do sucesso, e a expedição relida. */
+  concluido: (texto: keyof Textos) => Promise<void>;
 }) {
-  const { t, lingua } = useHub();
+  const { t, lingua, navegar } = useHub();
+  const [aGravar, setAGravar] = useState(false);
+  const tituloRef = useRef<HTMLHeadingElement>(null);
   const [aberto, setAberto] = useState<"peso" | "servico" | null>(null);
   const [info, setInfo] = useState<ServicosDaExpedicao | null>(null);
   const [falha, setFalha] = useState<unknown>(null);
@@ -1005,6 +1011,11 @@ function Correccoes({
   const [motivo, setMotivo] = useState("");
   const [invalido, setInvalido] = useState<keyof Textos | null>(null);
   const id = `correccao-${expedicao}`;
+  // Ao abrir, o foco vai para o título do formulário (o botão que o abriu
+  // desaparece; revisão do #429, P3-4).
+  useEffect(() => {
+    if (aberto !== null) tituloRef.current?.focus();
+  }, [aberto]);
 
   async function abrir(qual: "peso" | "servico") {
     setAberto(qual);
@@ -1031,6 +1042,26 @@ function Correccoes({
     setInfo(null);
   }
 
+  /** Grava; numa recusa o formulário fica aberto, com o que se escreveu. */
+  async function gravar(fn: () => Promise<unknown>, texto: keyof Textos) {
+    setAGravar(true);
+    setFalha(null);
+    try {
+      await fn();
+      fechar();
+      await concluido(texto);
+    } catch (e) {
+      const mostrar = await falhaDeAccao(e);
+      if (mostrar === null) {
+        navegar("/entrar", { substituir: true });
+        return;
+      }
+      setFalha(erroDeExpedir(mostrar));
+    } finally {
+      setAGravar(false);
+    }
+  }
+
   function guardar(evento: SyntheticEvent, voltar = false) {
     evento.preventDefault();
     if (info === null || aberto === null) return;
@@ -1044,15 +1075,15 @@ function Correccoes({
         setInvalido("pesoInvalido");
         return;
       }
-      fechar();
-      void correr("peso", async () => {
-        await api.corrigirPeso(comerciante, expedicao, {
-          versao: info.versao,
-          peso_g: g,
-          motivo: motivo.trim(),
-        });
-        return "pesoCorrigidoAgora";
-      });
+      void gravar(
+        () =>
+          api.corrigirPeso(comerciante, expedicao, {
+            versao: info.versao,
+            peso_g: g,
+            motivo: motivo.trim(),
+          }),
+        "pesoCorrigidoAgora",
+      );
       return;
     }
     // O valor é «cac_…|CÓDIGO»; voltar ao vendido manda os dois a null.
@@ -1063,16 +1094,16 @@ function Correccoes({
     }
     const conta = voltar ? null : servico.slice(0, barra);
     const codigo = voltar ? null : servico.slice(barra + 1);
-    fechar();
-    void correr("servico", async () => {
-      await api.mudarServico(comerciante, expedicao, {
-        versao: info.versao,
-        conta,
-        servico: codigo,
-        motivo: motivo.trim(),
-      });
-      return "servicoMudadoAgora";
-    });
+    void gravar(
+      () =>
+        api.mudarServico(comerciante, expedicao, {
+          versao: info.versao,
+          conta,
+          servico: codigo,
+          motivo: motivo.trim(),
+        }),
+      "servicoMudadoAgora",
+    );
   }
 
   if (aberto === null) {
@@ -1107,11 +1138,16 @@ function Correccoes({
         guardar(e);
       }}
     >
-      <h4 id={`${id}-titulo`}>{titulo}</h4>
-      {falha !== null ? (
+      <h4 id={`${id}-titulo`} ref={tituloRef} tabIndex={-1}>
+        {titulo}
+      </h4>
+      {falha === null ? null : (
         <CaixaDeErro erro={mensagemDeErro(falha, t, lingua)} />
-      ) : info === null ? (
-        <ACarregar />
+      )}
+      {info === null ? (
+        falha === null ? (
+          <ACarregar />
+        ) : null
       ) : aberto === "peso" ? (
         <>
           <p className="secundario">
@@ -1143,6 +1179,11 @@ function Correccoes({
       ) : (
         <>
           <p className="secundario">{t.mudarServicoAjuda}</p>
+          {info.escolhido_nao_serve === null ? null : (
+            <p className="aviso" role="note">
+              {t.escolhidoNaoServe}
+            </p>
+          )}
           <p className="aviso" role="note">
             {t.servicoPrazoAviso}
           </p>
@@ -1210,8 +1251,8 @@ function Correccoes({
       )}
       <div className="accoes">
         {info === null ? null : (
-          <button type="submit" className="principal">
-            {t.guardarCorreccao}
+          <button type="submit" className="principal" disabled={aGravar}>
+            {aGravar ? t.aCarregar : t.guardarCorreccao}
           </button>
         )}
         {info !== null &&
@@ -1219,6 +1260,7 @@ function Correccoes({
           (aberto === "servico" && info.escolhido !== null)) ? (
           <button
             type="button"
+            disabled={aGravar}
             onClick={(e) => {
               guardar(e, true);
             }}

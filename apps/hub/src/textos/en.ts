@@ -1556,6 +1556,10 @@ export const en: Textos = {
   etiquetaSeguimento: "Tracking",
   etiquetaPeso: "Parcel weight",
   etiquetaGramas: "{g} g",
+  escolhidoNaoServe:
+    "The chosen service no longer serves this shipment (the weight, the country or the account changed). Choose another or go back to the one sold.",
+  etiquetaServicoDesconhecido:
+    "The carrier no longer has this service. The owner or the manager chooses another in «Change the service».",
   corrigirPeso: "Correct the weight",
   corrigirPesoAjuda:
     "The calculated weight is {g} (the variants plus the warehouse packaging). Enter what the scale shows.",
@@ -1612,7 +1616,7 @@ export const en: Textos = {
   etiquetaContaNaoPronta:
     "This method's carrier account is not ready: test it in «Shipping», «Accounts».",
   etiquetaPedidoRecusado:
-    "The server refused the label request: check the variants' weight and the address.",
+    "The server refused the label request: check the weight (you can fix it in «Correct the weight»), the service and the address.",
   etiquetaSemResposta: "The carrier did not respond. Try again in a moment.",
   expedirLinhaNaoEDaEncomenda:
     "One of the items is not from this order. Reload the page.",

@@ -13,6 +13,7 @@ import {
   type EventoSeguimento,
   type MoradaEtiqueta,
 } from "./adaptador.js";
+import { porQueNaoServeACaixa, temTelefone } from "./correcoes.js";
 import { ErroEnvios } from "./erros.js";
 import {
   adaptadorDe,
@@ -264,19 +265,28 @@ async function preparar(
       );
     }
     const peso = x.peso_corrigido_g ?? (pesoG ?? 0) + x.embalagem_g;
-    // Um serviço escolhido não passou pelo checkout (R4): os perigosos
-    // confirmam-se aqui também (L9).
-    if (escolhido && [...onu].some((n) => !servico.aceitaOnu.includes(n))) {
-      throw new ErroEnvios(
-        "shipping.invalid_field",
-        "o serviço escolhido não aceita uma mercadoria perigosa desta expedição",
-      );
-    }
     if (servico.pesoMaxG !== null && peso > servico.pesoMaxG) {
       throw new ErroEnvios(
         "shipping.invalid_field",
         "a caixa pesa mais do que o serviço aceita",
         { peso_g: peso, peso_max_g: servico.pesoMaxG },
+      );
+    }
+    // O serviço confere-se outra vez ao pedir (o escolhido não passou pelo
+    // checkout, e a fotografia dos serviços de uma conta pode mudar): o
+    // país, o peso, os perigosos e o telefone (R4, L9; revisão do #429, P2-2).
+    const entregaPais = (x.entrega as { pais: string }).pais;
+    const telefone = (x.contacto as { telefone?: unknown }).telefone;
+    const porque = porQueNaoServeACaixa(servico, {
+      pais: entregaPais,
+      temTelefone: temTelefone(telefone),
+      pesoG: peso,
+      onu,
+    });
+    if (porque !== null) {
+      throw new ErroEnvios(
+        "shipping.invalid_field",
+        `${escolhido ? "o serviço escolhido" : "o serviço vendido"} não serve esta expedição: ${porque}`,
       );
     }
     const entrega = x.entrega as {
@@ -300,7 +310,7 @@ async function preparar(
       codigo_postal: entrega.codigo_postal,
       localidade: entrega.localidade,
       pais: entrega.pais,
-      ...(servico.pedeTelefone && contacto.telefone !== null
+      ...(servico.pedeTelefone && temTelefone(contacto.telefone)
         ? { telefone: contacto.telefone }
         : {}),
       ...(servico.pedeEmail ? { email: contacto.email } : {}),

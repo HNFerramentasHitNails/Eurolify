@@ -1573,6 +1573,10 @@ export const es: Textos = {
   etiquetaSeguimento: "Seguimiento",
   etiquetaPeso: "Peso de la caja",
   etiquetaGramas: "{g} g",
+  escolhidoNaoServe:
+    "El servicio elegido ya no sirve este envío (cambió el peso, el país o la cuenta). Elija otro o vuelva al vendido.",
+  etiquetaServicoDesconhecido:
+    "La transportista ya no tiene este servicio. El propietario o el gestor elige otro en «Cambiar el servicio».",
   corrigirPeso: "Corregir el peso",
   corrigirPesoAjuda:
     "El peso calculado es {g} (las variantes más el embalaje del almacén). Escriba lo que marca la báscula.",
@@ -1628,7 +1632,7 @@ export const es: Textos = {
   etiquetaContaNaoPronta:
     "La cuenta del transportista de este método no está lista: pruébela en «Envíos», «Cuentas».",
   etiquetaPedidoRecusado:
-    "El servidor rechazó la solicitud de la etiqueta: compruebe el peso de las variantes y la dirección.",
+    "El servidor rechazó la petición de la etiqueta: compruebe el peso (puede corregirlo en «Corregir el peso»), el servicio y la dirección.",
   etiquetaSemResposta:
     "El transportista no respondió. Inténtelo de nuevo en un rato.",
   expedirLinhaNaoEDaEncomenda:
