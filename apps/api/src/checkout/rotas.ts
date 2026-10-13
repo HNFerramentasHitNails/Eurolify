@@ -49,6 +49,11 @@ import {
   type Resumo,
   type SessaoLida,
   metodosDaSessao,
+  prepararProcuraDePontos,
+  procurarPontos,
+  porPonto,
+  pontoAConferir,
+  conferirPonto,
 } from "./repositorio.js";
 
 // A API do checkout (docs/25 §8; issue #273; Diogo, 09/10/2026: «sim,
@@ -158,6 +163,9 @@ const IdMetodo = idCom("shm", "shm_…");
 const IdEncomenda = idCom("ord", "ord_…");
 const IdConta = idCom("cac", "cac_…");
 export const Token = Type.String({ pattern: "^[A-Za-z0-9_-]{43}$" });
+/** O identificador de um ponto de recolha na transportadora (docs/36 §21). */
+const IdPonto = Type.String({ pattern: "^[0-9A-Za-z_-]{1,100}$" });
+const CodigoPostal = Type.String({ minLength: 1, maxLength: 20 });
 const CabecalhoCarrinho = Type.Object({
   "x-cart-secret": Type.Optional(Type.String({ maxLength: 100 })),
 });
@@ -229,6 +237,8 @@ const paraResumo = (r: Resumo) => ({
           nome: r.portes.nome,
           // A data-limite de entrega se encomendar agora (docs/36 L1).
           data_limite: r.portes.data_limite,
+          // O ponto de recolha que o cliente escolheu (docs/36 §21).
+          ponto: r.portes.ponto,
           tarifa: r.portes.tarifa,
           base: r.portes.base,
           valor_iva: r.portes.iva,
@@ -330,6 +340,8 @@ export const paraMetodo = (
   codigos_postais: m.codigos_postais,
   aceita_onu: m.aceita_onu,
   peso_max_g: m.peso_max_g,
+  // Onde entrega: na morada ou num ponto de recolha (docs/36 §21).
+  entrega: m.entrega,
   estado: m.estado,
   versao: m.versao,
 });
@@ -373,6 +385,7 @@ export const CamposEnvios = {
   peso_max_g: Type.Optional(
     Type.Union([Type.Integer({ minimum: 1, maximum: 1_000_000 }), Type.Null()]),
   ),
+  entrega: Type.Optional(umDe(["morada", "ponto"] as const)),
 };
 export const enviosDo = (b: {
   conta?: string | null;
@@ -381,6 +394,7 @@ export const enviosDo = (b: {
   codigos_postais?: string[];
   aceita_onu?: string[];
   peso_max_g?: number | null;
+  entrega?: "morada" | "ponto";
 }) => ({
   ...(b.conta === undefined
     ? {}
@@ -394,6 +408,7 @@ export const enviosDo = (b: {
     : { codigos_postais: b.codigos_postais }),
   ...(b.aceita_onu === undefined ? {} : { aceita_onu: b.aceita_onu }),
   ...(b.peso_max_g === undefined ? {} : { peso_max_g: b.peso_max_g }),
+  ...(b.entrega === undefined ? {} : { entrega: b.entrega }),
 });
 
 /** O corpo de um método novo, pela chave e pelo Hub. */
@@ -846,6 +861,105 @@ export function rotasDoCheckout(
       ),
   );
 
+  // Entrega num ponto de recolha (docs/36 §21): procurar e escolher. A
+  // chamada à transportadora fica fora da transacção da sessão.
+  const paraPonto = (p: {
+    id: string;
+    nome: string;
+    linha1: string;
+    codigo_postal: string;
+    localidade: string;
+    pais: string;
+    distanciaM: number | null;
+  }) => ({
+    id: p.id,
+    nome: p.nome,
+    morada: {
+      linha1: p.linha1,
+      codigo_postal: p.codigo_postal,
+      localidade: p.localidade,
+      pais: p.pais,
+    },
+    distancia_m: p.distanciaM,
+  });
+
+  rotas.get(
+    "/checkout/:token/pickup-points",
+    {
+      config: publico,
+      schema: {
+        description:
+          "Os pontos de recolha de um método `ponto` perto de um código postal (docs/36 §21): até 10, do país e das regiões do método. Só o país e o código postal saem para a transportadora. No máximo 20 procuras por sessão.",
+        params: ParamToken,
+        querystring: Type.Object(
+          { metodo: IdMetodo, pais: Pais, codigo_postal: CodigoPostal },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ dados: Type.Array(Livre) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emCheckout(resposta, async () => {
+        const q = pedido.query;
+        const procura = await naSessao(base, pedido.params.token, (trx, s) =>
+          prepararProcuraDePontos(trx, s, semPrefixo(q.metodo), q.pais, envios),
+        );
+        const pontos = await procurarPontos(
+          procura,
+          q.pais,
+          q.codigo_postal,
+          envios,
+        );
+        return { dados: pontos.map(paraPonto) };
+      }),
+  );
+
+  rotas.put(
+    "/checkout/:token/pickup-point",
+    {
+      config: publico,
+      schema: {
+        description:
+          "Escolhe o método `ponto` e o ponto de recolha (docs/36 §21). O servidor relê o ponto na transportadora (com o código postal da procura) e guarda a morada dela, nunca a que vem no pedido; a morada de casa, se havia, sai. Conta como uma procura.",
+        params: ParamToken,
+        body: Type.Object(
+          {
+            metodo: IdMetodo,
+            pais: Pais,
+            codigo_postal: CodigoPostal,
+            ponto: IdPonto,
+          },
+          { additionalProperties: false },
+        ),
+        response: { 200: Livre, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emCheckout(resposta, async () => {
+        const b = pedido.body;
+        const metodo = semPrefixo(b.metodo);
+        const procura = await naSessao(base, pedido.params.token, (trx, s) =>
+          prepararProcuraDePontos(trx, s, metodo, b.pais, envios),
+        );
+        const ponto = (
+          await procurarPontos(procura, b.pais, b.codigo_postal, envios)
+        ).find((p) => p.id === b.ponto);
+        if (ponto === undefined) {
+          throw new ErroCheckout(
+            "checkout.pickup_point_unavailable",
+            "o ponto não está entre os desta procura: procure outra vez",
+          );
+        }
+        await naSessao(base, pedido.params.token, (trx, s) =>
+          porPonto(trx, s, metodo, ponto),
+        );
+        return { ok: true, ponto: paraPonto(ponto) };
+      }),
+  );
+
   rotas.put(
     "/checkout/:token/payment-method",
     {
@@ -914,6 +1028,15 @@ export function rotasDoCheckout(
     },
     async (pedido, resposta) =>
       emCheckout(resposta, async () => {
+        // O ponto de recolha ainda recebe encomendas (docs/36 §21): a
+        // pergunta à transportadora fica fora da transacção da sessão.
+        const ponto = await naSessao(
+          base,
+          pedido.params.token,
+          (trx, s) => pontoAConferir(trx, s, envios),
+          { soAberta: false },
+        );
+        if (ponto !== null) await conferirPonto(ponto, envios);
         const id = await naSessao(
           base,
           pedido.params.token,

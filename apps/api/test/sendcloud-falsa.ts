@@ -31,6 +31,10 @@ export function sendcloudFalsa() {
     servicos: new Map<string, Record<string, unknown>[]>(),
     eventos: new Map<string, Record<string, unknown>[]>(),
     anular: 200,
+    /** Os pontos de recolha que a procura devolve (docs/36 §21). */
+    pontos: [] as Record<string, unknown>[],
+    /** A disponibilidade de cada ponto; sem entrada, 404. */
+    disponivel: new Map<string, boolean | "erro_500">(),
     envios: [] as Envio[],
     pedidos: [] as {
       metodo: string;
@@ -162,6 +166,18 @@ export function sendcloudFalsa() {
           (seg !== null && x.seguimento === seg),
       );
       return json(200, { data: e.map((x) => resposta(x, false)) });
+    }
+    if (metodo === "GET" && caminho === "/service-points") {
+      return json(200, { data: estado.pontos });
+    }
+    const disp = /^\/service-points\/([^/]+)\/check-availability$/.exec(
+      caminho,
+    );
+    if (metodo === "POST" && disp !== null) {
+      const d = estado.disponivel.get(decodeURIComponent(disp[1] ?? ""));
+      if (d === undefined) return json(404, { errors: [] });
+      if (d === "erro_500") return json(500, {});
+      return json(200, { data: { is_available: d } });
     }
     const cancelar = /^\/shipments\/([^/]+)\/cancel$/.exec(caminho);
     if (metodo === "POST" && cancelar !== null) {

@@ -325,6 +325,8 @@ export function cenariosDeEnvios(
     comExpedicao = true,
     /** O nome do contacto (texto livre do cliente). */
     nome = "Rui",
+    /** Entrega num ponto de recolha (docs/36 §21): sem morada de casa. */
+    ponto?: { pais: string; codigo_postal: string; ponto: string },
   ) {
     const loja = { authorization: `Bearer ${s.publica}` };
     const carrinho = await ok(
@@ -365,14 +367,16 @@ export function cenariosDeEnvios(
         telefone: "+351912345678",
       }),
     );
-    await ok(
-      pedir("PUT", `/checkout/${token}/delivery`, {
-        pais: "PT",
-        codigo_postal: "1000-001",
-        linha1: "Rua 2",
-        localidade: "Lisboa",
-      }),
-    );
+    if (ponto === undefined) {
+      await ok(
+        pedir("PUT", `/checkout/${token}/delivery`, {
+          pais: "PT",
+          codigo_postal: "1000-001",
+          linha1: "Rua 2",
+          localidade: "Lisboa",
+        }),
+      );
+    }
     await ok(
       pedir("PUT", `/checkout/${token}/billing`, {
         finalidade: "consumo",
@@ -380,7 +384,11 @@ export function cenariosDeEnvios(
         nome_documento: "Rui",
       }),
     );
-    await ok(pedir("PUT", `/checkout/${token}/delivery-method`, { metodo }));
+    await ok(
+      ponto === undefined
+        ? pedir("PUT", `/checkout/${token}/delivery-method`, { metodo })
+        : pedir("PUT", `/checkout/${token}/pickup-point`, { metodo, ...ponto }),
+    );
     await ok(
       pedir("PUT", `/checkout/${token}/payment-method`, {
         metodo: "multibanco",

@@ -15,7 +15,10 @@ export const urlSemSegredos = (url: string) =>
     .replace(/([?&](?:code|state)=)[^&#]*/gi, "$1[tapado]")
     // O que se pesquisa no emissor pode ser o NIF ou o nome de um cliente
     // (docs/22 §32; revisão do #412, P1-1): dado pessoal, não vai.
-    .replace(/(\/issuer-search\?(?:[^#]*&)?q=)[^&#]*/gi, "$1[tapado]");
+    .replace(/(\/issuer-search\?(?:[^#]*&)?q=)[^&#]*/gi, "$1[tapado]")
+    // O código postal da procura de pontos de recolha diz por onde o
+    // cliente anda (docs/36 §21.5; revisão do #439, P2-2).
+    .replace(/([?&]codigo_postal=)[^&#]*/gi, "$1[tapado]");
 
 export const serializadores = {
   // Sem endereços IP nem cabeçalhos (a chave vai no Authorization): são dados
