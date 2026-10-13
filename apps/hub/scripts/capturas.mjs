@@ -6772,6 +6772,161 @@ try {
     }
   }
 
+  // Entrega num ponto de recolha (docs/36 §21): o método com «Onde entrega»
+  // e a expedição para um ponto. A conta pronta, os serviços e a encomenda
+  // são simulados (em modo teste a Sendcloud não tem serviços de ponto). Os
+  // dados são fictícios.
+  const CONTA_SIMULADA = "cac_0199e000-0000-7000-8000-000000000009";
+  const simularPonto = async (contexto) => {
+    const json = (corpo) => ({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "private, no-store" },
+      body: JSON.stringify(corpo),
+    });
+    await contexto.route("**/hub/carrier-accounts", (r) =>
+      r.fulfill(
+        json({
+          dados: [
+            {
+              id: CONTA_SIMULADA,
+              transportadora: "sendcloud",
+              nome: "Sendcloud",
+              modo: "teste",
+              remetente: {
+                nome: "Armazém",
+                linha1: "Rua 1",
+                codigo_postal: "1000-001",
+                localidade: "Lisboa",
+                pais: "PT",
+              },
+              estado: "pronta",
+              credenciais_em: "2026-10-13T09:00:00.000Z",
+              credenciais_por:
+                "pessoa:per_0199e000-0000-7000-8000-00000000000a",
+              testada_em: "2026-10-13T09:01:00.000Z",
+              servicos_em: "2026-10-13T09:01:00.000Z",
+              campos_credenciais: [],
+              criado_em: "2026-10-13T09:00:00.000Z",
+              versao: 3,
+            },
+          ],
+        }),
+      ),
+    );
+    await contexto.route(
+      `**/hub/carrier-accounts/${CONTA_SIMULADA}/services`,
+      (r) =>
+        r.fulfill(
+          json({
+            dados: [
+              {
+                codigo: "postnl:standard",
+                nome: { pt: "PostNL Standard" },
+                paises: ["PT"],
+                peso_max_g: 23000,
+                pede_telefone: false,
+                pede_email: false,
+                ponto: false,
+              },
+              {
+                codigo: "postnl:servicepoint",
+                nome: { pt: "PostNL ponto de recolha" },
+                paises: ["PT"],
+                peso_max_g: 20000,
+                pede_telefone: false,
+                pede_email: false,
+                ponto: true,
+              },
+            ],
+          }),
+        ),
+    );
+    await contexto.route(
+      `**/hub/fulfilment/orders/${ENCOMENDA_SIMULADA}`,
+      (r) =>
+        r.fulfill(
+          json({
+            ...encomendaSimulada,
+            metodo_entrega: {
+              ...encomendaSimulada.metodo_entrega,
+              nome: { pt: "Entrega num ponto" },
+            },
+            entrega: {
+              linha1: "Rua Central 5",
+              codigo_postal: "4700-000",
+              localidade: "Braga",
+              pais: "PT",
+              ponto: { id: "11", nome: "Papelaria Central" },
+            },
+            destinatario: { nome: "Rui Exemplo", telefone: null },
+            expedicoes: [],
+          }),
+        ),
+    );
+  };
+  for (const tema of ["light", "dark"]) {
+    for (const largura of [375, 768, 1280]) {
+      const c = await navegador.newContext({
+        ignoreHTTPSErrors: true,
+        colorScheme: tema,
+        viewport: { width: largura, height: 900 },
+        storageState: sessao,
+      });
+      await simular(c);
+      await simularPonto(c);
+      const p = await c.newPage();
+      const sufixo = `${String(largura)}-${tema === "light" ? "claro" : "escuro"}`;
+      await p.goto(
+        `${ORIGEM}/envios/metodos/novo?comerciante=mer_${comerciante}`,
+      );
+      await p
+        .getByRole("heading", { name: /Criar um método de entrega/ })
+        .waitFor();
+      await p.getByLabel("Transportadora").selectOption(CONTA_SIMULADA);
+      await p.getByRole("radio", { name: "Num ponto de recolha" }).check();
+      await p
+        .getByRole("option", { name: /PostNL ponto de recolha/ })
+        .waitFor({ state: "attached" });
+      confere(
+        (await p.getByRole("option", { name: /PostNL Standard/ }).count()) ===
+          0,
+        `método num ponto ${sufixo}: só os serviços de ponto`,
+      );
+      await p.getByLabel("Serviço").selectOption("postnl:servicepoint");
+      for (const [nome, onde] of [
+        ["metodo-ponto", p.getByRole("group", { name: "Onde entrega" })],
+      ]) {
+        await onde.scrollIntoViewIfNeeded();
+        const largo = await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        );
+        confere(!largo, `${nome} ${sufixo}: sem deslocação horizontal`);
+        await p.screenshot({
+          path: join(SAIDA, `${nome}-${sufixo}.png`),
+          fullPage: true,
+        });
+      }
+      await p.goto(
+        `${ORIGEM}/expedir/${ENCOMENDA_SIMULADA}?comerciante=mer_${comerciante}`,
+      );
+      await p.getByRole("heading", { name: /Encomenda de/ }).waitFor();
+      await p.getByText("Papelaria Central").waitFor();
+      await p
+        .getByText("Só fica entregue quando ele a levanta.", { exact: false })
+        .waitFor();
+      const largo = await p.evaluate(
+        () => document.documentElement.scrollWidth > window.innerWidth,
+      );
+      confere(!largo, `expedir-ponto ${sufixo}: sem deslocação horizontal`);
+      await p.screenshot({
+        path: join(SAIDA, `expedir-ponto-${sufixo}.png`),
+        fullPage: true,
+      });
+      await c.close();
+    }
+  }
+
   // As capturas: os ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],

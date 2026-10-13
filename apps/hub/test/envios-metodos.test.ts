@@ -31,6 +31,7 @@ const metodo = (m: Partial<MetodoEntrega> = {}): MetodoEntrega => ({
   codigos_postais: [],
   aceita_onu: [],
   peso_max_g: null,
+  entrega: "morada",
   estado: "activo",
   versao: 1,
   ...m,
@@ -47,6 +48,7 @@ const formulario = (f: Partial<FormularioMetodo> = {}): FormularioMetodo => ({
   prazoMaxDias: "5",
   prefixos: "",
   pesoMaxG: "",
+  entrega: "morada",
   ...f,
 });
 
@@ -89,6 +91,7 @@ describe("métodos de entrega no Hub", () => {
         prazo_max_dias: 5,
         codigos_postais: ["1", "2"],
         peso_max_g: 2000,
+        entrega: "morada",
       },
       falta: null,
     });
@@ -108,6 +111,49 @@ describe("métodos de entrega no Hub", () => {
     expect(
       conferirMetodo(formulario({ servico: "x" }), "pt", 2).campos?.servico,
     ).toBeNull();
+  });
+
+  it("onde entrega: um método manual é sempre na morada; num ponto, vai no PATCH (docs/36 §21)", () => {
+    expect(
+      conferirMetodo(formulario({ entrega: "ponto" }), "pt", 2).campos?.entrega,
+    ).toBe("morada");
+    const ponto = conferirMetodo(
+      formulario({ entrega: "ponto", conta: "cac_a", servico: "p1" }),
+      "pt",
+      2,
+    ).campos;
+    expect(ponto?.entrega).toBe("ponto");
+    expect(
+      ponto === null
+        ? null
+        : camposMudados(metodo({ conta: "cac_a", servico: "p1" }), ponto),
+    ).toMatchObject({ entrega: "ponto" });
+    // De morada para ponto com outro serviço: a conta, o serviço e onde
+    // entrega vão juntos (revisão do #443).
+    const paraPonto = conferirMetodo(
+      formulario({ entrega: "ponto", conta: "cac_a", servico: "p1" }),
+      "pt",
+      2,
+    ).campos;
+    expect(
+      paraPonto === null
+        ? null
+        : camposMudados(metodo({ conta: "cac_a", servico: "s1" }), paraPonto),
+    ).toMatchObject({ conta: "cac_a", servico: "p1", entrega: "ponto" });
+    // De ponto para manual: sem conta nem serviço, e na morada.
+    const manual = conferirMetodo(
+      formulario({ entrega: "ponto" }),
+      "pt",
+      2,
+    ).campos;
+    expect(
+      manual === null
+        ? null
+        : camposMudados(
+            metodo({ conta: "cac_a", servico: "p1", entrega: "ponto" }),
+            manual,
+          ),
+    ).toMatchObject({ conta: null, servico: null, entrega: "morada" });
   });
 
   it("no PATCH só vai o que mudou; a conta e o serviço vão juntos", () => {
@@ -169,20 +215,41 @@ describe("métodos de entrega no Hub", () => {
     expect(nomeNaLingua({ pt: "Correio", en: "Mail" }, "en")).toBe("Mail");
     expect(nomeNaLingua({ pt: "Correio" }, "es", "pt")).toBe("Correio");
     expect(nomeNaLingua({}, "es")).toBe("");
-    const servico = (codigo: string, paises: string[]): ServicoConta => ({
+    const servico = (
+      codigo: string,
+      paises: string[],
+      ponto = false,
+    ): ServicoConta => ({
       codigo,
       nome: { en: codigo },
       paises,
       peso_max_g: null,
       pede_telefone: false,
       pede_email: false,
+      ponto,
     });
+    const todos = [
+      servico("so-pt", ["PT"]),
+      servico("pt-es", ["PT", "ES"]),
+      servico("ponto-pt-es", ["PT", "ES"], true),
+    ];
     expect(
-      servicosParaOMercado(
-        [servico("so-pt", ["PT"]), servico("pt-es", ["PT", "ES"])],
-        ["PT", "ES"],
-      ).map((s) => s.codigo),
+      servicosParaOMercado(todos, ["PT", "ES"]).map((s) => s.codigo),
     ).toEqual(["pt-es"]);
+    // Um método num ponto só mostra os serviços de ponto (docs/36 §21).
+    expect(
+      servicosParaOMercado(todos, ["PT", "ES"], "ponto").map((s) => s.codigo),
+    ).toEqual(["ponto-pt-es"]);
+    // Uma API sem `ponto` no serviço: conta como de morada (revisão do #443).
+    const semPonto = {
+      ...servico("antigo", ["PT", "ES"]),
+    } as Partial<ServicoConta>;
+    delete semPonto.ponto;
+    expect(
+      servicosParaOMercado([semPonto as ServicoConta], ["PT", "ES"]).map(
+        (s) => s.codigo,
+      ),
+    ).toEqual(["antigo"]);
   });
 
   it("os erros do servidor dizem-se com o texto deste ecrã", () => {

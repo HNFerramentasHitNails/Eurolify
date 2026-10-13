@@ -181,6 +181,8 @@ export interface MetodoEntrega {
   codigos_postais: string[];
   aceita_onu: string[];
   peso_max_g: number | null;
+  /** Onde entrega: na morada do cliente ou num ponto de recolha (docs/36 §21). */
+  entrega: "morada" | "ponto";
   estado: "activo" | "arquivado";
   versao: number;
 }
@@ -197,6 +199,7 @@ export interface CamposMetodoEntrega {
   prazo_max_dias: number;
   codigos_postais: string[];
   peso_max_g: number | null;
+  entrega: "morada" | "ponto";
 }
 
 /** Um armazém, com o peso da embalagem (docs/36 Q6). */
@@ -242,6 +245,8 @@ export interface EncomendaParaExpedir {
     codigo_postal?: string;
     localidade?: string;
     pais?: string;
+    /** Entrega num ponto de recolha: a morada acima é a do ponto (§21). */
+    ponto?: { id: string; nome: string };
   } | null;
   destinatario: { nome: string | null; telefone: string | null };
   linhas: LinhaParaExpedir[];
@@ -340,6 +345,8 @@ export interface ServicoConta {
   peso_max_g: number | null;
   pede_telefone: boolean;
   pede_email: boolean;
+  /** Entrega num ponto de recolha: só serve um método `ponto` (docs/36 §21). */
+  ponto: boolean;
 }
 
 /** Um artigo na lista do catálogo (docs/22 §11; o resumo do GET /products). */

@@ -1337,6 +1337,15 @@ export const en: Textos = {
     "Only the services that deliver to every country of the market. The maximum weight comes from the service: confirm it.",
   metodosSemServicosNoMercado:
     "This account has no services for every country of the market. Test the account again or choose another.",
+  metodosSemServicosDePonto:
+    "This account has no services that deliver to pickup points in every country of the market. Choose «At the customer's address» or another account.",
+  metodosOndeEntrega: "Where it delivers",
+  metodosEntregaMorada: "At the customer's address",
+  metodosEntregaPonto: "At a pickup point",
+  metodosEntregaMoradaAjuda:
+    "The carrier delivers to the address the customer writes at checkout.",
+  metodosEntregaPontoAjuda:
+    "The customer chooses a pickup point or locker at checkout and does not write a home address. Only services that deliver to points.",
   metodosPrazoMax: "Maximum delivery time, in days (1 to 30)",
   metodosPrazoMaxAjuda:
     "Counted from the day after the order. The customer sees the delivery deadline before buying and in the confirmation.",
@@ -1377,7 +1386,7 @@ export const en: Textos = {
   metodosServicoDesconhecido:
     "The account does not have this service. Test the account again to re-read the services.",
   metodosServicoNaoServe:
-    "The service does not fit this method: check that it delivers to every country of the market, the maximum weight and whether it needs a phone.",
+    "The service does not fit this method: check that it delivers to every country of the market, the maximum weight, whether it needs a phone and whether it delivers to an address or a pickup point.",
   metodosConflito:
     "The method changed in the meantime. What you wrote is still in the form; «Try again» loads the current version and replaces it.",
   embalagemTitulo: "Packaging",
@@ -1498,6 +1507,10 @@ export const en: Textos = {
   expedirSoVer:
     "Your role can only view shipments: it cannot create or change them.",
   expedirQuemRecebe: "Recipient",
+  expedirPontoRecolha: "Pickup point:",
+  expedirParaPonto: "pickup point",
+  expedirPontoAjuda:
+    "The carrier leaves the order at the point and the customer collects it there. It only counts as delivered when they collect it.",
   expedirTelefone: "Phone:",
   expedirLinhas: "Items",
   expedirColunaArtigo: "Item",

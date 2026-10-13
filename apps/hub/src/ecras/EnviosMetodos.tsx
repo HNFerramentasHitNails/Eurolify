@@ -302,6 +302,9 @@ export function MetodosEntrega({
                             {m.conta === null
                               ? t.metodosManual
                               : `${conta?.nome ?? m.conta} · ${m.servico ?? ""}`}
+                            {m.entrega === "ponto"
+                              ? ` · ${t.metodosEntregaPonto}`
+                              : ""}
                           </td>
                           <td data-rotulo={t.metodosColunaEstado}>
                             <span
@@ -347,6 +350,7 @@ const VAZIO: FormularioMetodo = {
   prazoMaxDias: "30",
   prefixos: "",
   pesoMaxG: "",
+  entrega: "morada",
 };
 
 function formularioDe(
@@ -369,6 +373,7 @@ function formularioDe(
     prazoMaxDias: String(m.prazo_max_dias),
     prefixos: textoDosPrefixos(m.codigos_postais),
     pesoMaxG: m.peso_max_g === null ? "" : String(m.peso_max_g),
+    entrega: m.entrega,
   };
 }
 
@@ -486,7 +491,7 @@ export function MetodoEntregaFormulario({
   const doMercado =
     servicos === null || mk === undefined
       ? []
-      : servicosParaOMercado(servicos, mk.paises);
+      : servicosParaOMercado(servicos, mk.paises, f.entrega);
   const moeda = mk?.moeda ?? "EUR";
   const casas = casasDaMoeda(moeda);
   const comIva = mk?.preco_inclui_iva === true;
@@ -823,7 +828,12 @@ export function MetodoEntregaFormulario({
                   value={f.conta}
                   aria-describedby="metodo-conta-ajuda"
                   onChange={(e) => {
-                    mudar({ conta: e.target.value, servico: "" });
+                    mudar({
+                      conta: e.target.value,
+                      servico: "",
+                      // Um método manual entrega sempre na morada (§21).
+                      ...(e.target.value === "" ? { entrega: "morada" } : {}),
+                    });
                   }}
                 >
                   <option value="">{t.metodosManualLongo}</option>
@@ -846,6 +856,44 @@ export function MetodoEntregaFormulario({
                   )}
                 </p>
               </div>
+              {f.conta === "" ? null : (
+                <fieldset
+                  className="campo"
+                  aria-describedby="metodo-entrega-ajuda"
+                >
+                  <legend>{t.metodosOndeEntrega}</legend>
+                  {(["morada", "ponto"] as const).map((onde) => (
+                    <div key={onde}>
+                      <label className="opcao">
+                        <input
+                          type="radio"
+                          name="metodo-entrega"
+                          value={onde}
+                          checked={f.entrega === onde}
+                          onChange={() => {
+                            // O serviço tem de ser do mesmo tipo (§21).
+                            mudar({ entrega: onde, servico: "" });
+                          }}
+                        />
+                        <span>
+                          {onde === "morada"
+                            ? t.metodosEntregaMorada
+                            : t.metodosEntregaPonto}
+                        </span>
+                      </label>
+                    </div>
+                  ))}
+                  <p
+                    className="secundario"
+                    id="metodo-entrega-ajuda"
+                    aria-live="polite"
+                  >
+                    {f.entrega === "ponto"
+                      ? t.metodosEntregaPontoAjuda
+                      : t.metodosEntregaMoradaAjuda}
+                  </p>
+                </fieldset>
+              )}
               {f.conta === "" ? null : (
                 <div className="campo">
                   <label htmlFor="metodo-servico">{t.metodosServico}</label>
@@ -891,7 +939,9 @@ export function MetodoEntregaFormulario({
                       </select>
                       <p className="secundario" id="metodo-servico-ajuda">
                         {doMercado.length === 0
-                          ? t.metodosSemServicosNoMercado
+                          ? f.entrega === "ponto"
+                            ? t.metodosSemServicosDePonto
+                            : t.metodosSemServicosNoMercado
                           : t.metodosServicoAjuda}
                       </p>
                     </>

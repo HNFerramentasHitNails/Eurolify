@@ -182,6 +182,9 @@ export function Expedir({ comerciante }: { comerciante: string | null }) {
                     </td>
                     <td data-rotulo={t.expedirColunaLocalidade}>
                       {e.entrega?.localidade ?? t.metodosNada}
+                      {e.entrega?.ponto === undefined
+                        ? ""
+                        : ` (${t.expedirParaPonto})`}
                     </td>
                   </tr>
                 ))}
@@ -286,6 +289,13 @@ export function ExpedirEncomenda({
               {e.destinatario.nome ?? ""}
               {e.entrega === null ? null : (
                 <>
+                  {e.entrega.ponto === undefined ? null : (
+                    <>
+                      <br />
+                      <strong>{t.expedirPontoRecolha}</strong>{" "}
+                      {e.entrega.ponto.nome}
+                    </>
+                  )}
                   <br />
                   {e.entrega.linha1 ?? ""}
                   {e.entrega.linha2 === undefined ||
@@ -302,6 +312,9 @@ export function ExpedirEncomenda({
                 </>
               )}
             </address>
+            {e.entrega?.ponto === undefined ? null : (
+              <p className="secundario">{t.expedirPontoAjuda}</p>
+            )}
             {e.destinatario.telefone === null ? null : (
               <p>
                 {t.expedirTelefone}{" "}
