@@ -4,12 +4,30 @@ import { sql, type Kysely, type Transaction } from "kysely";
 import { Type } from "typebox";
 import { RESPOSTA_DE_ERRO } from "../base/erros.js";
 import type { BaseDados } from "../base/esquema.js";
-import { semPrefixo } from "../catalogo/rotas.js";
+import { idCom, semPrefixo } from "../catalogo/rotas.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 import { sessaoDo } from "../identidade/autenticacao.js";
 import { SemCorpo } from "../identidade/hub.js";
 import { erroConta } from "../identidade/sessoes.js";
+import {
+  CorpoMudarMetodo,
+  CorpoNovoMetodo,
+  emCheckout,
+  enviosDo,
+  IdMetodo,
+  paraMetodo,
+} from "../checkout/rotas.js";
+import {
+  criarMetodoEntrega,
+  listarMetodosEntrega,
+  mudarMetodoEntrega,
+} from "../checkout/repositorio.js";
+import { emPrecos, paraMercado } from "../precos/rotas.js";
+import { listarMercados } from "../precos/repositorio.js";
+import { paraArmazem } from "../stock/rotas.js";
+import { listarArmazens } from "../stock/repositorio.js";
 import type { ConfigEnvios } from "./adaptador.js";
+import { definirEmbalagem } from "./etiquetas.js";
 import {
   criarConta,
   definirCredenciais,
@@ -34,7 +52,20 @@ import {
 // Idempotency-Key, como as outras rotas do Hub (docs/21 §11): a `versao`
 // recusa a repetição de uma alteração.
 
-type Ambito = "shipping:read" | "shipping:accounts";
+type Ambito =
+  | "shipping:read"
+  | "shipping:accounts"
+  | "shipping:write"
+  | "prices:read"
+  | "inventory:read";
+
+const RECUSA: Record<Ambito, string> = {
+  "shipping:read": "o papel não vê os envios",
+  "shipping:accounts": "o papel não gere as contas de transportadora",
+  "shipping:write": "o papel não muda os métodos de entrega nem a embalagem",
+  "prices:read": "o papel não vê os mercados",
+  "inventory:read": "o papel não vê os armazéns",
+};
 
 export function rotasDosEnviosNoHub(
   instancia: FastifyInstance,
@@ -54,12 +85,7 @@ export function rotasDosEnviosNoHub(
     void resposta.header("cache-control", "private, no-store");
     const sessao = sessaoDo(pedido);
     if (!sessao.ambitos.includes(ambito)) {
-      throw erroConta(
-        "member.role_escalation",
-        ambito === "shipping:read"
-          ? "o papel não vê os envios"
-          : "o papel não gere as contas de transportadora",
-      );
+      throw erroConta("member.role_escalation", RECUSA[ambito]);
     }
     if (sessao.comercianteId === null) {
       throw new Error("rota com comerciante sem o comerciante da sessão");
@@ -244,6 +270,202 @@ export function rotasDosEnviosNoHub(
             )
           ).map(servicoParaApi),
         };
+      }),
+  );
+
+  // ------------------ Os métodos de entrega e a embalagem (docs/22 §31)
+
+  const IdMercadoNaConsulta = idCom("mkt", "mkt_…");
+  const IdArmazem = idCom("whs", "whs_…");
+
+  rotas.get(
+    "/hub/shipping-methods",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Os métodos de entrega pelo Hub (docs/22 §31): a mesma lista de GET /shipping-methods, com shipping:read.",
+        querystring: Type.Object({
+          mercado: Type.Optional(IdMercadoNaConsulta),
+        }),
+        response: { 200: Lista, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emCheckout(resposta, async () => {
+        const s = daSessao(pedido, resposta, "shipping:read");
+        return {
+          dados: (
+            await listarMetodosEntrega(
+              base,
+              s.comercianteId,
+              pedido.query.mercado === undefined
+                ? undefined
+                : semPrefixo(pedido.query.mercado),
+            )
+          ).map(paraMetodo),
+        };
+      }),
+  );
+
+  rotas.post(
+    "/hub/shipping-methods",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Cria um método de entrega num mercado pelo Hub (dono e gestor, shipping:write).",
+        body: CorpoNovoMetodo,
+        response: {
+          201: Type.Object({ id: Type.String() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, () =>
+        emCheckout(resposta, async () => {
+          const s = daSessao(pedido, resposta, "shipping:write");
+          const b = pedido.body;
+          const id = await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+            criarMetodoEntrega(
+              trx,
+              s.comercianteId,
+              semPrefixo(b.mercado),
+              {
+                nome: b.nome,
+                prazo: b.prazo ?? {},
+                tarifa: b.tarifa,
+                gratis_a_partir_de: b.gratis_a_partir_de ?? null,
+                pede_telefone: b.pede_telefone ?? false,
+                ...enviosDo(b),
+              },
+              cfg,
+            ),
+          );
+          void resposta.code(201);
+          return { id: `shm_${id}` };
+        }),
+      ),
+  );
+
+  rotas.patch(
+    "/hub/shipping-methods/:id",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Muda, arquiva ou reactiva um método de entrega pelo Hub (dono e gestor), na versão lida: outra dá 409.",
+        params: Type.Object({ id: IdMetodo }),
+        body: CorpoMudarMetodo,
+        response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, () =>
+        emCheckout(resposta, async () => {
+          const s = daSessao(pedido, resposta, "shipping:write");
+          const b = pedido.body;
+          await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+            mudarMetodoEntrega(
+              trx,
+              s.comercianteId,
+              semPrefixo(pedido.params.id),
+              b.versao,
+              {
+                ...(b.nome === undefined ? {} : { nome: b.nome }),
+                ...(b.prazo === undefined ? {} : { prazo: b.prazo }),
+                ...(b.tarifa === undefined ? {} : { tarifa: b.tarifa }),
+                ...(b.gratis_a_partir_de === undefined
+                  ? {}
+                  : { gratis_a_partir_de: b.gratis_a_partir_de }),
+                ...(b.pede_telefone === undefined
+                  ? {}
+                  : { pede_telefone: b.pede_telefone }),
+                ...(b.estado === undefined ? {} : { estado: b.estado }),
+                ...enviosDo(b),
+              },
+              cfg,
+            ),
+          );
+          void resposta.code(204);
+          return null;
+        }),
+      ),
+  );
+
+  rotas.get(
+    "/hub/markets",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Todos os mercados do comerciante pelo Hub, para escolher o de um método (prices:read; docs/22 §31).",
+        response: { 200: Lista, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emPrecos(resposta, async () => {
+        const s = daSessao(pedido, resposta, "prices:read");
+        // Todas as páginas: o ecrã nunca corta a lista em silêncio.
+        const dados: ReturnType<typeof paraMercado>[] = [];
+        let depois: string | null = null;
+        do {
+          const p = await listarMercados(base, s.comercianteId, 200, depois);
+          dados.push(...p.dados.map(paraMercado));
+          depois = p.ultimo;
+        } while (depois !== null);
+        return { dados };
+      }),
+  );
+
+  rotas.get(
+    "/hub/warehouses",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Os armazéns pelo Hub, com o peso da embalagem (inventory:read; docs/22 §31).",
+        response: { 200: Lista, ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const s = daSessao(pedido, resposta, "inventory:read");
+        return {
+          dados: (await listarArmazens(base, s.comercianteId)).map(paraArmazem),
+        };
+      }),
+  );
+
+  rotas.put(
+    "/hub/warehouses/:id/packaging",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "O peso da embalagem por omissão do armazém pelo Hub (dono e gestor, shipping:write). Sem versão: ganha a última escrita.",
+        params: Type.Object({ id: IdArmazem }),
+        body: Type.Object(
+          { embalagem_g: Type.Integer({ minimum: 0, maximum: 100_000 }) },
+          { additionalProperties: false },
+        ),
+        response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const s = daSessao(pedido, resposta, "shipping:write");
+        await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+          definirEmbalagem(
+            trx,
+            s.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body.embalagem_g,
+          ),
+        );
+        void resposta.code(204);
+        return null;
       }),
   );
 }

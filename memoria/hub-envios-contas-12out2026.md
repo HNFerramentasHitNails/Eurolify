@@ -31,6 +31,10 @@ desenho do `docs/22` §29 (issue #393).
   - mais testes (credenciais recusadas, CTT, arquivar, 403 no PATCH,
     registo sem segredos).
 
+- **Aspecto aprovado** pelo Diogo a 13/10/2026, depois de ver 11 capturas
+  (*«aprovo; avança com os métodos de entrega»*). As capturas eram de antes
+  das correcções da revisão, que mudam dois textos e não a disposição.
+
 ## Números (com data e como se contaram)
 
 - 12/10/2026, local:
