@@ -2411,3 +2411,43 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
   - capturas a 375, 768 e 1280 px, em claro e escuro.
 - **Na conta de teste do Moloni** (com as credenciais no ambiente e o OK de
   cada escrita): ler as listas a sério antes de abrir isto a um comerciante.
+
+### 31.8 Em código (13/10/2026; pedido #412)
+
+| O quê | Onde |
+|---|---|
+| as quatro rotas `/hub/invoicing-connections…` (criar, `issuer-options`, `issuer-search`, `PATCH`), só com `invoices:accounts` | `apps/api/src/faturacao/rotas.ts` |
+| o que o Eurolify precisa de mapear (`necessarioDe`), o que falta (`faltaNaLigacao`, a mesma chave de `motivosDoConteudo`), ler e pesquisar no emissor, e gravar com a conferência dos ids (`configurarLigacao`) | `apps/api/src/faturacao/repositorio.ts` |
+| as listas, a pesquisa e a confirmação de um artigo ou cliente por id (`products/getOne`, `customers/getOne`) no Moloni | `apps/api/src/faturacao/moloni.ts`; o contrato em `adaptador.ts` |
+| «Criar a ligação ao Moloni», «Configurar», «Falta mapear: …» e o ecrã `/faturacao/configurar` | `apps/hub/src/ecras/Faturacao.tsx`, `ConfigurarFaturacao.tsx`; a lógica em `apps/hub/src/faturacao.ts` |
+| testes: as rotas pelo papel, as listas, a pesquisa sem contribuinte, a conferência ao gravar, o 409, a recusa do Moloni e os documentos a meio (`apps/api/test/faturacao-configurar.test.ts`); a lógica do Hub (`apps/hub/test/faturacao.test.ts`); as capturas com `/faturacao/configurar` | — |
+
+**Desvios do desenho (para o Diogo ou o Bruno confirmarem):**
+- **O «Falta mapear» do ecrã Faturação vem de `GET /hub/invoicing`**, não do
+  `issuer-options`: conta-se só com a base, sem ler o Moloni a cada abertura
+  da página (poupa o limite de pedidos, §13.5).
+- **Ao gravar, uma taxa do Moloni com outro valor que o do par é recusada**
+  (ex.: a «Taxa Reduzida» de 6 % para «IVA 23 % · Portugal»). O desenho só
+  pedia conferir que o id existe; um valor diferente é sempre um erro, e o
+  teste da ligação não o apanha (§31.5). A zona fiscal não se confere: as
+  regiões (Açores, Madeira) podem ter zonas próprias no Moloni, por medir.
+- **O artigo e o cliente conferem-se por id** com `products/getOne` e
+  `customers/getOne` (páginas do Moloni lidas a 13/10/2026), em vez de uma
+  lista.
+
+**Encontrado pelo Moloni simulado:** a lista das isenções do Moloni
+(`{code, name, description}`) tinha a mesma forma que um erro com
+`human_errors` e o adaptador lia-a como erro. Um erro é agora só
+`{code, description}` com o código a começar pelo número do erro (página
+«Controlo de erros» do Moloni, lida a 13/10/2026).
+
+**Por fazer:**
+- **Ler as listas na conta de teste do Moloni** antes de abrir isto a um
+  comerciante: os campos exactos de cada resposta, se `taxes/getAll` traz
+  `fiscal_zone` como o código do país, se `documentSets/getAll` e
+  `paymentMethods/getAll` paginam acima de 50 (hoje lê-se só a primeira
+  página). Precisa das credenciais no ambiente.
+- **A passagem completa só com o teclado** (criar, ligar, configurar e
+  testar): as listas e os botões são elementos nativos, mas não foi feita.
+- **As capturas do ecrã Configurar** usam listas de exemplo servidas no
+  navegador (as capturas não têm Moloni); o resto do ecrã é o verdadeiro.
