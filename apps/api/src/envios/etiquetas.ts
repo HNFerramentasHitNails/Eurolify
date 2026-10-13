@@ -14,7 +14,6 @@ import {
   type MoradaEtiqueta,
 } from "./adaptador.js";
 import { ErroEnvios } from "./erros.js";
-import { avisarEncomendasParadas } from "./paradas.js";
 import {
   adaptadorDe,
   credenciaisDe,
@@ -1137,31 +1136,11 @@ export function agendarTrabalhoEnvios(
   },
 ): () => void {
   let aCorrer = false;
-  // As encomendas paradas procuram-se de hora a hora (docs/36 §18), na
-  // primeira volta depois de a API arrancar e depois uma vez por hora.
-  let paradasEm = 0;
-  const paradas = async () => {
-    if (Date.now() - paradasEm < 60 * 60 * 1000) return;
-    paradasEm = Date.now();
-    try {
-      const r = await avisarEncomendasParadas(base);
-      if (r.falhas > 0) {
-        registo.error(r, "envios: as encomendas paradas correram com falhas");
-      } else if (r.abertos > 0) {
-        registo.info(r, "envios: encomendas paradas avisadas");
-      }
-    } catch (erro) {
-      registo.error(
-        { erro: codigoDe(erro) },
-        "envios: as encomendas paradas falharam",
-      );
-    }
-  };
   const t = setInterval(
     () => {
       if (aCorrer) return;
       aCorrer = true;
-      void correrTrabalho(base, cfg)
+      correrTrabalho(base, cfg)
         .then((r) => {
           if (r.falhas > 0) {
             registo.error(r, "envios: a volta correu com falhas");
@@ -1172,7 +1151,6 @@ export function agendarTrabalhoEnvios(
         .catch((erro: unknown) => {
           registo.error({ erro: codigoDe(erro) }, "envios: a volta falhou");
         })
-        .then(paradas)
         .finally(() => {
           aCorrer = false;
         });

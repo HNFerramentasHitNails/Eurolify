@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { criarApp } from "../src/app.js";
 import { comComerciante } from "../src/comerciante/repositorio.js";
 import { avisarEncomendasParadas } from "../src/envios/paradas.js";
+import { cancelarEncomendaPaga } from "../src/posvenda/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import { eupagoFalso } from "./eupago-falso.js";
 import { transportadoraFalsa } from "./transportadora-falsa.js";
@@ -176,6 +177,78 @@ describe.skipIf(URL_BASE === undefined)("Envios: encomendas paradas", () => {
     expect(ps[0]?.descricao).toContain("1 unidade por expedir");
   });
 
+  it("o dia é o da loja, também a oeste: às 05:00 UTC do 5.º dia, em Pago Pago (UTC−11) ainda é o 6.º", async () => {
+    const s = await cenario();
+    const { encomenda } = await expedicaoPaga(s, s.metodoManual, 1, false);
+    const limite = await dataLimiteDe(s.c, encomenda);
+    await comComerciante(base.dono, s.c, (trx) =>
+      trx
+        .updateTable("comerciante")
+        .set({ fuso: "Pacific/Pago_Pago" })
+        .where("id", "=", s.c)
+        .execute(),
+    );
+    const agora = new Date(meioDia(limite, -5).getTime() - 7 * 60 * 60 * 1000);
+    await avisarEncomendasParadas(base.api, agora);
+    expect(await problemasDe(s.c, encomenda)).toHaveLength(0);
+    // Doze horas depois, lá também é o 5.º dia.
+    await avisarEncomendasParadas(
+      base.api,
+      new Date(agora.getTime() + 12 * 60 * 60 * 1000),
+    );
+    expect(await problemasDe(s.c, encomenda)).toHaveLength(1);
+  });
+
+  it("a candidata entra ao pagar e sai ao avisar ou ao cancelar; cancelada não abre", async () => {
+    const s = await cenario();
+    const a = await expedicaoPaga(s, s.metodoManual, 1, false);
+    const b = await expedicaoPaga(s, s.metodoManual, 1, false);
+    const limite = await dataLimiteDe(s.c, a.encomenda);
+    const candidatas = async () =>
+      (
+        await sql<{
+          e: string;
+        }>`select encomenda_id::text as e from tarefa_parada
+           where comerciante_id = ${s.c}::uuid order by 1`.execute(base.dono)
+      ).rows.map((r) => r.e);
+    expect(await candidatas()).toEqual(
+      [id(a.encomenda), id(b.encomenda)].sort(),
+    );
+    // A API não lê a tabela interna.
+    await expect(
+      comComerciante(base.api, s.c, (trx) =>
+        sql`select 1 from tarefa_parada`.execute(trx),
+      ),
+    ).rejects.toThrow();
+    await cancelarEncomendaPaga(
+      base.api,
+      s.c,
+      id(b.encomenda),
+      { motivo: "o cliente desistiu" },
+      "pessoa:teste",
+    );
+    expect(await candidatas()).toEqual([id(a.encomenda)]);
+    await avisarEncomendasParadas(base.api, meioDia(limite, 1));
+    expect(await candidatas()).toEqual([]);
+    expect(await problemasDe(s.c, a.encomenda)).toHaveLength(1);
+    expect(
+      (await problemasDe(s.c, b.encomenda)).filter((p) => p.tipo === "atraso"),
+    ).toHaveLength(0);
+  });
+
+  it("duas voltas ao mesmo tempo abrem um problema só", async () => {
+    const s = await cenario();
+    const { encomenda } = await expedicaoPaga(s, s.metodoManual, 1, false);
+    const limite = await dataLimiteDe(s.c, encomenda);
+    const agora = meioDia(limite, -1);
+    const [r1, r2] = await Promise.all([
+      avisarEncomendasParadas(base.api, agora),
+      avisarEncomendasParadas(base.api, agora),
+    ]);
+    expect(r1.falhas + r2.falhas).toBe(0);
+    expect(await problemasDe(s.c, encomenda)).toHaveLength(1);
+  });
+
   it("isolamento: cada comerciante vê só as suas; a marca não se muda nem apaga; sem data não abre nem falha", async () => {
     const s1 = await cenario();
     const s2 = await cenario();
@@ -186,7 +259,7 @@ describe.skipIf(URL_BASE === undefined)("Envios: encomendas paradas", () => {
     const doUm = await comComerciante(base.api, s1.c, async (trx) => {
       const { rows } = await sql<{
         encomenda_id: string;
-      }>`select encomenda_id from envios_paradas(${meioDia(limite, 1)}, 100)`.execute(
+      }>`select encomenda_id from envios_paradas(${meioDia(limite, 1)}, 100, null)`.execute(
         trx,
       );
       return rows.map((r) => r.encomenda_id);

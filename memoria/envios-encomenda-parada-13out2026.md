@@ -17,8 +17,12 @@ desenho é o `docs/36` §18 e completa a Q4 da decisão ED (issue #393).
   «problema». Ao vencer, avisa por e-mail como os outros. Não há fila nova.
 - **Quem decide.** Uma pessoa, sempre: nada se cancela nem reembolsa sozinho.
 - **O código.** Migração 0084: as tabelas `encomenda_parada` (a marca) e
-  `tarefa_parada` (interna, as candidatas). A volta corre de hora a hora,
-  dentro da volta dos envios (`src/envios/paradas.ts`).
+  `tarefa_parada` (interna, as candidatas). A volta corre de hora a hora, à
+  parte da dos envios e sem depender da `ENVIOS_CHAVE`
+  (`src/envios/paradas.ts`, `agendarEncomendasParadas`). Antes de abrir,
+  prende a encomenda e confere-a outra vez.
+- **Revisão do #426** (Sonnet 5.5, 0 P0, 0 P1): corrigidos os P2 e os P3-1 a
+  P3-4; os outros ficam com a razão no `docs/36` §18.6.
 - **Desvios do desenho**, com a razão no §18.6:
   - o tipo do problema é `atraso`, e não `outro`;
   - a marca está numa tabela própria;
@@ -28,13 +32,25 @@ desenho é o `docs/36` §18 e completa a Q4 da decisão ED (issue #393).
 
 ## Números (com data e como se contaram)
 
-- 13/10/2026, local, com o PostgreSQL 18.6 num contentor:
-  - `test/envios-paradas.test.ts`: 4 testes verdes;
-  - as suites `comerciante`, `rasto-colunas`, `envios-*`, `posvenda*`,
-    `tarefas*`, `clientes-titular` e `stock*`: 188 testes verdes antes de
-    renomear para a 0084, mais os 2 do `comerciante` corrigidos depois.
+- 13/10/2026, local, com o PostgreSQL 18.6 num contentor (contados pelo
+  resumo do `vitest`):
+  - a bateria completa da API, com o primeiro commit: 1575 verdes e 6
+    falhas. 2 eram deste pedido (a lista do `seguranca-base`) e foram
+    corrigidas. 4 eram do `catalogo-variante-alterar` e do `documentos-api`,
+    que passam sozinhas;
+  - depois da revisão: `envios-paradas` (7), `seguranca-base`, `comerciante`
+    e `envios-etiquetas`, 79 testes verdes. O CI corre a bateria inteira.
 
 ## O que ficou por verificar
+
+- **A migração prende a tabela `encomenda`** durante a cópia das
+  candidatas (o `NO FORCE` e o `FORCE` na mesma transacção, como a 0074). No
+  ensaio é instantâneo. **Antes de produção, medir-se** com o número real de
+  encomendas (revisão do #426, P3-3).
+- **A primeira volta depois de aplicar** abre logo, de uma vez, os
+  problemas das encomendas que já passaram da data ou estão a 5 dias dela
+  (até 50 por comerciante por volta). No ensaio só há encomendas de teste
+  (P3-4).
 
 - **Encomendas antigas sem data-limite** (de antes da 0074): quantas há no
   ensaio. Não abrem aviso. Não verifiquei; a contagem faz-se pelo `medir` ou

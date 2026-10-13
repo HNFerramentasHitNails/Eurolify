@@ -770,9 +770,9 @@ Aparece na lista «A decidir» do Hub, com o prazo de 2 dias.
 |---|---|
 | **Quando está parada** | o estado é `paga`, `em_preparacao` ou `expedida_parcial`, há unidades por expedir e faltam **5 dias ou menos** para a data-limite, contados no fuso da loja (Q4). Inclui as que já passaram da data-limite |
 | **A data-limite** | a que o cliente viu no checkout (L1), copiada na encomenda (`metodo_entrega.data_limite`). Nunca se recalcula a partir do método de hoje |
-| **O que abre** | um **problema** da pós-venda, do tipo `outro` (como as perdidas, §15), com uma descrição sem dados pessoais: unidades por expedir e data-limite |
-| **Uma vez por encomenda** | uma marca na encomenda (`parada_avisada_em`), posta na mesma transacção que o problema, como a `etiqueta_motivo` da incerta (§15). Uma encomenda nunca abre dois problemas por estar parada |
-| **Quem procura** | a volta dos envios, que já corre de 5 em 5 minutos (`agendarTrabalhoEnvios`), uma vez por hora. Um erro numa encomenda não pára as outras |
+| **O que abre** | um **problema** da pós-venda, do tipo `atraso` (no desenho era `outro`; ver §18.6), com uma descrição sem dados pessoais: unidades por expedir e data-limite |
+| **Uma vez por encomenda** | uma marca, posta na mesma transacção que o problema (no código, a tabela `encomenda_parada`; ver §18.6). Uma encomenda nunca abre dois problemas por estar parada |
+| **Quem procura** | uma volta de hora a hora, à parte da dos envios, que não depende da chave das transportadoras (§18.6). Um erro numa encomenda não pára as outras |
 | **O aviso** | o da fila `problema`: aparece na lista «A decidir», com o prazo de 2 dias, e o aviso ao vencer (`docs/33`, R6) vai também por e-mail (`docs/34` §12). Não há aviso novo |
 | **O que a pessoa faz** | expede (a encomenda sai do estado, mas o problema fica até ser fechado), combina com o cliente, cancela ou reembolsa. O problema fecha-se com `POST /problems/{id}/close` ou com o reembolso (`decidirProblema`), e decide sempre uma pessoa (regra 5 do fiscal: nada em lote) |
 
@@ -793,9 +793,9 @@ Aparece na lista «A decidir» do Hub, com o prazo de 2 dias.
   ensaio.
 - **O fuso:** o «dia» é o da loja (`comerciante.fuso`), como no checkout. Um
   teste à volta da meia-noite.
-- **Duas voltas ao mesmo tempo** (dois processos da API): a marca condicional
-  (`parada_avisada_em IS NULL`) e o problema na mesma transacção impedem o
-  segundo.
+- **Duas voltas ao mesmo tempo** (dois processos da API): a marca (chave
+  primária) e o problema na mesma transacção impedem o segundo, e a volta
+  confere a encomenda outra vez com ela presa (§18.6).
 - **Uma encomenda que volta a parar** (expedida em parte, ainda com
   unidades): não abre outro problema. O primeiro diz quantas unidades havia
   quando abriu, e a encomenda mostra o resto.
@@ -811,7 +811,7 @@ Aparece na lista «A decidir» do Hub, com o prazo de 2 dias.
 - o isolamento entre comerciantes (RLS): a volta de um não toca no outro;
 - sem `data_limite`, não abre e não falha.
 
-### 18.5 Como entra no código (quando aprovado)
+### 18.5 Como entra no código
 
 Um pedido só, com:
 - a migração 0084 (a 0083 já era do #420): a marca, a função dos dias e a função que lista as
@@ -830,8 +830,24 @@ Sem ecrã novo: o problema já aparece em «A decidir» e na encomenda.
 | a marca «já avisada», com o problema que abriu; só se acrescenta, com o RLS forçado | `encomenda_parada` |
 | as candidatas por comerciante, postas e tiradas pelos gatilhos da encomenda e da marca; as que já existiam entram na migração | `tarefa_parada` (interna) |
 | a decisão, dentro do comerciante: o estado, a data no fuso da loja, sem marca e com unidades que ainda não saíram (uma expedição só criada ainda está no armazém) | `envios_paradas()` |
-| a volta: de hora a hora, na volta dos envios; abre o problema e a marca na mesma transacção; uma segunda volta ao mesmo tempo desfaz o seu | `src/envios/paradas.ts`; `agendarTrabalhoEnvios` |
-| 4 testes com o PostgreSQL 18.6 | `test/envios-paradas.test.ts` |
+| a volta: de hora a hora, à parte da volta das etiquetas (corre sem a `ENVIOS_CHAVE`); com a encomenda presa, confere-a outra vez antes de abrir; abre o problema e a marca na mesma transacção; uma segunda volta ao mesmo tempo desfaz o seu | `src/envios/paradas.ts` (`agendarEncomendasParadas`); `src/servidor.ts` |
+| 7 testes com o PostgreSQL 18.6: os 5 dias, depois da data, uma vez só, a expedição criada contra a expedida, o fuso a leste e a oeste, a candidata (entra ao pagar, sai ao cancelar e ao avisar; a API não a lê), a cancelada, duas voltas ao mesmo tempo, o isolamento e a data inválida | `test/envios-paradas.test.ts` |
+
+**Revisão do #426** (Sonnet 5.5; 0 P0, 0 P1, 3 P2, 9 P3; publicada no
+pedido): corrigidos os P2-1 (conferir outra vez com a encomenda presa), P2-2
+(a volta à parte, sem a chave), P2-3 (os testes que faltavam) e os P3-1 a
+P3-4 (estes textos e a memória). Ficam, com a razão:
+- **P3-5** (a cabeça da fila): nenhum erro por encomenda a faz falhar sempre;
+  um fuso inválido não entra (a coluna confere-o, 0001).
+- **P3-6** (o gatilho sem o comerciante da transacção): inofensivo, porque
+  `envios_paradas` volta a filtrar.
+- **P3-7** (a soma contra a linha): uma linha não sai a mais
+  (`shipments.quantity_exceeded`).
+- **P3-8** (encomendas sem nada para expedir): fica para quando entrarem os
+  produtos digitais (`digital-products-eu`).
+- **Sem teste** da encomenda cancelada entre a lista e o problema (a
+  conferência com a encomenda presa): a corrida não se reproduz sem um
+  gancho no meio da volta.
 
 **Desvios do desenho:**
 - **O problema é do tipo `atraso`**, e não `outro`: a pós-venda já tem esse

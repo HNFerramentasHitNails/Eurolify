@@ -120,11 +120,12 @@ ALTER TABLE encomenda FORCE ROW LEVEL SECURITY;
 -- preparação ou expedida em parte), com data-limite, a 5 dias ou menos dela
 -- no fuso da loja (também as que já passaram), sem aviso, e com unidades que
 -- ainda não saíram. Saiu o que está numa expedição expedida, entregue,
--- devolvida ou perdida, como em `acertarEstadoDaEncomenda`
+-- devolvida ao remetente ou perdida, como em `acertarEstadoDaEncomenda`
 -- (src/stock/repositorio.ts); uma expedição só criada ainda está no
--- armazém. Lê com os direitos do dono, mas dentro do comerciante: o RLS
+-- armazém. Com `p_encomenda`, só essa: a volta confere-a outra vez com a
+-- encomenda presa, antes de abrir o problema (revisão do #426, P2-1). Lê com os direitos do dono, mas dentro do comerciante: o RLS
 -- forçado das tabelas filtra-o, e a função filtra também.
-CREATE FUNCTION envios_paradas(p_agora timestamptz, p_limite integer)
+CREATE FUNCTION envios_paradas(p_agora timestamptz, p_limite integer, p_encomenda uuid)
   RETURNS TABLE (encomenda_id uuid, data_limite date, por_expedir integer)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT e.id, envios_data_limite(e.metodo_entrega), q.por_expedir
@@ -150,6 +151,7 @@ CREATE FUNCTION envios_paradas(p_agora timestamptz, p_limite integer)
       <= (p_agora AT TIME ZONE c.fuso)::date
     AND NOT EXISTS (SELECT FROM public.encomenda_parada p WHERE p.encomenda_id = e.id)
     AND q.por_expedir > 0
+    AND (p_encomenda IS NULL OR e.id = p_encomenda)
   ORDER BY 2, 1
   LIMIT greatest(p_limite, 0)
 $$;
@@ -167,6 +169,6 @@ $$;
 REVOKE ALL ON FUNCTION envios_dias_de_aviso_parada(), envios_data_limite(jsonb),
   encomenda_tarefa_parada(), encomenda_parada_avisada(),
   envios_comerciantes_com_paradas(timestamptz),
-  envios_paradas(timestamptz, integer) FROM PUBLIC;
+  envios_paradas(timestamptz, integer, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION envios_comerciantes_com_paradas(timestamptz),
-  envios_paradas(timestamptz, integer) TO eurolify_api;
+  envios_paradas(timestamptz, integer, uuid) TO eurolify_api;

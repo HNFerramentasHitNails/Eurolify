@@ -58,7 +58,7 @@ export async function avisarEncomendasParadas(
           por_expedir: number;
         }>`select p.encomenda_id, p.data_limite::text as data_limite,
                   p.por_expedir::int as por_expedir
-           from envios_paradas(${agora}, ${porVolta}) p`.execute(trx);
+           from envios_paradas(${agora}, ${porVolta}, null) p`.execute(trx);
         return l;
       });
     } catch (erro) {
@@ -67,15 +67,34 @@ export async function avisarEncomendasParadas(
     }
     for (const p of paradas) {
       try {
-        await noEnvios(db, c, async (trx) => {
-          const unidades = p.por_expedir === 1 ? "unidade" : "unidades";
+        const aberto = await noEnvios(db, c, async (trx) => {
+          // A lista é de outra transacção: com a encomenda presa, confere-se
+          // outra vez (expedida, cancelada ou avisada entretanto ⇒ não abre;
+          // revisão do #426, P2-1).
+          await trx
+            .selectFrom("encomenda")
+            .select("id")
+            .where("id", "=", p.encomenda_id)
+            .forUpdate()
+            .executeTakeFirstOrThrow();
+          const { rows: agoraParada } = await sql<{
+            data_limite: string;
+            por_expedir: number;
+          }>`select p.data_limite::text as data_limite,
+                    p.por_expedir::int as por_expedir
+             from envios_paradas(${agora}, 1, ${p.encomenda_id}::uuid) p`.execute(
+            trx,
+          );
+          const x = agoraParada[0];
+          if (x === undefined) return false;
+          const unidades = x.por_expedir === 1 ? "unidade" : "unidades";
           const problema = await criarProblema(
             trx,
             c,
             {
               encomenda: p.encomenda_id,
               tipo: "atraso",
-              descricao: `A encomenda tem ${String(p.por_expedir)} ${unidades} por expedir e a data-limite de entrega é ${dataPt(p.data_limite)}. Expeça, combine com o cliente ou decida o reembolso.`,
+              descricao: `A encomenda tem ${String(x.por_expedir)} ${unidades} por expedir e a data-limite de entrega é ${dataPt(x.data_limite)}. Expeça, combine com o cliente ou decida o reembolso.`,
             },
             QUEM_DAS_TAREFAS,
           );
@@ -84,16 +103,17 @@ export async function avisarEncomendasParadas(
             .values({
               encomenda_id: p.encomenda_id,
               comerciante_id: c,
-              data_limite: p.data_limite,
-              por_expedir: p.por_expedir,
+              data_limite: x.data_limite,
+              por_expedir: x.por_expedir,
               problema_id: problema,
             })
             .onConflict((oc) => oc.column("encomenda_id").doNothing())
             .returning("encomenda_id")
             .executeTakeFirst();
           if (feito === undefined) throw new JaAvisada();
+          return true;
         });
-        r.abertos += 1;
+        if (aberto) r.abertos += 1;
       } catch (erro) {
         if (erro instanceof JaAvisada) continue;
         falhou(erro);
@@ -101,4 +121,48 @@ export async function avisarEncomendasParadas(
     }
   }
   return r;
+}
+
+/**
+ * De hora a hora, à parte da volta das etiquetas: não depende da chave das
+ * credenciais das transportadoras (revisão do #426, P2-2). A primeira volta
+ * corre 5 minutos depois de a API arrancar.
+ */
+export function agendarEncomendasParadas(
+  base: Kysely<BaseDados>,
+  registo: {
+    info: (o: object, m: string) => void;
+    error: (o: object, m: string) => void;
+  },
+): () => void {
+  let aCorrer = false;
+  const correr = () => {
+    if (aCorrer) return;
+    aCorrer = true;
+    avisarEncomendasParadas(base)
+      .then((r) => {
+        if (r.falhas > 0) {
+          registo.error(r, "envios: as encomendas paradas correram com falhas");
+        } else if (r.abertos > 0) {
+          registo.info(r, "envios: encomendas paradas avisadas");
+        }
+      })
+      .catch((erro: unknown) => {
+        registo.error(
+          { erro: codigoDe(erro) },
+          "envios: as encomendas paradas falharam",
+        );
+      })
+      .finally(() => {
+        aCorrer = false;
+      });
+  };
+  const primeira = setTimeout(correr, 5 * 60 * 1000);
+  const t = setInterval(correr, 60 * 60 * 1000);
+  primeira.unref();
+  t.unref();
+  return () => {
+    clearTimeout(primeira);
+    clearInterval(t);
+  };
 }
