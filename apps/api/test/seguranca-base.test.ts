@@ -353,6 +353,24 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
       ]),
     );
     expect(rows.filter((r) => r.ligado === "A")).toEqual([]);
+    // A procura só apanha o `insert` escrito na função do gatilho (não uma
+    // função auxiliar que insira): por isso também a lista fixa, com o índice
+    // das tarefas, que escreve noutra tabela (revisão do #441, P2-1 e P3-1).
+    const { rows: fixos } = await sql<{ nome: string; ligado: string }>`
+      select t.tgname as nome, t.tgenabled as ligado from pg_trigger t
+      where t.tgname in ('atribuicao_vencida_notificacao', 'devolucao_prazo_notificacao',
+                         'ligacao_faturacao_com_erro_notificacao', 'notificacao_tarefa',
+                         'evento_seguimento_aviso')
+      order by 1`.execute(base.dono);
+    expect(fixos).toEqual(
+      [
+        "atribuicao_vencida_notificacao",
+        "devolucao_prazo_notificacao",
+        "evento_seguimento_aviso",
+        "ligacao_faturacao_com_erro_notificacao",
+        "notificacao_tarefa",
+      ].map((nome) => ({ nome, ligado: "O" })),
+    );
   });
 
   describe("funções fechadas por omissão", () => {

@@ -262,7 +262,8 @@ fornecedor nem as regras N4 a N11:
 - **O gatilho não fica `ALWAYS`**: segue a regra da 0053 (um gatilho que
   escreve não fica `ALWAYS`; uma cópia reposta em modo `replica` não cria
   notificações a mais). Os da 0067, 0071 e 0084 ficaram alinhados na 0090
-  (#435); um teste de `seguranca-base` recusa um gatilho novo que crie
+  (#435), com o índice das tarefas (`notificacao_tarefa`), que também
+  escreve; um teste de `seguranca-base` recusa um gatilho novo que crie
   notificações e fique `ALWAYS`.
 
 ## 13. A configuração chega à VPS pelo GitHub (12/10/2026; #372)

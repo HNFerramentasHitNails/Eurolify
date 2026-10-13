@@ -7,11 +7,14 @@
 -- reposição da base de ensaio depois de uma ligação ao Moloni ter ficado com
 -- erro mandava outra vez o e-mail `invoicing.connection_error`.
 --
--- Os outros `ALWAYS` das notificações ficam: são guardas (recusam ou validam,
--- não escrevem noutras tabelas) ou o índice das tarefas, que não cria
--- notificações. A 0087 (envios) já nasceu sem `ALWAYS`.
+-- Também o índice das tarefas das notificações (`notificacao_tarefa`, 0067):
+-- escreve em `tarefa_notificacao` e, numa reposição que traga a `notificacao`
+-- antes dela, a cópia desta falharia por chave repetida (revisão do #441,
+-- P2-1). Os outros `ALWAYS` das notificações ficam: são guardas (recusam ou
+-- validam, não escrevem). A 0087 (envios) já nasceu sem `ALWAYS`.
 SET LOCAL lock_timeout = '10s';
 
 ALTER TABLE devolucao ENABLE TRIGGER devolucao_prazo_notificacao;
 ALTER TABLE atribuicao_rasto ENABLE TRIGGER atribuicao_vencida_notificacao;
 ALTER TABLE ligacao_faturacao ENABLE TRIGGER ligacao_faturacao_com_erro_notificacao;
+ALTER TABLE notificacao ENABLE TRIGGER notificacao_tarefa;
