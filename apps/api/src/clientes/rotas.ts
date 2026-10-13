@@ -68,6 +68,7 @@ import {
   anexarIsencao,
   listarAnexosDaIsencao,
   lerAnexoDaIsencao,
+  perfilGuardado,
   tirarEtiqueta,
   tornarPrincipal,
   traduzir,
@@ -277,8 +278,9 @@ const Perfil = Type.Object({
   id: Type.String({ description: "bpf_…" }),
   cliente: Type.String({ description: "cus_…" }),
   tipo: TipoPerfil,
-  nome_documento: Type.String({
-    description: "O nome que sai no documento fiscal",
+  nome_documento: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "O nome que sai no documento fiscal; `null` num perfil guardado, para quem não tem customers:billing (§15.12)",
   }),
   nif: Type.Union([Type.String(), Type.Null()], {
     description:
@@ -307,40 +309,59 @@ const Perfil = Type.Object({
     description:
       "Numa cópia feita por uma fusão, o perfil da ficha absorvida de onde veio (bpf_…)",
   }),
+  guardado_por_obrigacao_fiscal: Type.Boolean({
+    description:
+      "A ficha foi pseudonimizada por um pedido de apagamento e o perfil ficou por obrigação fiscal: o nome, o NIF e a morada só saem com customers:billing (docs/23 §15.12)",
+  }),
   versao: Type.Integer(),
   criado_em: Instante,
   actualizado_em: Instante,
 });
 type LinhaPerfil = Awaited<ReturnType<typeof obterPerfil>>;
-const paraPerfil = (p: LinhaPerfil): Static<typeof Perfil> => ({
-  id: `bpf_${p.id}`,
-  cliente: `cus_${p.cliente_id}`,
-  tipo: p.tipo,
-  nome_documento: p.nome_documento,
-  nif: p.nif,
-  nif_escrito: p.nif_escrito,
-  pais_contribuinte: p.pais_contribuinte,
-  morada:
-    p.morada_linha1 === null
-      ? null
-      : {
-          linha1: p.morada_linha1,
-          linha2: p.morada_linha2,
-          codigo_postal: p.morada_codigo_postal ?? "",
-          localidade: p.morada_localidade ?? "",
-          pais: p.morada_pais ?? "",
-        },
-  principal: p.principal,
-  estado_vies: p.estado_vies,
-  validado_em: p.validado_em === null ? null : p.validado_em.toISOString(),
-  isencao_em_vigor: p.isencao_em_vigor,
-  estado: p.estado,
-  usado_em_documento: p.usado_em_documento,
-  copiado_de: p.copiado_de === null ? null : `bpf_${p.copiado_de}`,
-  versao: p.versao,
-  criado_em: p.criado_em.toISOString(),
-  actualizado_em: p.actualizado_em.toISOString(),
-});
+/**
+ * Um perfil para a resposta. Num perfil guardado (§15.12), o nome, o NIF e a
+ * morada só saem a quem tem customers:billing (`comDados`).
+ */
+const paraPerfil = (
+  p: LinhaPerfil,
+  comDados: boolean,
+): Static<typeof Perfil> => {
+  const reservado = p.guardado && !comDados;
+  return {
+    id: `bpf_${p.id}`,
+    cliente: `cus_${p.cliente_id}`,
+    tipo: p.tipo,
+    nome_documento: reservado ? null : p.nome_documento,
+    nif: reservado ? null : p.nif,
+    nif_escrito: reservado ? null : p.nif_escrito,
+    pais_contribuinte: reservado ? null : p.pais_contribuinte,
+    morada:
+      reservado || p.morada_linha1 === null
+        ? null
+        : {
+            linha1: p.morada_linha1,
+            linha2: p.morada_linha2,
+            codigo_postal: p.morada_codigo_postal ?? "",
+            localidade: p.morada_localidade ?? "",
+            pais: p.morada_pais ?? "",
+          },
+    principal: p.principal,
+    estado_vies: p.estado_vies,
+    validado_em: p.validado_em === null ? null : p.validado_em.toISOString(),
+    isencao_em_vigor: p.isencao_em_vigor,
+    estado: p.estado,
+    usado_em_documento: p.usado_em_documento,
+    copiado_de: p.copiado_de === null ? null : `bpf_${p.copiado_de}`,
+    guardado_por_obrigacao_fiscal: p.guardado,
+    versao: p.versao,
+    criado_em: p.criado_em.toISOString(),
+    actualizado_em: p.actualizado_em.toISOString(),
+  };
+};
+
+/** Se quem chama lê os dados de um perfil guardado (§15.12): o dono. */
+const veDadosGuardados = (ambitos: readonly string[]) =>
+  ambitos.includes("customers:billing");
 
 const Nif = Type.String({
   minLength: 1,
@@ -454,8 +475,11 @@ const PedidoProcura = Type.Object(
 const Validacao = Type.Object({
   id: Type.String({ description: "vvc_…" }),
   perfil: Type.String({ description: "bpf_…" }),
-  pais_consultado: Type.String(),
-  numero_consultado: Type.String(),
+  pais_consultado: Type.Union([Type.String(), Type.Null()], {
+    description:
+      "`null` num perfil guardado, para quem não tem customers:billing (§15.12), como o número, o nome e a morada",
+  }),
+  numero_consultado: Type.Union([Type.String(), Type.Null()]),
   requerente: Type.Union([Type.String(), Type.Null()], {
     description: "O NIF do comerciante enviado como requerente (Q7)",
   }),
@@ -476,11 +500,15 @@ const Validacao = Type.Object({
   quem: Type.String(),
 });
 type LinhaValidacao = Awaited<ReturnType<typeof obterValidacao>>;
-const paraValidacao = (v: LinhaValidacao): Static<typeof Validacao> => ({
+/** Uma prova do VIES; `reservado` num perfil guardado sem customers:billing. */
+const paraValidacao = (
+  v: LinhaValidacao,
+  reservado = false,
+): Static<typeof Validacao> => ({
   id: `vvc_${v.id}`,
   perfil: `bpf_${v.perfil_id}`,
-  pais_consultado: v.pais_consultado,
-  numero_consultado: v.numero_consultado,
+  pais_consultado: reservado ? null : v.pais_consultado,
+  numero_consultado: reservado ? null : v.numero_consultado,
   requerente:
     v.requerente_pais === null || v.requerente_numero === null
       ? null
@@ -490,12 +518,14 @@ const paraValidacao = (v: LinhaValidacao): Static<typeof Validacao> => ({
   resultado: v.resultado,
   codigo_erro: v.codigo_erro,
   identificador_consulta: v.identificador_consulta,
-  nome_devolvido: v.nome_devolvido,
-  morada_devolvida: v.morada_devolvida,
+  nome_devolvido: reservado ? null : v.nome_devolvido,
+  morada_devolvida: reservado ? null : v.morada_devolvida,
   motivo: v.motivo,
   quem: v.quem,
 });
 
+/** O que sai no lugar de um texto livre de um perfil guardado (§15.12). */
+const RESERVADO = "(reservado)";
 const Isencao = Type.Object({
   id: Type.String({ description: "exm_…" }),
   perfil: Type.String({ description: "bpf_…" }),
@@ -513,16 +543,24 @@ const Isencao = Type.Object({
   retirada_em: Type.Union([Instante, Type.Null()]),
 });
 type LinhaIsencao = Awaited<ReturnType<typeof obterIsencao>>;
-const paraIsencao = (i: LinhaIsencao): Static<typeof Isencao> => ({
+/**
+ * Uma isenção; `reservado` num perfil guardado sem customers:billing
+ * (§15.12): a nota e os motivos são texto livre que pode falar da pessoa.
+ */
+const paraIsencao = (
+  i: LinhaIsencao,
+  reservado = false,
+): Static<typeof Isencao> => ({
   id: `exm_${i.id}`,
   perfil: `bpf_${i.perfil_id}`,
-  motivo: i.motivo,
+  motivo: reservado ? RESERVADO : i.motivo,
   codigo_motivo: i.codigo_motivo,
-  nota: i.nota,
+  nota: reservado ? null : i.nota,
   posta_por: i.posta_por,
   posta_em: i.posta_em.toISOString(),
   em_vigor: i.retirada_em === null,
-  motivo_retirada: i.motivo_retirada,
+  motivo_retirada:
+    reservado && i.motivo_retirada !== null ? RESERVADO : i.motivo_retirada,
   retirada_por: i.retirada_por,
   retirada_em: i.retirada_em === null ? null : i.retirada_em.toISOString(),
 });
@@ -936,7 +974,7 @@ export function rotasDosClientes(
       config: ler,
       schema: {
         description:
-          "Procura fichas por e-mail, telefone ou NIF (só o número, como a régua compara), nunca pelo nome, no formato das listas. Não escreve nem pede Idempotency-Key; o valor vai no corpo para não ficar nos registos.",
+          "Procura fichas por e-mail, telefone ou NIF (só o número, como a régua compara), nunca pelo nome, no formato das listas. Não escreve nem pede Idempotency-Key; o valor vai no corpo para não ficar nos registos. Sem customers:billing, a procura por NIF não mostra fichas pseudonimizadas (docs/23 §15.12).",
         body: PedidoProcura,
         response: { 200: Lista(Cliente), ...RESPOSTA_DE_ERRO },
       },
@@ -950,6 +988,7 @@ export function rotasDosClientes(
             pedido.body.limite ?? 25,
             idDoCursor(pedido.body.cursor),
             pedido.body.procura,
+            !veDadosGuardados(chaveDo(pedido).ambitos),
           ),
         ),
         paraCliente,
@@ -1076,7 +1115,7 @@ export function rotasDosClientes(
       config: ler,
       schema: {
         description:
-          "Os perfis de faturação da ficha (docs/23 §3.2): o principal primeiro.",
+          "Os perfis de faturação da ficha (docs/23 §3.2): o principal primeiro. Numa ficha pseudonimizada, o nome, o NIF e a morada dos perfis guardados só saem com customers:billing (§15.12).",
         params: ParametroId(IdCliente),
         response: {
           200: Type.Object({ dados: Type.Array(Perfil) }),
@@ -1093,7 +1132,7 @@ export function rotasDosClientes(
             semPrefixo(pedido.params.id),
           ),
         )
-      ).map(paraPerfil),
+      ).map((p) => paraPerfil(p, veDadosGuardados(chaveDo(pedido).ambitos))),
     }),
   );
 
@@ -1119,7 +1158,7 @@ export function rotasDosClientes(
             semPrefixo(pedido.params.id),
             pedido.body,
           );
-          return paraPerfil(await obterPerfil(trx, c.comercianteId, id));
+          return paraPerfil(await obterPerfil(trx, c.comercianteId, id), true);
         }),
       ),
   );
@@ -1129,7 +1168,8 @@ export function rotasDosClientes(
     {
       config: ler,
       schema: {
-        description: "Um perfil de faturação.",
+        description:
+          "Um perfil de faturação. Num perfil guardado por obrigação fiscal (ficha pseudonimizada), o nome, o NIF e a morada só saem com customers:billing (docs/23 §15.12).",
         params: ParametroId(IdPerfil),
         response: { 200: Perfil, ...RESPOSTA_DE_ERRO },
       },
@@ -1143,6 +1183,7 @@ export function rotasDosClientes(
             semPrefixo(pedido.params.id),
           ),
         ),
+        veDadosGuardados(chaveDo(pedido).ambitos),
       ),
   );
 
@@ -1165,7 +1206,7 @@ export function rotasDosClientes(
           const { versao, ...alteracao } = pedido.body;
           const id = semPrefixo(pedido.params.id);
           await alterarPerfil(trx, c.comercianteId, id, versao, alteracao);
-          return paraPerfil(await obterPerfil(trx, c.comercianteId, id));
+          return paraPerfil(await obterPerfil(trx, c.comercianteId, id), true);
         }),
       ),
   );
@@ -1187,7 +1228,7 @@ export function rotasDosClientes(
         emClientes(resposta, async () => {
           const id = semPrefixo(pedido.params.id);
           await tornarPrincipal(trx, c.comercianteId, id);
-          return paraPerfil(await obterPerfil(trx, c.comercianteId, id));
+          return paraPerfil(await obterPerfil(trx, c.comercianteId, id), true);
         }),
       ),
   );
@@ -1227,7 +1268,10 @@ export function rotasDosClientes(
               pedido.body.versao,
               estado,
             );
-            return paraPerfil(await obterPerfil(trx, c.comercianteId, id));
+            return paraPerfil(
+              await obterPerfil(trx, c.comercianteId, id),
+              true,
+            );
           }),
         ),
     );
@@ -1463,25 +1507,28 @@ export function rotasDosClientes(
       config: ler,
       schema: {
         description:
-          "As provas das consultas ao VIES do perfil (docs/23 §13.3), da mais recente para a mais antiga, no formato das listas.",
+          "As provas das consultas ao VIES do perfil (docs/23 §13.3), da mais recente para a mais antiga, no formato das listas. Num perfil guardado por obrigação fiscal, o país, o número, o nome e a morada só saem com customers:billing (§15.12).",
         params: ParametroId(IdPerfil),
         querystring: ConsultaPagina,
         response: { 200: Lista(Validacao), ...RESPOSTA_DE_ERRO },
       },
     },
-    async (pedido, resposta) =>
-      comPagina(
-        await emClientes(resposta, () =>
-          listarValidacoes(
-            base,
-            chaveDo(pedido).comercianteId,
-            semPrefixo(pedido.params.id),
-            limiteDe(pedido.query),
-            idDoCursor(pedido.query.cursor),
-          ),
+    async (pedido, resposta) => {
+      const r = await emClientes(resposta, () =>
+        listarValidacoes(
+          base,
+          chaveDo(pedido).comercianteId,
+          semPrefixo(pedido.params.id),
+          limiteDe(pedido.query),
+          idDoCursor(pedido.query.cursor),
         ),
-        paraValidacao,
-      ),
+      );
+      // Num perfil guardado, a prova traz o NIF e o que o VIES respondeu
+      // (nome e morada): só para o dono (§15.12).
+      const reservado =
+        r.guardado && !veDadosGuardados(chaveDo(pedido).ambitos);
+      return comPagina(r, (v) => paraValidacao(v, reservado));
+    },
   );
 
   // ---- Consentimentos (§3.6)
@@ -1912,7 +1959,13 @@ export function rotasDosClientes(
             pedido.body.nota ?? null,
             pedido.body.codigo_motivo,
           );
-          return paraIsencao(await obterIsencao(trx, c.comercianteId, id));
+          // Numa ficha pseudonimizada, a nota e os motivos só para o dono
+          // (§15.12; revisão do #440, P2-2).
+          return paraIsencao(
+            await obterIsencao(trx, c.comercianteId, id),
+            (await perfilGuardado(trx, semPrefixo(pedido.params.id))) &&
+              !veDadosGuardados(chaveDo(pedido).ambitos),
+          );
         }),
       ),
   );
@@ -1939,7 +1992,13 @@ export function rotasDosClientes(
             semPrefixo(pedido.params.id),
             pedido.body.motivo_retirada,
           );
-          return paraIsencao(await obterIsencao(trx, c.comercianteId, id));
+          // Numa ficha pseudonimizada, a nota e os motivos só para o dono
+          // (§15.12; revisão do #440, P2-2).
+          return paraIsencao(
+            await obterIsencao(trx, c.comercianteId, id),
+            (await perfilGuardado(trx, semPrefixo(pedido.params.id))) &&
+              !veDadosGuardados(chaveDo(pedido).ambitos),
+          );
         }),
       ),
   );
@@ -1950,7 +2009,7 @@ export function rotasDosClientes(
       config: ler,
       schema: {
         description:
-          "As isenções manuais do perfil (a em vigor e as retiradas), as mais recentes primeiro.",
+          "As isenções manuais do perfil (a em vigor e as retiradas), as mais recentes primeiro. Num perfil guardado por obrigação fiscal, a nota e os motivos só saem com customers:billing (§15.12).",
         params: ParametroId(IdPerfil),
         response: {
           200: Type.Object({ dados: Type.Array(Isencao) }),
@@ -1967,7 +2026,12 @@ export function rotasDosClientes(
             semPrefixo(pedido.params.id),
           ),
         )
-      ).map(paraIsencao),
+      ).map((i) =>
+        paraIsencao(
+          i,
+          i.guardado && !veDadosGuardados(chaveDo(pedido).ambitos),
+        ),
+      ),
     }),
   );
 
@@ -1994,11 +2058,15 @@ const Anexo = Type.Object({
   posto_por: Type.String(),
   posto_em: Instante,
 });
-type LinhaAnexo = Awaited<ReturnType<typeof listarAnexosDaIsencao>>[number];
-const paraAnexo = (a: LinhaAnexo): Static<typeof Anexo> => ({
+type LinhaAnexo = Omit<
+  Awaited<ReturnType<typeof listarAnexosDaIsencao>>[number],
+  "guardado"
+>;
+/** Um anexo; `reservado` num perfil guardado sem customers:billing (§15.12). */
+const paraAnexo = (a: LinhaAnexo, reservado = false): Static<typeof Anexo> => ({
   id: `exa_${a.id}`,
   isencao: `exm_${a.isencao_id}`,
-  nome: a.nome,
+  nome: reservado && a.nome !== null ? RESERVADO : a.nome,
   tipo: a.tipo,
   tamanho: a.tamanho,
   resumo: a.resumo,
@@ -2155,7 +2223,8 @@ function rotasDosAnexos(
     {
       config: ler,
       schema: {
-        description: "Os anexos de uma isenção, sem os bytes.",
+        description:
+          "Os anexos de uma isenção, sem os bytes. Num perfil guardado por obrigação fiscal, o nome do ficheiro só sai com customers:billing (§15.12).",
         params: ParametroId(IdIsencao),
         response: {
           200: Type.Object({ dados: Type.Array(Anexo) }),
@@ -2172,7 +2241,9 @@ function rotasDosAnexos(
             semPrefixo(pedido.params.id),
           ),
         )
-      ).map(paraAnexo),
+      ).map((a) =>
+        paraAnexo(a, a.guardado && !veDadosGuardados(chaveDo(pedido).ambitos)),
+      ),
     }),
   );
 
@@ -2182,7 +2253,7 @@ function rotasDosAnexos(
       config: isencoes,
       schema: {
         description:
-          "Os bytes de um anexo, com o tipo dele (só com customers:exemptions).",
+          "Os bytes de um anexo, com o tipo dele (só com customers:exemptions). Num perfil guardado por obrigação fiscal, só com customers:billing também (docs/23 §15.12).",
         params: Type.Object({ id: IdIsencao, anexo: IdAnexo }),
         response: {
           200: {
@@ -2207,6 +2278,20 @@ function rotasDosAnexos(
           semPrefixo(pedido.params.anexo),
         ),
       );
+      // Num perfil guardado por obrigação fiscal, o documento da isenção é
+      // da pessoa que pediu o apagamento: só o dono o descarrega (§15.12;
+      // revisão do #440, P2-2).
+      if (a.guardado && !veDadosGuardados(chaveDo(pedido).ambitos)) {
+        throw new ErroApi(
+          "auth.forbidden",
+          403,
+          {
+            pt: "A chave não tem o âmbito desta operação",
+            en: "The key lacks the scope for this operation",
+          },
+          "âmbito pedido: customers:billing (perfil guardado por obrigação fiscal)",
+        );
+      }
       return (
         resposta
           .header("content-type", a.tipo)
