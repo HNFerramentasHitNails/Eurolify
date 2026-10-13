@@ -451,6 +451,71 @@ describe("o relatório OSS (puro)", () => {
     ).toEqual({ base: 100, excluidos: 1 });
   });
 
+  it("uma prova sem linhas declarada à parte: fora dos baldes, na lista à parte, alteração se o período fechou e excluída do limiar (docs/37 §11)", () => {
+    const linha = {
+      regra: "nacional",
+      pais_imposto: "PT",
+      base: 100,
+      iva: 23,
+      taxa: 2300,
+    };
+    const semLinhas = documento("a", "2026-10-02", [linha], {
+      estado: "resolvido",
+    });
+    semLinhas.linhas = [];
+    // Sem decisão, impede.
+    expect([
+      ...agregar([semLinhas], "PT", T4, new Set()).impedimentos.keys(),
+    ]).toEqual(["linhas_desalinhadas"]);
+    semLinhas.classificacao = {
+      linhas: [],
+      data: null,
+      a_parte: true,
+      decidido_por: "chave:key_1",
+      decidido_em: "2026-10-03",
+    };
+    const r = agregar([semLinhas], "PT", T4, new Set());
+    expect(r.impedimentos.size).toBe(0);
+    expect(r.baldes.every((b) => b.linhas.length === 0)).toBe(true);
+    expect(r.declarados).toEqual([
+      {
+        documento: "inv_a",
+        tipo: "fatura",
+        numero: "FT 1/a",
+        data: "2026-10-02",
+        alteracao_de: null,
+        decidido_por: "chave:key_1",
+        decidido_em: "2026-10-03",
+      },
+    ]);
+    expect(r.incluidos).toEqual([
+      { id: "a", periodo_original: "2026-T4", linhas: [] },
+    ]);
+    // De um período já fechado: alteração dele (P1-B).
+    semLinhas.data = "2026-09-20";
+    const depois = agregar([semLinhas], "PT", T4, new Set(["2026-T3"]));
+    expect(depois.declarados[0]?.alteracao_de).toBe("2026-T3");
+    expect(depois.incluidos[0]?.periodo_original).toBe("2026-T3");
+    // No limiar, o valor não se conhece: excluído.
+    expect(vendasADistancia([semLinhas], "PT", true)).toEqual({
+      base: 0,
+      excluidos: 1,
+    });
+    // Uma prova que entretanto ganhe linhas já não está à parte: impede
+    // (revisão do #437, P2-1).
+    const comLinhas = documento("b", "2026-10-02", [linha], {
+      estado: "resolvido",
+    });
+    comLinhas.classificacao = { ...semLinhas.classificacao };
+    const r2 = agregar([comLinhas], "PT", T4, new Set());
+    expect([...r2.impedimentos.keys()]).toEqual(["linhas_desalinhadas"]);
+    expect(r2.declarados).toEqual([]);
+    expect(vendasADistancia([comLinhas], "PT", true)).toEqual({
+      base: 0,
+      excluidos: 1,
+    });
+  });
+
   it("as linhas casam uma a uma: quantidade, taxa ou motivo diferentes impedem (revisão do #392, P1-2)", () => {
     const duas = [
       { regra: "nacional", pais_imposto: "PT", base: 100, iva: 23, taxa: 2300 },

@@ -295,5 +295,78 @@ caso que o teste das alterações já cobre, §3).
 - `fechado_por` guarda quem fechou (o identificador da chave ou da pessoa), não o nome
   da pessoa.
 
-**Por fazer:** o ecrã no Hub; os registos de serviços (art. 63.º-C, al. b) e
+**Por fazer:** os registos de serviços (art. 63.º-C, al. b) e
 k) para serviços) quando houver; outras moedas (L6).
+
+## 11. Uma prova sem linhas: declarada à parte (3.ª revisão do #392, P3-7; EL)
+
+**O caso.** O emissor devolve uma fatura ou NC **sem linhas**. A conferência
+marca-a `divergente` (o número de linhas não bate, `repositorio.ts`,
+`dif("linhas", …)`) e uma pessoa pode resolvê-la. Depois, o relatório dá
+`linhas_desalinhadas` e a classificação do §10 não serve: pede uma decisão
+por linha da prova (a rota e a migração 0078 exigem pelo menos uma). O
+período nunca fecha. Vale com ou sem data na prova. **Não verifiquei** se o
+Moloni real pode devolver um documento sem linhas; o Eurolify não o impede.
+
+**Decisão do Diogo (13/10/2026: *«sim, aprovo a saída A»*):** o dono
+declara o documento **à parte**, com motivo. O Eurolify não inventa números:
+os valores continuam a vir só da prova (§10, P1-A), e esta não os tem.
+
+| Regra | Porquê |
+|---|---|
+| **Quem e onde:** o dono (`tax:write`), em `POST /tax-reports/oss/classifications` com `a_parte: true` em vez das `linhas`, e o `motivo` (obrigatório) | a mesma rota e a mesma tabela da classificação: uma decisão por documento, uma vez só |
+| **Só uma prova sem linhas**, num documento `resolvido` (a divergência aceite primeiro, como nas linhas desalinhadas, P3-2); qualquer outro caso dá 409 `tax_reports.not_classifiable` | à parte é a saída de quem não tem linhas, não um atalho para fugir a uma classificação |
+| **A data:** obrigatória se a prova não a tem, com os mesmos limites (entre o dia em que o pedido nasceu e hoje, P2-B); proibida se a tem | o período vem da data, como nos outros |
+| **No relatório:** sai dos baldes e dos impedimentos e aparece numa lista **«declarados à parte»**: o documento, o número, o período, quem decidiu e quando (o motivo não, porque é texto livre) | fica à vista em vez de desaparecer |
+| **No fecho:** entra em `relatorio_oss_documento` com `linhas: []` (como as emitidas fora) e na fotografia, na lista à parte; se chegar depois do fecho do seu período, aparece como alteração dele (`alteracao_de`, P1-B) | uma vez só, e nunca perdido |
+| **No limiar:** conta em `documentos_excluidos` | o valor não se conhece |
+| **Nos registos (CSV):** uma linha do documento com as colunas da linha vazias e `classificado=a_parte` | o art. 63.º-C pede o registo de cada operação; o valor não está na prova |
+| **Na base:** a coluna `a_parte` (verdadeiro só com `linhas` vazias; falso só com pelo menos uma linha), na mesma tabela que só se acrescenta | a base garante as duas formas |
+
+**C (contabilista):** que uma venda declarada à mão, fora dos totais que o
+Eurolify calcula, é aceitável na declaração OSS e nos registos do art. 63.º-C
+do Reg. 282/2011. Até lá, o ecrã e a API dizem que o valor **não** está nos
+totais e tem de ser declarado à mão a partir do documento emitido.
+
+**Por onde pode sair errado:**
+- O dono declara à parte e esquece-se de declarar o valor à mão: a lista à
+  parte aparece no relatório e na fotografia, com o número do documento;
+  mais do que isso o Eurolify não pode fazer sem o valor.
+- Uma prova que mais tarde ganha linhas (uma nova leitura do emissor): a
+  decisão fica, porque não muda; **não verifiquei** se uma prova pode ser
+  substituída depois de resolvida.
+
+**Testes (no código):**
+- só uma prova sem linhas, num `resolvido`: um `emitido`, um `divergente` ou
+  uma prova com linhas dão 409;
+- sem `motivo`, ou sem data numa prova sem data, ou com data numa prova
+  com data: 400;
+- o relatório sem o impedimento e com o documento na lista à parte;
+- o fecho, a fotografia e a alteração quando chega depois do fecho;
+- o limiar a contá-lo nos excluídos;
+- a linha do CSV com `a_parte`;
+- a base a recusar `a_parte` com linhas, e sem `a_parte` com linhas vazias.
+
+**Em código (13/10/2026; migração 0089; #437):**
+- **Migração 0089:** `a_parte` em `relatorio_oss_classificacao`. A restrição
+  `relatorio_oss_classificacao_linhas_check` exige as linhas vazias se e só
+  se `a_parte`.
+- **`src/faturacao/oss.ts`:**
+  - `classificarOss`: `a_parte` ou `linhas`, nunca os dois;
+  - `agregar`: a lista `declarados`;
+  - `vendasADistancia`: os declarados contam nos excluídos;
+  - `registosOss`: a linha sem valores com `classificado=a_parte`.
+- **`src/faturacao/rotas-oss.ts`:** `a_parte` no corpo.
+- **Hub (`RelatorioOss.tsx`):**
+  - a lista «Declarados à parte pelo dono», com o aviso de que o valor não
+    está nas somas;
+  - numa prova sem linhas, o diálogo de classificar explica e o botão diz
+    «Declarar à parte».
+- **Testes:**
+  - 1 sem base (`test/oss.test.ts`);
+  - 1 pela API (`test/documentos-api.test.ts`), que vai até ao fecho do
+    período, aos registos e à restrição da base;
+  - capturas do relatório e do diálogo com dados de exemplo
+    (`scripts/capturas.mjs`).
+- **Fotografias antigas:** as de antes da 0089 não têm `declarados`; o Hub
+  mostra «Nada.».
