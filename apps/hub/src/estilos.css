@@ -360,8 +360,9 @@ legend {
   font-weight: normal;
 }
 
-/* A caixa de escolha não herda o tamanho dos campos de texto. */
-.opcao input[type="checkbox"] {
+/* A caixa e o botão de escolha não herdam o tamanho dos campos de texto. */
+.opcao input[type="checkbox"],
+.opcao input[type="radio"] {
   flex: none;
   width: 1.25rem;
   height: 1.25rem;

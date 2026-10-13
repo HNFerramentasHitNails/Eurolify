@@ -1202,7 +1202,7 @@ function Correccoes({
                   o.nome[lingua] ?? o.nome["pt"] ?? Object.values(o.nome)[0];
                 return (
                   <div key={valor}>
-                    <label>
+                    <label className="opcao">
                       <input
                         type="radio"
                         name={`${id}-servico`}
@@ -1212,10 +1212,12 @@ function Correccoes({
                           setServico(valor);
                           setInvalido(null);
                         }}
-                      />{" "}
-                      {o.conta_nome} — {nome ?? o.servico}{" "}
-                      <code translate="no">{o.servico}</code>
-                      {o.vendido ? ` (${t.servicoVendidoMarca})` : ""}
+                      />
+                      <span>
+                        {o.conta_nome} — {nome ?? o.servico}{" "}
+                        <code translate="no">{o.servico}</code>
+                        {o.vendido ? ` (${t.servicoVendidoMarca})` : ""}
+                      </span>
                     </label>
                   </div>
                 );
