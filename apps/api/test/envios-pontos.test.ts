@@ -474,7 +474,7 @@ describe.skipIf(URL_BASE === undefined)("Envios: pontos de recolha", () => {
     await ok(escolher(token, "P1"));
     await ok(
       pedir("PUT", `/checkout/${token}/delivery-method`, {
-        metodo: `${s.metodoManual}`,
+        metodo: s.metodoManual,
       }),
     );
     expect((await ok(pedir("GET", `/checkout/${token}`)))["entrega"]).toBe(
