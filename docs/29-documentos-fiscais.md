@@ -787,8 +787,9 @@ volta e se o `redirect_uri` tem de coincidir.
 
 Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho do aviso ao
 dono»*). É o ponto que o §14 deixou aberto: «o aviso ao dono quando a
-autorização morre ainda não é uma tarefa da fila». **Por aprovar** (`docs/06`,
-EJ); o código só depois (ADR-0023).
+autorização morre ainda não é uma tarefa da fila». **Aprovado pelo Diogo a
+13/10/2026**, com a Q1 em A (*«sim, aprovo o desenho com a Q1 em A»*;
+`docs/06`, EJ).
 
 Skills: `platform-architect` (tarefas sobre um registo; uma regra num sítio),
 `observability-security` (tarefas automáticas que não param em silêncio),
@@ -823,7 +824,9 @@ faturas retidas e o dono não sabe porquê.
 | L7 | **O e-mail** (Q1): ver abaixo | `docs/34` |
 | L8 | **Testes que impedem o lançamento:** a renovação recusada põe o caso na fila (na emissão e na tarefa, com e sem faturas); o teste falhado também; ligar e testar com sucesso tira-o; desligar tira-o; o gestor e o apoio vêem, mas só o dono pode ser responsável; outro comerciante não vê; o motivo nunca traz a frase do emissor; a lista das oito filas é a mesma na base, na API e no Hub | `eurolify-engineering-execution` |
 
-### 18.3 A pergunta (Q1): avisar logo, ou só ao fim do prazo?
+### 18.3 Decidido (Q1): avisar logo, ou só ao fim do prazo?
+
+✅ **Q1: A** (Diogo, 13/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
 
 - **A (proposta):** **um e-mail logo** aos donos, quando a ligação passa a
   `com_erro` **pela renovação** (`renovacao_recusada`). Um por passagem. Diz a
