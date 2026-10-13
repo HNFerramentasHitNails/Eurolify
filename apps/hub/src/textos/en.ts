@@ -1217,8 +1217,6 @@ export const en: Textos = {
   enviosAvisos: "Carrier notifications",
   enviosAvisosExplicacao:
     "At the carrier, enter this path, on the Eurolify API address:",
-  enviosAvisosVps:
-    "On the test VPS, notifications do not arrive yet: this path still has to be published on the server. Until then, Eurolify checks tracking every hour.",
   enviosTestar: "Test the connection",
   enviosATestar: "Testing…",
   enviosTestarExplicacao:

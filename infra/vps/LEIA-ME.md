@@ -17,7 +17,7 @@ noutra máquina). Decisões: ADR-0015, 0016, 0018, 0021, 0026 a 0030; guia
 | 7 | pastas e `/etc/eurolify/ensaio.conf` (sem segredos) | — |
 | 8 | programas `eurolify-*` e unidades do `systemd` | ADR-0026, 0028 |
 | 9 | Docker e a rede interna `eurolify` | ADR-0026 |
-| 10 | PostgreSQL 18 num contentor, **sem porta publicada**; palavra-passe gerada na máquina. A chave dos segredos TOTP (`/etc/eurolify/api-totp.env`, 600, root) **gera-se uma vez e nunca se reescreve** (trocá-la obrigava cada pessoa a configurar outra vez o autenticador); a API recebe-a e é recriada quando ela aparece | ADR-0025, `AGENTS.md`; `docs/22` §9.2, pedido #177 |
+| 10 | PostgreSQL 18 num contentor, **sem porta publicada**; palavra-passe gerada na máquina. A chave dos segredos TOTP (`/etc/eurolify/api-totp.env`, 600, root) **gera-se uma vez e nunca se reescreve** (trocá-la obrigava cada pessoa a configurar outra vez o autenticador); a API recebe-a e é recriada quando ela aparece. A chave dos envios (`/etc/eurolify/api-envios.env`, 600, root) segue a mesma regra (gera-se uma vez, nunca se reescreve) e, ao nascer, o script avisa para guardar a cópia | ADR-0025, `AGENTS.md`; `docs/22` §9.2, pedido #177; `docs/36` §17 |
 | 10b | Utilizadores da base: `eurolify_migrador` (dono da base e das tabelas, ligação em `migrar.env`) e `eurolify_api` (a API, ligação em `api-base.env`, um ficheiro só dela; o `api.env` fica para o resto da configuração e o script não o reescreve); cada um com palavra-passe gerada na máquina, renovada se a ligação do ficheiro deixar de entrar ; e `eurolify_limpeza` (a limpeza diária da idempotência: `LOGIN` sem palavra-passe, só pelo socket do contentor, sem superutilizador, `BYPASSRLS`, só a `idempotencia` e o `EXECUTE` das duas funções dos prazos das contas, sem nenhuma tabela das contas; os privilégios dão-nos as migrações 0013 e 0026 ou, se correram antes, este passo); e `eurolify_operador` (o comando do operador: palavra-passe gerada na máquina, ligação em `operador.env`, sem superutilizador nem `BYPASSRLS`, só o `EXECUTE` das três portas do operador, dado pela migração 0045 ou, se correu antes, por este passo) | `docs/15` §5, #70, #107, #119; `docs/19` §6 |
 | 10c | Escreve o `api-vies.env` (600, root) com o endereço da API REST do VIES (docs/23 §13; Diogo, 12/10/2026). Se o `api.env`, o `api-base.env`, o `api-hub.env`, o `api-totp.env`, o `api-smtp.env` ou o `api-vies.env` mudaram depois de o contentor `eurolify-api` ser criado (ou a chave TOTP acabou de nascer), ou se ele não tem a pasta das imagens montada (#178, #180), recria-o com a mesma imagem (`eurolify-publicar --so-recriar`: espera por outra publicação em curso e não troca de imagem), que verifica o `/health` e que a API chega à base | `docs/19` §6, #107 |
 | 11 | utilizadores `eurolify-publicar`, `-aplicar`, `-medir`, `-operar`, `-configurar`: sem sudo nem docker, casa de root; cada chave só corre `eurolify-pedido <fluxo>`. O `configurar` (`docs/34` §13) só leva os cinco `SMTP_*` para o `/etc/eurolify/api-smtp.env` ou envia o e-mail de teste (§13.1); a chave é `chaves/fluxos/configurar.pub` (sem ela, o `preparar.sh` avisa e ninguém entra). O `operar` (comando do operador, `docs/19` §6): o utilizador, a pasta e o serviço criam-se já; só falta a chave, `chaves/fluxos/operar.pub` (sem ela, o `preparar.sh` avisa e ninguém entra). Não confundir com o programa `eurolify-operar` (acções do MCP); o do comando é o `eurolify-operador` | ADR-0026, 0028; `docs/19` |
@@ -60,6 +60,7 @@ sozinho** o que não conhece (chaves, regras, contentores): avisa.
 | `ovh-dns.ini` | chave da API da OVH só para a zona `eurolify.eu`, no formato do `certbot` (`dns_ovh_endpoint`, `…_application_key`, `…_application_secret`, `…_consumer_key`) |
 | `ovh-dns.expira` | data de troca dessa chave, `AAAA-MM-DD` (a chave actual não expira; troca-se a 2027-03-31) |
 | `api-totp.env` | `TOTP_CHAVE=` (32 bytes em base64) e `TOTP_CHAVE_VERSAO=`: a chave que cifra os segredos TOTP das palavras-passe; **gerada na máquina pelo passo 10, uma vez**. Uma cópia guarda-se **fora da máquina e à parte das cópias da base** (como a `age.key`, também com o Diogo; nunca dentro do dump, senão a cifra deixa de servir). Ver «A chave dos segredos TOTP» abaixo |
+| `api-envios.env` | `ENVIOS_CHAVE=` (32 bytes em base64) e `ENVIOS_CHAVE_VERSAO=`: a chave que cifra as credenciais das contas de transportadora (`docs/36` §17); **gerada na máquina pelo passo 10, uma vez**, e diferente da dos pagamentos. Uma cópia guarda-se **fora da máquina e à parte das cópias da base**, como a do TOTP. Ver «A chave dos envios» abaixo |
 
 O `preparar.sh` avisa de cada um que falte; as tarefas que precisam dele
 falham e avisam.
@@ -110,6 +111,24 @@ trava, não a única.
   mão, gerar outro com a `TOTP_CHAVE_VERSAO` acima da anterior (para a falha
   ser explícita na API) e avisar que todos voltam a configurar o
   autenticador. Fica registado numa memória.
+
+## A chave dos envios (`api-envios.env`; `docs/36` §17)
+
+- **Nunca se reescreve**, como a do TOTP. O passo 10 só a cria se faltar.
+  Se o ficheiro existir noutro formato, avisa e não lhe toca, e o
+  `eurolify-publicar` arranca a API **sem** os envios até se corrigir à mão.
+- **Ao nascer**, o `preparar.sh` avisa: antes de ligar a primeira conta de
+  transportadora, guarda-se uma cópia fora da máquina e à parte das cópias
+  da base. A cópia lê-se pela chave de emergência (ADR-0020), e esse uso
+  fica numa memória.
+- **Se se perder**, as credenciais guardadas deixam de se poder ler. A API
+  diz «defina-as outra vez» (`shipping.account_not_ready`), e cada conta
+  recebe as chaves da transportadora outra vez pelo Hub.
+- **Mudança de máquina (Paris, ADR-0018):** copiar o `api-envios.env` para
+  a máquina nova **antes** de correr o `preparar.sh`, ou ele gera outra chave.
+- **Chave exposta:** revoga-se primeiro (`AGENTS.md`): tirar o ficheiro à
+  mão, gerar outro com a `ENVIOS_CHAVE_VERSAO` acima da anterior e voltar a
+  pôr as credenciais de cada conta. Fica registado numa memória.
 
 ## Regras para quem mexer
 

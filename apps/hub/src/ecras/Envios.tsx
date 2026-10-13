@@ -951,7 +951,6 @@ function Credenciais({
             </code>{" "}
             <Copiar texto={caminhoDosAvisos(conta)} />
           </p>
-          <p className="secundario">{t.enviosAvisosVps}</p>
         </>
       )}
     </section>

@@ -2057,10 +2057,9 @@ VPS de ensaio, só o Hub (`/hub/`) e o MCP estão publicados
 (`infra/vps/ficheiros/nginx-hub.conf`): **os avisos das transportadoras, e os
 dos pagamentos, ainda não chegam à API**. O ecrã di-lo. Até lá, a volta
 consulta o seguimento de hora a hora. Publicar o caminho é uma mudança à
-VPS, com pedido próprio (ADR-0028). **Rede temporária:** o texto
-`enviosAvisosVps` retira-se no mesmo pedido que publicar
-`/webhooks/carriers/` no nginx da VPS; sem esse pedido, revê-se a
-31/03/2027, com a migração para Paris (ADR-0018).
+VPS, com pedido próprio (ADR-0028). **Rede temporária, retirada a
+13/10/2026:** o texto `enviosAvisosVps` saiu no pedido que publica o caminho
+dos avisos da Sendcloud no nginx da VPS (`docs/36` §17).
 
 ### 29.4 Antes de dizer que está feito (o pedido do código)
 
