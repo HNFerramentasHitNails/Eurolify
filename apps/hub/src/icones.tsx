@@ -33,6 +33,14 @@ const TRACOS: Record<IdModulo, readonly string[]> = {
     "M9 15h7",
     "M9 18.5h4",
   ],
+  // Uma caixa com uma seta para fora.
+  expedir: [
+    "M3.5 8 11 4l7.5 4v8L11 20l-7.5-4V8Z",
+    "M3.5 8 11 12l7.5-4",
+    "M11 12v8",
+    "M16 14h5.5",
+    "M19 11.5 21.5 14 19 16.5",
+  ],
   // Um camião.
   envios: [
     "M2.5 6.5h11v10h-11Z",

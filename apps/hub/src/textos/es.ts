@@ -1395,4 +1395,135 @@ export const es: Textos = {
   metodosMercadoNaoExiste:
     "Este mercado ya no existe. Recargue la página y elija otro.",
   embalagemNaoExiste: "Este almacén ya no existe o no es de este comerciante.",
+  // Expedir (docs/22 §33).
+  modulo_expedir: "Expedir",
+  termos_expedir: "pedidos envíos etiquetas almacén seguimiento enviar",
+  expedirTitulo: "Expedir",
+  expedirExplicacao:
+    "Los pedidos pagados que falta enviar, de los más antiguos a los más recientes. Aquí no aparecen precios, NIF ni correo electrónico.",
+  expedirVazio: "No hay pedidos por expedir.",
+  expedirContagemUm: "1 pedido por expedir.",
+  expedirContagem: "{n} pedidos por expedir.",
+  expedirContagemMaximo:
+    "Se muestran los {n} más antiguos; hay más por expedir. Expida estos para ver los siguientes.",
+  expedirColunaEncomenda: "Pedido",
+  expedirColunaEstado: "Estado",
+  expedirColunaMetodo: "Método de entrega",
+  expedirColunaPorExpedir: "Artículos por expedir",
+  expedirColunaLocalidade: "Localidad",
+  expedirEncomendaDe: "Pedido del {data}",
+  expedirEncomendaTitulo: "Pedido a expedir",
+  expedirEstadoPaga: "Pagado",
+  expedirEstadoEmPreparacao: "En preparación",
+  expedirEstadoExpedidaParcial: "Expedido en parte",
+  expedirEstadoExpedida: "Expedido",
+  expedirVoltar: "Volver a «Expedir»",
+  expedirSoVer: "Su rol solo ve los envíos: no crea ni cambia.",
+  expedirQuemRecebe: "Quién recibe",
+  expedirTelefone: "Teléfono:",
+  expedirLinhas: "Artículos",
+  expedirColunaArtigo: "Artículo",
+  expedirColunaQuantidade: "Cantidad",
+  expedirColunaJaSaiu: "Ya en un envío",
+  expedirColunaNestaExpedicao: "En este envío",
+  expedirQuantidadeDe: "Cantidad de {nome} en este envío",
+  expedirCriar: "Crear el envío",
+  expedirTudoSaiu: "Todos los artículos ya están en un envío.",
+  expedirNadaEscolhido: "Escriba la cantidad de al menos un artículo.",
+  expedirQuantidadeErrada: "La cantidad es un número entero.",
+  expedirMaisDoQueFalta:
+    "La cantidad supera lo que falta expedir de este artículo.",
+  expedirTalvezCriada:
+    "No llegó respuesta: el envío puede haberse creado. Revise los envíos abajo antes de crear otro; si la página no los muestra, pulse «Intentar de nuevo».",
+  expedirExpedicoes: "Envíos",
+  expedirSemExpedicoes: "Aún no hay envíos de este pedido.",
+  expedirExpedicaoNumero: "Envío {n}",
+  expedirSaiuEm: "Salió el {data}.",
+  expedicaoCriada: "Por salir",
+  expedicaoExpedida: "Expedido",
+  expedicaoEntregue: "Entregado",
+  expedicaoDevolvida: "Devuelto al remitente",
+  expedicaoPerdida: "Perdido",
+  expedicaoCancelada: "Cancelado",
+  expedirTransportadora: "Transportista (opcional)",
+  expedirSeguimento: "Número de seguimiento (opcional)",
+  expedirMarcar: "Marcar como expedido",
+  expedirMarcarConfirmar:
+    "¿Marcar como expedido? El stock sale ahora, con los lotes que caducan primero, y la pantalla no lo deshace.",
+  expedirMarcadaAgora: "El envío salió.",
+  expedirCancelar: "Cancelar el envío",
+  expedirCancelarConfirmar:
+    "¿Cancelar este envío? Los artículos vuelven a estar por expedir.",
+  expedirCanceladaAgora: "El envío se canceló.",
+  expedirEntregue: "Marcar como entregado",
+  expedirEntregueAgora: "El envío se entregó.",
+  expedirDevolvida: "Devuelto al remitente",
+  expedirDevolvidaConfirmar: "¿Marcar como devuelto al remitente?",
+  expedirDevolvidaAgora: "El envío quedó como devuelto al remitente.",
+  expedirPerdida: "Marcar como perdido",
+  expedirPerdidaConfirmar: "¿Marcar como perdido?",
+  expedirPerdidaAgora: "El envío quedó como perdido.",
+  expedirRecusada:
+    "El servidor rechazó el envío: compruebe las cantidades (no más de lo que falta).",
+  expedirConflito:
+    "El envío cambió mientras tanto. «Intentar de nuevo» recarga la página.",
+  expedirSemArmazem:
+    "La tienda de este pedido no tiene almacén: créelo en el stock.",
+  expedirSemLote:
+    "Una de las variantes exige lote y no hay lote con stock dentro de su validez. Registre la entrada con el lote.",
+  expedirSemStock: "No hay stock físico suficiente para esta salida.",
+  expedirNaoExiste:
+    "Este pedido o envío no existe, o no es de este comerciante.",
+  expedirTransicaoImpossivel: "Este cambio de estado no es posible ahora.",
+  etiquetaTitulo: "Etiqueta:",
+  etiquetaPorPedir: "Por pedir",
+  etiquetaAPedir: "Pidiendo…",
+  etiquetaEmitida: "Emitida",
+  etiquetaIncerta: "Incierta",
+  etiquetaRecusada: "Rechazada",
+  etiquetaAnulada: "Anulada",
+  etiquetaMotivo:
+    "El transportista la rechazó: {motivo}. Corrija y pídala de nuevo.",
+  etiquetaIncertaExplicacao:
+    "No se sabe si el transportista creó la etiqueta. No se pide otra: pulse «Consultar al transportista».",
+  etiquetaSeguimento: "Seguimiento",
+  etiquetaPeso: "Peso de la caja",
+  etiquetaGramas: "{g} g",
+  etiquetaPedir: "Pedir la etiqueta",
+  etiquetaPedidaAgora: "La etiqueta se emitió.",
+  etiquetaDescarregar: "Descargar la etiqueta",
+  etiquetaFicheiroApaga:
+    "El archivo tiene los datos del destinatario y se borra 30 días después de terminar el envío.",
+  etiquetaConsultar: "Consultar al transportista",
+  etiquetaConsultadaAgora: "Se consultó al transportista.",
+  etiquetaAnular: "Anular la etiqueta",
+  etiquetaAnularConfirmar:
+    "¿Anular la etiqueta? Solo antes de marcar el envío como expedido, y si el transportista lo permite.",
+  etiquetaAnuladaAgora: "La etiqueta se anuló.",
+  etiquetaEventos: "Seguimiento del transportista",
+  etiquetaSemEventos: "Aún sin eventos del transportista.",
+  etiquetaJaExiste: "Ya hay una etiqueta: anúlela antes de pedir otra.",
+  etiquetaIncertaConsultar:
+    "No se sabe si la etiqueta existe: pulse «Consultar al transportista».",
+  etiquetaNaoAnula:
+    "El transportista no permite anular esta etiqueta (la caja ya se recogió, o no hay etiqueta emitida).",
+  etiquetaContaNaoPronta:
+    "La cuenta del transportista de este método no está lista: pruébela en «Envíos», «Cuentas».",
+  etiquetaPedidoRecusado:
+    "El servidor rechazó la solicitud de la etiqueta: compruebe el peso de las variantes y la dirección.",
+  etiquetaSemResposta:
+    "El transportista no respondió. Inténtelo de nuevo en un rato.",
+  expedirLinhaNaoEDaEncomenda:
+    "Uno de los artículos no es de este pedido. Recargue la página.",
+  expedirImutavel: "Este envío ya no cambia.",
+  expedirEncomendaNaoEstaParaExpedir:
+    "Este pedido ya no está para expedir (por ejemplo, se canceló o ya salió todo).",
+  etiquetaTransicaoImpossivel:
+    "La etiqueta no puede cambiar así ahora: después de salir el envío, ya no se pide ni se anula.",
+  expedirPrimeiroAEtiqueta:
+    "Con este método, se marca como expedido después de que la etiqueta esté emitida.",
+  expedirAnularParaCancelar:
+    "Para cancelar este envío, anule primero la etiqueta (o consulte al transportista, si está incierta).",
+  etiquetaFicheiroJaNao:
+    "El archivo de la etiqueta ya no existe: se borra 30 días después de terminar el envío.",
 };

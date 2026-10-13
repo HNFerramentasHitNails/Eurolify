@@ -21,6 +21,7 @@ import {
   MetodoEntregaFormulario,
   MetodosEntrega,
 } from "./ecras/EnviosMetodos";
+import { Expedir, ExpedirEncomenda } from "./ecras/Expedir";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
 import { Entrar } from "./ecras/Entrar";
@@ -66,6 +67,7 @@ const CAMINHO_VARIANTE = /^\/artigos\/([^/]+)\/variantes\/([^/]+)$/;
 const CAMINHO_PRECO = /^\/artigos\/([^/]+)\/precos\/([^/]+)\/([^/]+)$/;
 const CAMINHO_CONTA_ENVIOS = /^\/envios\/(cac_[^/]+)$/;
 const CAMINHO_METODO_ENVIOS = /^\/envios\/metodos\/(shm_[^/]+)$/;
+const CAMINHO_EXPEDIR = /^\/expedir\/(ord_[^/]+)$/;
 
 const segredoInicial =
   window.location.pathname === "/convite" ? lerSegredoDaLigacao() : null;
@@ -174,6 +176,7 @@ export function App() {
   const daVariante = CAMINHO_VARIANTE.exec(local.caminho);
   const doPreco = CAMINHO_PRECO.exec(local.caminho);
   const contaDeEnvios = CAMINHO_CONTA_ENVIOS.exec(local.caminho)?.[1] ?? null;
+  const encomendaAExpedir = CAMINHO_EXPEDIR.exec(local.caminho)?.[1] ?? null;
   const metodoDeEnvios = CAMINHO_METODO_ENVIOS.exec(local.caminho)?.[1] ?? null;
   const comSessao =
     novo ||
@@ -197,6 +200,8 @@ export function App() {
     local.caminho === "/envios/metodos/novo" ||
     metodoDeEnvios !== null ||
     local.caminho === "/envios/embalagem" ||
+    local.caminho === "/expedir" ||
+    encomendaAExpedir !== null ||
     local.caminho === "/chaves" ||
     local.caminho === "/conta";
 
@@ -252,11 +257,17 @@ export function App() {
                                                 : local.caminho ===
                                                     "/envios/embalagem"
                                                   ? t.embalagemTitulo
-                                                  : local.caminho === "/chaves"
-                                                    ? t.chavesTitulo
-                                                    : local.caminho === "/conta"
-                                                      ? t.contaTitulo
-                                                      : t.inicioTitulo;
+                                                  : local.caminho === "/expedir"
+                                                    ? t.expedirTitulo
+                                                    : encomendaAExpedir !== null
+                                                      ? t.expedirEncomendaTitulo
+                                                      : local.caminho ===
+                                                          "/chaves"
+                                                        ? t.chavesTitulo
+                                                        : local.caminho ===
+                                                            "/conta"
+                                                          ? t.contaTitulo
+                                                          : t.inicioTitulo;
   useEffect(() => {
     document.title = `${tituloDaPagina} — ${t.marca}`;
   }, [tituloDaPagina, t.marca]);
@@ -438,6 +449,22 @@ export function App() {
       <Embalagem
         key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
         comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (local.caminho === "/expedir")
+    ecra = (
+      <Expedir
+        key={new URLSearchParams(local.consulta).get("comerciante") ?? ""}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+      />
+    );
+  else if (encomendaAExpedir !== null)
+    ecra = (
+      <ExpedirEncomenda
+        // Outra encomenda ou comerciante, outro ecrã: nada do anterior fica.
+        key={`${encomendaAExpedir} ${new URLSearchParams(local.consulta).get("comerciante") ?? ""}`}
+        comerciante={new URLSearchParams(local.consulta).get("comerciante")}
+        encomenda={encomendaAExpedir}
       />
     );
   else if (local.caminho === "/chaves")

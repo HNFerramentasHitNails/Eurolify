@@ -148,3 +148,4 @@
 - [Envios, parte C (#393, #406): adaptador da Sendcloud em modo teste (só sendcloud:letter), serviços por conta (0080), aviso como sinal; subcontratantes dos EUA por decidir antes do modo real — 12/10/2026](envios-parte-c-sendcloud-12out2026.md)
 - [Hub, envios: contas de transportadora (#393, docs/22 §29): rotas /hub/carrier-accounts e o módulo «Envios»; os avisos ainda não chegam à API na VPS (nginx só publica /hub/) — 12/10/2026](hub-envios-contas-12out2026.md)
 - [Hub, envios: métodos de entrega e embalagem (#393, docs/22 §31): rotas /hub/shipping-methods, markets e warehouses; separadores no módulo «Envios»; ONU fora do Hub — 13/10/2026](hub-envios-metodos-13out2026.md)
+- [Hub, envios: o ecrã «Expedir» (#393, docs/22 §33): vista do armazém, expedições, etiqueta e seguimento pelo Hub; cenário de encomenda paga partilhado nos testes; capturas da encomenda simuladas — 13/10/2026](hub-expedir-13out2026.md)

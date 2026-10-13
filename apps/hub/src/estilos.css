@@ -1199,3 +1199,66 @@ textarea {
     color: var(--texto-secundario);
   }
 }
+
+/* Expedir (docs/22 §33.3): um estado, uma cor, por token. */
+.estado-encomenda,
+.estado-expedicao,
+.estado-etiqueta {
+  font-weight: 600;
+}
+.estado-encomenda[data-estado="paga"] {
+  color: var(--estado-encomenda-paga);
+}
+.estado-encomenda[data-estado="em_preparacao"],
+.estado-encomenda[data-estado="expedida_parcial"],
+.estado-encomenda[data-estado="expedida"] {
+  color: var(--estado-encomenda-em-curso);
+}
+.estado-expedicao[data-estado="criada"] {
+  color: var(--estado-expedicao-criada);
+}
+.estado-expedicao[data-estado="expedida"],
+.estado-expedicao[data-estado="entregue"] {
+  color: var(--estado-expedicao-saiu);
+}
+.estado-expedicao[data-estado="devolvida_ao_remetente"],
+.estado-expedicao[data-estado="perdida"] {
+  color: var(--estado-expedicao-problema);
+}
+.estado-expedicao[data-estado="cancelada"] {
+  color: var(--estado-expedicao-cancelada);
+}
+.estado-etiqueta[data-estado="emitida"] {
+  color: var(--estado-etiqueta-emitida);
+}
+.estado-etiqueta[data-estado="recusada"],
+.estado-etiqueta[data-estado="incerta"] {
+  color: var(--estado-etiqueta-problema);
+}
+.estado-etiqueta[data-estado="a_pedir"] {
+  color: var(--estado-etiqueta-espera);
+}
+.estado-etiqueta[data-estado="por_pedir"],
+.estado-etiqueta[data-estado="anulada"] {
+  color: var(--estado-etiqueta-nenhuma);
+}
+.morada {
+  font-style: normal;
+  overflow-wrap: anywhere;
+}
+.lista-expedicoes {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--espaco-4);
+}
+.accoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espaco-2);
+  margin: var(--espaco-3) 0;
+}
+.eventos {
+  padding-left: var(--espaco-4);
+  margin: 0 0 var(--espaco-3);
+}

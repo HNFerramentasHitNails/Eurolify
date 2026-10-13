@@ -106,6 +106,17 @@
   /* O estado de um método de entrega (docs/22 §31.3). */
   --estado-metodo-activo: var(--estado-sucesso);
   --estado-metodo-arquivado: var(--texto-secundario);
+  /* Expedir (docs/22 §33.3): a encomenda, a expedição e a etiqueta. */
+  --estado-encomenda-paga: var(--estado-aviso);
+  --estado-encomenda-em-curso: var(--texto-secundario);
+  --estado-expedicao-criada: var(--estado-aviso);
+  --estado-expedicao-saiu: var(--estado-sucesso);
+  --estado-expedicao-problema: var(--estado-erro);
+  --estado-expedicao-cancelada: var(--texto-secundario);
+  --estado-etiqueta-emitida: var(--estado-sucesso);
+  --estado-etiqueta-problema: var(--estado-erro);
+  --estado-etiqueta-espera: var(--estado-aviso);
+  --estado-etiqueta-nenhuma: var(--texto-secundario);
   /* O vidro da entrada: uma cor, a opacidade (percentagem, para o
      color-mix) e o fundo estático com um gradiente muito leve. O teste de
      contraste mede as cores compostas. */
