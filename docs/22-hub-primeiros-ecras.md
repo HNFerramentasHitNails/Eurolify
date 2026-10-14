@@ -2892,8 +2892,9 @@ dados de quem recebe não vão para o título da janela.
 
 ## 34. Pagamentos: a fila de diferenças no Hub (issue #287)
 
-Pedido do Diogo, 14/10/2026 (*«sim, avança com o desenho»*). **Por aprovar**,
-com a pergunta Q1 (§34.5).
+Pedido do Diogo, 14/10/2026 (*«sim, avança com o desenho»*). **Aprovado pelo
+Diogo a 14/10/2026**, com a Q1 em a) (*«sim, aprovo o desenho com a Q1 em
+a)»*: autenticação recente sempre; `docs/06`, ES).
 
 É a porta P2-6 do `docs/26` («Portas antes do modo real»): a fila de
 diferenças resolve-se no Hub, por uma pessoa com sessão. Hoje só se resolve

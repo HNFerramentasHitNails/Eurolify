@@ -32,6 +32,7 @@ import {
   URL_BASE,
   type BaseDeTeste,
 } from "./base-de-teste.js";
+import { hubDeTeste } from "./hub-de-teste.js";
 
 // Os pagamentos pela API (docs/26; migração 0044): a conta EuPago de teste,
 // a régua, o pagamento pelo token do checkout, os avisos assinados, o
@@ -887,6 +888,138 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
         }),
       ),
     ).toEqual([409, "payments.immutable"]);
+  });
+
+  it("pelo Hub (docs/22 §34): o dono, o gestor e o apoio lêem a fila com o resumo do pagamento; só o dono resolve, com autenticação recente; outro comerciante não chega", async () => {
+    const h = hubDeTeste(base, {
+      pagamentos: eupago.config,
+      limites: { pedidos: 100_000, janelaMs: 60_000 },
+    });
+    try {
+      const s = await cenario();
+      const k = await encomenda(s);
+      eupago.respostas.multibanco = () => {
+        throw new TypeError("fetch failed");
+      };
+      const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+      delete eupago.respostas.multibanco;
+      expect(p["estado"]).toBe("incerto");
+      const pessoas: Record<string, { pessoa: string; sessao: string }> = {};
+      for (const papel of ["dono", "gestor", "apoio", "armazem"]) {
+        const x = await h.pessoaCom(s.c, papel);
+        pessoas[papel] = { pessoa: x.pessoa, sessao: x.sessao };
+      }
+      const outro = await cenario();
+      const donoOutro = await h.pessoaCom(outro.c, "dono");
+      const como = (
+        papel: string,
+        metodo: "GET" | "POST",
+        url: string,
+        corpo?: unknown,
+      ) =>
+        h.pedir(metodo, url, {
+          sessao:
+            papel === "outro"
+              ? donoOutro.sessao
+              : (pessoas[papel]?.sessao ?? ""),
+          comerciante: papel === "outro" ? outro.c : s.c,
+          ...(corpo === undefined ? {} : { corpo }),
+        });
+      // Lêem o dono, o gestor e o apoio, com o resumo do pagamento; nunca o
+      // corpo de um aviso.
+      for (const papel of ["dono", "gestor", "apoio"]) {
+        const r = await ok(
+          como(papel, "GET", "/hub/payment-issues?estado=aberta"),
+        );
+        const incerto = (r["dados"] as Json[]).find(
+          (d) => d["motivo"] === "incerto",
+        );
+        expect(incerto).toMatchObject({
+          estado: "aberta",
+          pagamento: {
+            id: p["id"],
+            encomenda: expect.stringMatching(/^ord_/) as unknown,
+            metodo: "multibanco",
+            montante: expect.any(Number) as unknown,
+            moeda: "EUR",
+            estado: "incerto",
+          },
+        });
+        expect(JSON.stringify(r)).not.toContain("corpo");
+      }
+      expect(
+        await codigo(como("armazem", "GET", "/hub/payment-issues")),
+      ).toEqual([403, "member.role_escalation"]);
+      // O outro comerciante não vê nem resolve.
+      expect(
+        (await ok(como("outro", "GET", "/hub/payment-issues")))["dados"],
+      ).toEqual([]);
+      const fila = (
+        await ok(como("dono", "GET", "/hub/payment-issues?estado=aberta"))
+      )["dados"] as Json[];
+      const id = String(
+        (fila.find((d) => d["motivo"] === "incerto") as Json)["id"],
+      );
+      const url = `/hub/payment-issues/${id}/resolve`;
+      const corpo = {
+        resolucao: "Visto no back-office da EuPago: pago.",
+        pagamento: "capturado",
+      };
+      expect(await codigo(como("outro", "POST", url, corpo))).toEqual([
+        404,
+        "payments.not_found",
+      ]);
+      // O gestor e o apoio não resolvem.
+      for (const papel of ["gestor", "apoio"]) {
+        expect(await codigo(como(papel, "POST", url, corpo))).toEqual([
+          403,
+          "member.role_escalation",
+        ]);
+      }
+      // Sem autenticação recente, o dono também não (Q1 «a»).
+      await h.envelhecerSessao(
+        pessoas["dono"]?.sessao ?? "",
+        "autenticada_em",
+        "1 hour",
+      );
+      expect(await codigo(como("dono", "POST", url, corpo))).toEqual([
+        403,
+        "auth.reauthentication_required",
+      ]);
+      await h.envelhecerSessao(
+        pessoas["dono"]?.sessao ?? "",
+        "autenticada_em",
+        "0 seconds",
+      );
+      // Num incerto, fechar sem decidir não deixa o pagamento órfão.
+      expect(
+        await codigo(como("dono", "POST", url, { resolucao: "Visto." })),
+      ).toEqual([409, "payments.invalid_transition"]);
+      const r = await como("dono", "POST", url, corpo);
+      expect(r.statusCode, r.body).toBe(204);
+      // A pessoa fica em quem resolveu; a encomenda fica paga.
+      const resolvida = (
+        (
+          await ok(como("apoio", "GET", "/hub/payment-issues?estado=resolvida"))
+        )["dados"] as Json[]
+      ).find((d) => d["id"] === id);
+      expect(resolvida).toMatchObject({
+        estado: "resolvida",
+        resolucao: corpo.resolucao,
+        resolvida_por: `pessoa:per_${pessoas["dono"]?.pessoa ?? ""}`,
+        pagamento: { estado: "capturado" },
+      });
+      expect(
+        await ok(pedir("GET", `/checkout/${k.token}/payment`)),
+      ).toMatchObject({ encomenda: { estado: "paga" } });
+      // Resolvida não se resolve outra vez.
+      expect(await codigo(como("dono", "POST", url, corpo))).toEqual([
+        409,
+        "payments.immutable",
+      ]);
+    } finally {
+      await h.app.close();
+    }
   });
 
   it("recusado pelo prestador: falhado; tenta-se outro método da régua na mesma encomenda", async () => {

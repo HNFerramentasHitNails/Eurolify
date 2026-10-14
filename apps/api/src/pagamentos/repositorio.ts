@@ -1738,6 +1738,44 @@ export async function listarDiferencas(
 }
 
 /**
+ * A fila para o ecrã do Hub (docs/22 §34.2): as mesmas diferenças, com o
+ * resumo do pagamento de cada uma (encomenda, método, montante, moeda e
+ * estado), para o ecrã não o pedir um a um. Nunca o corpo do aviso.
+ */
+export async function diferencasParaOHub(
+  db: Kysely<BaseDados>,
+  c: string,
+  estado: "aberta" | "resolvida" | undefined,
+) {
+  return noPagamentos(db, c, (trx) => {
+    let q = trx
+      .selectFrom("diferenca_pagamento as d")
+      .leftJoin("pagamento as p", "p.id", "d.pagamento_id")
+      .select([
+        "d.id",
+        "d.pagamento_id",
+        "d.aviso_id",
+        "d.motivo",
+        "d.prova",
+        "d.estado",
+        "d.resolucao",
+        "d.resolvida_por",
+        "d.resolvida_em",
+        "d.criada_em",
+        "p.encomenda_id",
+        "p.metodo",
+        "p.montante",
+        "p.moeda",
+        "p.estado as pagamento_estado",
+      ])
+      .orderBy("d.criada_em")
+      .orderBy("d.id");
+    if (estado !== undefined) q = q.where("d.estado", "=", estado);
+    return q.execute();
+  });
+}
+
+/**
  * Uma pessoa resolve uma diferença (docs/26 §3.6). Num pagamento incerto,
  * pode decidir o estado (`capturado` ou `falhado`), com a origem «pessoa».
  */

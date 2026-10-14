@@ -415,7 +415,7 @@ passa por aqui antes delas):
   deixa apagar nem ao dono; os avisos válidos podem trazer o telefone do MB
   WAY. Uma função de purga auditada entra com a porta P2-3 do `docs/25`.
 - **A fila de diferenças num ecrã do Hub**, pela sessão de uma pessoa (P2-6). Desenho no
-  `docs/22` §34 (14/10/2026, por aprovar).
+  `docs/22` §34 (aprovado a 14/10/2026; ES).
 - **A sandbox da EuPago** (V1, V4, V5) e o registo do prestador (V6).
 - **A chave das credenciais na VPS** (`PAGAMENTOS_CHAVE`), gerada como a do
   segundo factor, e um caminho para a rodar (hoje: definir as credenciais

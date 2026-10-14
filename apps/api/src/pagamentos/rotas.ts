@@ -19,7 +19,8 @@ import {
   ErroCheckout,
   ESTADO_DO_CODIGO as ESTADO_CHECKOUT,
 } from "../checkout/erros.js";
-import { chaveDo } from "../identidade/autenticacao.js";
+import { chaveDo, sessaoDo } from "../identidade/autenticacao.js";
+import { erroConta } from "../identidade/sessoes.js";
 import type { ConfigPagamentos } from "./adaptador.js";
 import { ErroPagamentos, ESTADO_DO_CODIGO } from "./erros.js";
 import {
@@ -29,6 +30,7 @@ import {
   criarConta,
   criarMetodo,
   definirCredenciais,
+  diferencasParaOHub,
   lerPagamento,
   listarContas,
   listarDiferencas,
@@ -38,6 +40,7 @@ import {
   mudarConta,
   mudarMetodo,
   NOME_DO_METODO,
+  noPagamentos,
   pagamentoDaEncomenda,
   prepararPagamento,
   receberAviso,
@@ -844,5 +847,120 @@ export function rotasDosPagamentos(
           return null;
         }),
       ),
+  );
+
+  // ------------------- O ecrã «Diferenças de pagamento» do Hub (docs/22 §34)
+
+  /**
+   * A sessão do Hub com o âmbito pedido (o papel) e, para resolver,
+   * autenticação recente (Q1 «a»). O `eurolify.quem` é a pessoa.
+   */
+  const daSessao = (
+    pedido: Parameters<typeof sessaoDo>[0],
+    ambito: string,
+    recente = false,
+  ) => {
+    const s = sessaoDo(pedido);
+    if (!(s.ambitos as readonly string[]).includes(ambito)) {
+      throw erroConta("member.role_escalation", `o papel não tem ${ambito}`);
+    }
+    if (recente && !s.recente) {
+      throw erroConta(
+        "auth.reauthentication_required",
+        "autentique-se outra vez para esta operação",
+      );
+    }
+    if (s.comercianteId === null) {
+      throw erroConta("auth.forbidden", "falta o comerciante");
+    }
+    return { comercianteId: s.comercianteId, quem: `pessoa:per_${s.pessoaId}` };
+  };
+
+  rotas.get(
+    "/hub/payment-issues",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §34): a fila de diferenças, como GET /payment-issues, com o resumo do pagamento de cada uma (encomenda, método, montante, moeda e estado). Com `payments:read`.",
+        querystring: Type.Object(
+          { estado: Type.Optional(umDe(["aberta", "resolvida"] as const)) },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ dados: Type.Array(Livre) }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emPagamentos(resposta, async () => {
+        const s = daSessao(pedido, "payments:read");
+        const linhas = await diferencasParaOHub(
+          base,
+          s.comercianteId,
+          pedido.query.estado,
+        );
+        return {
+          dados: linhas.map((d) => ({
+            id: `pdi_${d.id}`,
+            pagamento:
+              d.pagamento_id === null
+                ? null
+                : {
+                    id: `pay_${d.pagamento_id}`,
+                    encomenda:
+                      d.encomenda_id === null ? null : `ord_${d.encomenda_id}`,
+                    metodo: d.metodo,
+                    montante: d.montante === null ? null : Number(d.montante),
+                    moeda: d.moeda,
+                    estado: d.pagamento_estado,
+                  },
+            aviso: d.aviso_id === null ? null : `pwh_${d.aviso_id}`,
+            motivo: d.motivo,
+            prova: d.prova,
+            estado: d.estado,
+            resolucao: d.resolucao,
+            resolvida_por: d.resolvida_por,
+            resolvida_em: iso(d.resolvida_em),
+            criada_em: d.criada_em.toISOString(),
+          })),
+        };
+      }),
+  );
+
+  rotas.post(
+    "/hub/payment-issues/:id/resolve",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Pelo Hub (docs/22 §34): o mesmo que POST /payment-issues/{id}/resolve, com `payments:resolve` (o dono) e autenticação recente (Q1 «a»). O `resolvida_por` é a pessoa.",
+        params: Type.Object({ id: IdDiferenca }),
+        body: Type.Object(
+          {
+            resolucao: Type.String({ minLength: 1, maxLength: 2000 }),
+            pagamento: Type.Optional(umDe(["capturado", "falhado"] as const)),
+          },
+          { additionalProperties: false },
+        ),
+        response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      await emPagamentos(resposta, async () => {
+        const s = daSessao(pedido, "payments:resolve", true);
+        await noPagamentos(base, s.comercianteId, (trx) =>
+          resolverDiferenca(
+            trx,
+            s.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body,
+            s.quem,
+          ),
+        );
+      });
+      return resposta.code(204).send(null);
+    },
   );
 }
