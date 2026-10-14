@@ -3004,4 +3004,13 @@ palavra do dono. Ex.: a EuPago não respondeu a uma cobrança MB WAY de
 ecrã diz que a encomenda **não fica paga** e as saídas (devolver ao cliente o
 que pagou na conta do prestador e pedir um pagamento novo, ou cancelar a
 encomenda); a diferença fecha-se com o texto do que se fez. A base não muda.
-**Q3.** (depois da Q2) Os reembolsos: aqui, na fila deles, ou nas duas.
+✅ **Q3: A** (Diogo, 14/10/2026, *«A»*): um reembolso trata-se só na fila
+`reembolso`, onde se decide. As três diferenças `reembolso_incerto`,
+`reembolso_por_confirmar` e `reembolso_desconhecido` deixam de entrar na fila
+`pagamento` de «A decidir» (`pagamentos_casos_a_decidir` passa a filtrar o
+motivo, numa migração). No ecrã das diferenças continuam a ver-se, com a
+frase «Trata-se no reembolso rfd_…» quando a prova o diz; sem o botão
+«Resolver» (resolvem-se pela pós-venda, `docs/30`).
+
+**Desenho fechado** com as três respostas (Diogo, 14/10/2026). O aspecto vai
+ao Diogo com as capturas antes de se juntar, como o de §28.
