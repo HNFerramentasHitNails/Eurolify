@@ -154,6 +154,10 @@ versoes="$(docker exec eurolify-postgres psql -U postgres -d "$base_envios" -qAt
   "select coalesce(string_agg(v || ': ' || n, ', ' order by v), 'nenhuma') from (select chave_versao as v, count(*) as n from public.conta_transportadora where chave_versao is not null group by chave_versao) x" 2>/dev/null)" ||
   versoes="(a base não respondeu)"
 echo "Contas de transportadora por versão da chave: $versoes"
+# As cópias que a troca deixa têm a chave antiga: apagam-se à mão depois de
+# guardar a nova fora da máquina (LEIA-ME). Só os nomes e os dias.
+copias="$(find /etc/eurolify -maxdepth 1 -name 'api-envios.env.*' -type f -printf '%f (%TY-%Tm-%Td)\n' 2>/dev/null | sort | paste -sd, -)"
+echo "Cópias da chave dos envios por apagar: ${copias:-nenhuma}"
 # Os avisos pelo nginx do Hub, a partir da própria máquina e sem assinatura:
 # o POST da Sendcloud chega à API (401 em application/problem+json); o GET
 # leva 403 do nginx (limit_except) e o resto de /webhooks/ 404 do nginx, em

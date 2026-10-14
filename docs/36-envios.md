@@ -1987,10 +1987,12 @@ código»*.
 |---|---|---|
 | Quem lança | o Diogo ou o Bruno, no fluxo **configurar** do GitHub, acções `chave-envios-trocar` e `chave-envios-tirar-anterior`; o ambiente `ensaio` pede a aprovação e só aceita o `main` | `.github/workflows/configurar.yml` |
 | O caminho | a chave do fluxo «configurar» só entrega `chave-envios trocar|tirar-anterior run:<n> github:<conta>`; o serviço da máquina valida outra vez e o `eurolify-configurar` passa ao `eurolify-chave-envios`. Não leva segredos: a chave nasce e fica na máquina | `eurolify-pedido`, `eurolify-trabalho`, `eurolify-configurar`, `eurolify-chave-envios` |
-| Trocar | só com a imagem no ar a saber trocar (tem `ENVIOS_CHAVE_ANTERIOR`) e sem troca a meio; cópia do ficheiro ao lado; a actual passa a anterior e nasce uma nova na versão seguinte (a seguinte em número, ou a data e a hora); a API recria-se com a imagem que está no ar e confere-se que corre com o ficheiro | `trocar_chave_envios` (`lib/chave-envios.sh`) |
-| Tirar a anterior | só sem contas noutra versão (contadas pelo superutilizador da base: só o número); a API recria-se só com a actual | `tirar_chave_anterior_envios` |
-| Se a recriação falha | volta o ficheiro de antes e a API com ele | `eurolify-chave-envios` |
-| Medir | se a anterior está na API e quantas contas há em cada versão | `eurolify-medir` |
+| Antes de mudar | só com a imagem no ar a saber trocar (tem `ENVIOS_CHAVE_ANTERIOR`; um erro do docker diz-se como tal), sem uma publicação em curso (o trinco do `eurolify-publicar` livre) | `eurolify-chave-envios` |
+| Trocar | sem troca a meio e sem contas já marcadas com a versão nova (seriam de outra chave com o mesmo número); cópia do ficheiro ao lado (600); a actual passa a anterior e nasce uma nova na versão seguinte (a seguinte em número, ou a data e a hora) | `trocar_chave_envios` (`lib/chave-envios.sh`) |
+| Tirar a anterior | só sem contas **na versão anterior** (contadas pelo superutilizador da base: só o número); as de uma terceira versão, que nenhuma das duas abre, só se avisam | `tirar_chave_anterior_envios` |
+| Feito | a API recriada (com a imagem que está no ar e um tempo-limite) corre com o ficheiro e responde no `/health`; se só o MCP ou o Hub falharam, é um aviso | `eurolify-chave-envios` |
+| Se a API não corre com o ficheiro novo | volta o ficheiro de antes, com a data de agora, e a API com ele; o novo fica guardado (`…descartado-…`). **Depois de uma troca, não se volta se já há contas na versão nova** (perdiam-se) | `eurolify-chave-envios` |
+| Medir | se a anterior está na API, quantas contas há em cada versão e as cópias da chave por apagar | `eurolify-medir` |
 | O ficheiro | as duas linhas, ou as quatro com a anterior noutra versão; o `eurolify-publicar` e o `preparar.sh` aceitam as duas formas | `chave_envios_valida` |
 
 **Desvio ao proposto:** em vez de um fluxo novo `chave-envios`, as duas
@@ -2006,11 +2008,45 @@ a nova; têm a chave antiga).
 validar as quatro linhas, trocar, recusar a troca a meio, tirar, a versão em
 data, o `openssl` a falhar) e `infra/vps/testes/chave-envios-troca.sh` (o
 caminho inteiro pelo `eurolify-trabalho`, com um docker e um
-`eurolify-publicar` de mentira: a imagem antiga recusada, trocar, a troca a
-meio, contas por passar, a recriação que falha e volta o ficheiro, tirar,
-nenhuma chave na saída nem no registo); `shellcheck` e o `preparar.sh
+`eurolify-publicar` de mentira que segue a regra das datas: 56
+verificações, a imagem antiga, a publicação em curso, a versão nova já na
+base, trocar, a troca a meio, contas na anterior, a recriação que falha e
+volta o ficheiro, a falha depois de trocar com e sem contas na nova, só o MCP
+a falhar, a API em baixo, tirar com contas numa terceira versão, nenhuma
+chave na saída nem no registo); `shellcheck` e o `preparar.sh
 --mostrar`, num Ubuntu 24.04.
 
 **Para ficar em uso:** depois de juntar, aplicar o `preparar.sh` na máquina
 pelo fluxo «aplicar-script» (instala o `eurolify-chave-envios` e os scripts
 mudados).
+
+**Revisão do agente** (Sonnet 5.5, só leitura, ADR-0035; publicada no
+pedido): 0 P0, 3 P1, 5 P2, 6 P3.
+- **Corrigidos:**
+  - P1-1: a reposição dava o ficheiro de antes com a data antiga, e a
+    recriação não o lia; agora com a data de agora, e confere-se a API e o
+    `/health` depois.
+  - P1-2: uma falha só do MCP ou do Hub repunha o ficheiro e podia perder
+    contas já cifradas com a chave nova; agora é um aviso, não se repõe com
+    contas na versão nova, e o ficheiro novo fica sempre guardado.
+  - P1-3: as linhas com as chaves iam como argumento do `grep` (legíveis no
+    `/proc`); agora compara-se em memória. O mesmo no `eurolify-configurar`
+    com a palavra-passe do e-mail.
+  - P2-1: tirar a anterior só olha às contas dessa versão.
+  - P2-3: a troca recusa se a versão nova já está na base.
+  - P2-4: recusa com uma publicação em curso, e a recriação tem
+    tempo-limite.
+  - P2-5: os testes repetem a regra das datas do `eurolify-publicar` e
+    cobrem a reposição depois de trocar, a falha só do MCP, a API em baixo,
+    as contas na versão nova.
+  - P3-1 a P3-5: a cópia num disco cheio, mensagens separadas, o erro do
+    docker, o nome da cópia ao nanossegundo, as cópias no `eurolify-medir`.
+- **Ficam:**
+  - P2-2: uma publicação antiga (anterior à 0103) com o ficheiro de quatro
+    linhas ignora a anterior: as contas nela deixam de se ler até voltar à
+    publicação nova, mas nada se perde (a cifra fica). O trinco próprio
+    pedia mudar o `eurolify-publicar`, para um caso que só acontece ao
+    voltar atrás a meio de uma troca.
+  - P3-6: o teste do `eurolify-publicar` com o ficheiro de quatro linhas fica
+    para quando se mexer nesse teste; o `chave_envios_valida` que ele usa
+    está testado com as quatro linhas.

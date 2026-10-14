@@ -38,6 +38,6 @@ Pedido do Diogo, 14/10/2026: *«sim, aprovo; avança com o código»*. Issue
   `lib/chave-envios.sh`; o `eurolify-medir` mostra a anterior e as contas por
   versão.
 - Testes: `infra/vps/testes/chave-envios.sh` (45 verificações) e
-  `chave-envios-troca.sh` (39), verdes num Ubuntu 24.04 (mirror.gcr.io), a
+  `chave-envios-troca.sh` (56 depois da revisão do agente: 0 P0, 3 P1, 5 P2, 6 P3, corrigidos menos o P2-2 e o P3-6), verdes num Ubuntu 24.04 (mirror.gcr.io), a
   14/10/2026; `shellcheck` limpo; `preparar.sh --mostrar` sai com 0.
 - Por fazer: aplicar o `preparar.sh` na máquina depois de juntar.

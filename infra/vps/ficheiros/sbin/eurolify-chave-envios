@@ -45,76 +45,155 @@ resumo_api="${imagem_api##*@}"
 # o eurolify-configurar).
 [[ -n "$imagem_api" && "${imagem_api%@*}" == "${IMAGEM_REPO:-}" && "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]] ||
   recusar "o eurolify-api não está no ar com uma imagem de ${IMAGEM_REPO:-?} com resumo"
-# Uma API que não conhece a anterior deixava as contas sem se ler.
+# Uma API que não conhece a anterior deixava as contas sem se ler. Um erro
+# do docker não passa por «não sabe» (revisão do pedido, P3-3).
+codigo_imagem=0
 docker run --rm --pull=never --network none --cap-drop ALL --entrypoint grep "$imagem_api" \
-  -q ENVIOS_CHAVE_ANTERIOR dist/envios/chave.js >/dev/null 2>&1 ||
-  recusar "a imagem no ar ainda não sabe trocar a chave (publicar primeiro)"
+  -q ENVIOS_CHAVE_ANTERIOR dist/envios/chave.js >/dev/null 2>&1 || codigo_imagem=$?
+case "$codigo_imagem" in
+  0) ;;
+  1) recusar "a imagem no ar ainda não sabe trocar a chave (publicar primeiro)" ;;
+  *) recusar "não se conseguiu ler a imagem no ar (docker, código $codigo_imagem)" ;;
+esac
 
-# Quantas contas não arquivadas e arquivadas estão noutra versão que não a
-# actual: o superutilizador da base lê-as todas (só o número).
-contas_noutra_versao() {
-  local v
-  v="$(chave_envios_versao "$API_ENVIOS_ENV")"
-  # A versão já foi validada ([0-9A-Za-z_-]{1,20}): entra na instrução sem
-  # aspas por dentro.
+# Uma publicação em curso (fluxo publicar, MCP, preparar.sh) espera até 15
+# minutos pelo trinco: recusa-se já, em vez de deixar o ficheiro novo à
+# espera de uma recriação que o systemd pode matar a meio (P2-4).
+exec 8>/run/lock/eurolify-publicar.lock
+flock -n 8 || recusar "há uma publicação em curso: lance outra vez quando acabar"
+flock -u 8
+exec 8>&-
+
+# Quantas contas (arquivadas também) estão numa versão da chave: o
+# superutilizador da base lê-as todas (só o número). A versão já foi
+# validada ([0-9A-Za-z_-]{1,20}): entra na instrução sem aspas por dentro.
+contas_na_versao() {
+  [[ "$1" =~ ^[0-9A-Za-z_-]{1,20}$ ]] || return 1
   docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -qAtc \
-    "select count(*) from public.conta_transportadora where chave_versao is not null and chave_versao <> '$v'"
+    "select count(*) from public.conta_transportadora where chave_versao = '$1'"
 }
+contas_noutras_versoes() { # contas_noutras_versoes <actual> <anterior>
+  docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -qAtc \
+    "select count(*) from public.conta_transportadora where chave_versao is not null and chave_versao not in ('$1', '$2')"
+}
+numero() { [[ "$1" =~ ^[0-9]+$ ]]; }
 
 # A API corre com o ficheiro: as suas linhas estão no ambiente do contentor,
-# e a anterior só se o ficheiro a tem (comparado em memória, sem mostrar).
+# e a anterior só se o ficheiro a tem. Compara-se em memória, sem processos:
+# um argumento lê-se no /proc, e as linhas trazem as chaves (P1-3).
 corre_com_o_ficheiro() {
   local ambiente linha
   ambiente="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null)" || return 1
+  ambiente=$'\n'"$ambiente"$'\n'
   while IFS= read -r linha; do
-    grep -qxF -- "$linha" <<<"$ambiente" || return 1
+    [[ "$ambiente" == *$'\n'"$linha"$'\n'* ]] || return 1
   done <"$API_ENVIOS_ENV"
-  if [[ -z "$(chave_envios_versao_anterior "$API_ENVIOS_ENV")" ]] &&
-    grep -q '^ENVIOS_CHAVE_ANTERIOR' <<<"$ambiente"; then
+  if [[ -z "$(chave_envios_versao_anterior "$API_ENVIOS_ENV")" && "$ambiente" == *$'\n'ENVIOS_CHAVE_ANTERIOR* ]]; then
     return 1
   fi
 }
+responde() {
+  local i
+  for ((i = 0; i < 30; i++)); do
+    curl -fsS -m 2 http://127.0.0.1:8080/health >/dev/null 2>&1 && return 0
+    sleep 2
+  done
+  return 1
+}
+# O --so-recriar com um tempo-limite (o systemd mata o serviço aos 30 min).
+recriar() { timeout 900 /usr/local/sbin/eurolify-publicar "$resumo_api" --so-recriar; }
 
-copia="$API_ENVIOS_ENV.antes-$(date -u +%Y%m%dT%H%M%SZ)"
+carimbo="$(date -u +%Y%m%dT%H%M%S%NZ)"
+copia="$API_ENVIOS_ENV.antes-$carimbo"
 case "$accao" in
   trocar)
     [[ -z "$(chave_envios_versao_anterior "$API_ENVIOS_ENV")" ]] ||
       recusar "já há uma troca a meio (a anterior ainda está no ficheiro): tire-a primeiro"
+    # A versão nova não pode já estar na base: essas contas foram cifradas
+    # com outra chave com o mesmo número, e passavam por actuais (P2-3).
+    v="$(chave_envios_versao "$API_ENVIOS_ENV")"
+    if [[ "$v" =~ ^[0-9]{1,9}$ ]]; then
+      ja="$(contas_na_versao "$((10#$v + 1))")" || recusar "a base não respondeu à contagem das contas"
+      numero "$ja" || recusar "a contagem das contas não se leu"
+      ((ja == 0)) || recusar "já há $ja contas marcadas com a versão $((10#$v + 1)), de outra chave: é para uma pessoa (LEIA-ME)"
+    fi
     ;;
   tirar-anterior)
-    [[ -n "$(chave_envios_versao_anterior "$API_ENVIOS_ENV")" ]] ||
-      recusar "não há chave anterior para tirar"
-    faltam="$(contas_noutra_versao)" || recusar "a base não respondeu à contagem das contas"
-    [[ "$faltam" =~ ^[0-9]+$ ]] || recusar "a contagem das contas não se leu"
+    anterior_v="$(chave_envios_versao_anterior "$API_ENVIOS_ENV")"
+    [[ -n "$anterior_v" ]] || recusar "não há chave anterior para tirar"
+    # Só as da anterior impedem: as de uma terceira versão já não se leem,
+    # com ou sem ela, e prendiam a troca para sempre (P2-1).
+    faltam="$(contas_na_versao "$anterior_v")" || recusar "a base não respondeu à contagem das contas"
+    numero "$faltam" || recusar "a contagem das contas não se leu"
     ((faltam == 0)) ||
-      recusar "ainda há $faltam contas noutra versão da chave (a volta dos envios passa-as de 5 em 5 minutos; as que ficarem no registo como «shipping.key_rotation» são para uma pessoa)"
+      recusar "ainda há $faltam contas na versão anterior ($anterior_v): a volta dos envios passa-as de 5 em 5 minutos; as que ficarem no registo como «shipping.key_rotation» são para uma pessoa"
+    outras="$(contas_noutras_versoes "$(chave_envios_versao "$API_ENVIOS_ENV")" "$anterior_v")" || outras="?"
+    [[ "$outras" == 0 ]] ||
+      echo "Aviso: $outras contas estão noutra versão que nenhuma das duas chaves abre; recebem as credenciais outra vez pelo Hub."
     ;;
 esac
 
-cp -p -- "$API_ENVIOS_ENV" "$copia"
+# A cópia com a data de agora (sem -p): a recriação compara as datas (P1-1).
+# Um disco cheio não deixa uma cópia a meio (P3-1).
+if ! { cp -- "$API_ENVIOS_ENV" "$copia" 2>/dev/null && chmod 600 "$copia"; }; then
+  rm -f -- "$copia"
+  recusar "não se fez a cópia do ficheiro (disco cheio?)"
+fi
 if [[ "$accao" == trocar ]]; then
-  trocar_chave_envios "$API_ENVIOS_ENV" || { rm -f -- "$copia"; recusar "não se gerou a chave nova"; }
-  echo "Chave nova na versão $(chave_envios_versao "$API_ENVIOS_ENV"); a anterior é a $(chave_envios_versao_anterior "$API_ENVIOS_ENV")."
-  registar "chave-envios: trocada para a versão $(chave_envios_versao "$API_ENVIOS_ENV") ($execucao)"
+  trocar_chave_envios "$API_ENVIOS_ENV" ||
+    { rm -f -- "$copia"; recusar "não se escreveu a chave nova (openssl ou disco)"; }
+  nova_v="$(chave_envios_versao "$API_ENVIOS_ENV")"
+  echo "Chave nova na versão $nova_v; a anterior é a $(chave_envios_versao_anterior "$API_ENVIOS_ENV")."
+  registar "chave-envios: trocada para a versão $nova_v ($execucao)"
 else
-  tirar_chave_anterior_envios "$API_ENVIOS_ENV" || { rm -f -- "$copia"; recusar "não se escreveu o ficheiro"; }
+  tirar_chave_anterior_envios "$API_ENVIOS_ENV" ||
+    { rm -f -- "$copia"; recusar "não se escreveu o ficheiro (disco?)"; }
   echo "Chave anterior tirada; fica a versão $(chave_envios_versao "$API_ENVIOS_ENV")."
   registar "chave-envios: anterior tirada ($execucao)"
 fi
 echo "Cópia do ficheiro anterior: $copia."
 
-if /usr/local/sbin/eurolify-publicar "$resumo_api" --so-recriar && corre_com_o_ficheiro; then
+# A API corre com o ficheiro novo e responde: feito. Uma falha só do MCP ou
+# do Hub no --so-recriar é um aviso, não razão para voltar atrás (P1-2).
+codigo_recriar=0
+recriar || codigo_recriar=$?
+if corre_com_o_ficheiro && responde; then
+  ((codigo_recriar == 0)) ||
+    echo "Aviso: a API corre com o ficheiro novo, mas o MCP ou o Hub não ficaram bem na recriação (ver acima e o eurolify-medir)."
   echo "A API recriou-se e corre com o ficheiro novo."
   if [[ "$accao" == trocar ]]; then
-    echo "ATENÇÃO: o Diogo ou o Bruno guardam uma cópia do ficheiro novo fora da máquina, à parte das cópias da base (LEIA-ME, «A chave dos envios»)."
-    echo "Quando o registo da volta dos envios disser contasPorRecifrar 0, lance «chave-envios-tirar-anterior»."
+    echo "ATENÇÃO: o Diogo ou o Bruno guardam uma cópia do ficheiro novo fora da máquina, à parte das cópias da base, e apagam as cópias api-envios.env.antes-… (LEIA-ME, «A chave dos envios»)."
+    echo "Depois de a volta dos envios passar as contas (o eurolify-medir mostra-as por versão), lance «chave-envios-tirar-anterior»."
   fi
   exit 0
 fi
-# Volta o ficheiro de antes e a API com ele.
+
+# A API não corre com o ficheiro novo. Depois de uma troca, só se volta
+# atrás se nenhuma conta já foi cifrada com a chave nova (senão perdia-se);
+# o ficheiro novo fica guardado numa cópia, nunca se perde (P1-2).
+guardado="$API_ENVIOS_ENV.descartado-$carimbo"
+if [[ "$accao" == trocar ]]; then
+  ja="$(contas_na_versao "$nova_v")" || ja="?"
+  if [[ "$ja" != 0 ]]; then
+    registar "chave-envios: a API não corre com o ficheiro novo, e há contas na versão nova ($ja): não se volta atrás"
+    echo "ATENÇÃO: a API não corre com o ficheiro novo, mas já há contas cifradas com a chave nova ($ja): o ficheiro novo fica. Lance «configurar» de novo ou veja o eurolify-medir."
+    exit 1
+  fi
+fi
+if ! { cp -- "$API_ENVIOS_ENV" "$guardado" 2>/dev/null && chmod 600 "$guardado"; }; then
+  echo "ATENÇÃO: não se guardou o ficheiro novo: não se volta atrás."
+  exit 1
+fi
 mv -fT -- "$copia" "$API_ENVIOS_ENV"
-registar "chave-envios: a API não se recriou com o ficheiro novo; voltou o anterior"
-echo "ATENÇÃO: a API não se recriou com o ficheiro novo: voltou o anterior."
-/usr/local/sbin/eurolify-publicar "$resumo_api" --so-recriar ||
-  echo "ATENÇÃO: e a recriação com o anterior também falhou: ver o eurolify-medir."
+# Com a data de agora: senão a recriação achava que o ficheiro não mudou.
+touch -- "$API_ENVIOS_ENV"
+registar "chave-envios: a API não corria com o ficheiro novo; voltou o anterior (o novo em $guardado)"
+echo "ATENÇÃO: a API não corria com o ficheiro novo: voltou o anterior (o novo ficou em $guardado)."
+recriar || true
+if corre_com_o_ficheiro && responde; then
+  echo "A API corre outra vez com o ficheiro de antes."
+else
+  registar "chave-envios: a API não ficou no ar com o ficheiro de antes"
+  echo "ATENÇÃO: a API não está no ar com o ficheiro de antes: ver o eurolify-medir (API em baixo?)."
+fi
 exit 1

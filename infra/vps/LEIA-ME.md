@@ -143,12 +143,15 @@ trava, não a única.
      minutos. O `eurolify-medir` diz se a anterior está na API e quantas
      contas há em cada versão.
   3. Com todas na nova, a mesma acção **chave-envios-tirar-anterior**: só
-     passa sem contas noutra versão, e a API recria-se só com a nova.
+     passa sem contas na versão anterior, e a API recria-se só com a nova.
   4. O Diogo ou o Bruno guardam uma cópia do ficheiro novo fora da máquina
-     (como acima) e apagam as cópias `api-envios.env.antes-…`, que têm a
-     chave exposta. Fica registado numa memória.
+     (como acima) e apagam as cópias `api-envios.env.antes-…` e
+     `…descartado-…`, que têm a chave exposta (o `eurolify-medir` lista-as). Fica registado numa memória.
 
-  Se a API não se recriar com o ficheiro novo, o script volta ao de antes.
+  Se a API não correr com o ficheiro novo, o script volta ao de antes (o novo
+  fica em `api-envios.env.descartado-…`), **excepto depois de uma troca com
+  contas já cifradas com a chave nova**: aí o ficheiro novo fica e é para uma
+  pessoa ver no `eurolify-medir`. Com uma publicação em curso, recusa.
   Uma conta que a anterior não abre fica no registo da volta como
   `shipping.key_rotation`: essa recebe as credenciais outra vez pelo Hub.
 
