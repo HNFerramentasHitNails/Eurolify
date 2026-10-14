@@ -2889,3 +2889,118 @@ dados de quem recebe não vão para o título da janela.
   - o 400 de validação sem `no-store`;
   - o espanhol nos códigos sem texto;
   - «entregue» sem confirmação.
+
+## 34. Pagamentos: a fila de diferenças no Hub (issue #287)
+
+Pedido do Diogo, 14/10/2026 (*«sim, avança com o desenho»*). **Por aprovar**,
+com a pergunta Q1 (§34.5).
+
+É a porta P2-6 do `docs/26` («Portas antes do modo real»): a fila de
+diferenças resolve-se no Hub, por uma pessoa com sessão. Hoje só se resolve
+pela integração, com a chave do dono:
+
+- `GET /payment-issues`;
+- `POST /payment-issues/{id}/resolve` (`apps/api/src/pagamentos/rotas.ts`).
+
+A lista «A decidir» (§28) já mostra cada diferença (`fila_pagamento`), com o
+motivo, o dono e o prazo, mas não tem para onde levar quem a quer resolver.
+
+Skills: `payments-psd2-sca`, `eurolify-finance-reconciliation-eu`,
+`eurolify-payment-readiness-eu`, `headless-commerce`, `eurolify-design`,
+`eurolify-hub-modular`, `eurolify-hub-glass-responsive`,
+`eurolify-hub-quality-gate`, `observability-security`, `eu-gdpr-privacy`.
+
+Ex.: a EuPago avisa um pagamento de 24,90 € para a encomenda ord_…7c1d, que
+esperava 29,90 €. Fica uma diferença «montante diferente» na fila, e a dona
+da «Loja Exemplo» vê-a em «A decidir». Carrega nela e vê:
+
+- esperado 29,90 €, recebido 24,90 €;
+- o método (MB WAY) e o estado do pagamento.
+
+Confirma no back-office da EuPago que o cliente pagou mesmo 24,90 € e
+escreve «Cliente pagou menos 5 €; combinado pagar a diferença por
+transferência». Confirma com a passkey. A diferença fica «Resolvida a
+14/10/2026, por si», com o texto.
+
+### 34.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **A lista das diferenças** abertas, e as resolvidas num separador, por ordem de chegada: o motivo em linguagem comum, a prova (montantes, moedas, estados; nunca dados do cliente) e o pagamento a que se refere |
+| **Resolver uma diferença** (só o dono, `payments:resolve`), com o texto da resolução, obrigatório |
+| **Num pagamento incerto, decidir se foi pago** (`capturado`) ou não (`falhado`), depois de ver a conta no prestador. A base já obriga a decidir (revisão do #288, P2-2) |
+| **A ligação a partir de «A decidir»**: cada diferença leva a esta página |
+
+| Fica de fora, e porquê |
+|---|
+| **Reconciliar um reembolso** (`reembolso_incerto`, `reembolso_por_confirmar`, `reembolso_desconhecido`). O estado do reembolso decide-se na pós-venda (`POST /refunds/{id}/reconcile`, `docs/30` §13, P7). Aqui só se fecha a diferença com o texto, como hoje pela API; a página diz isso. |
+| **Contas e métodos de pagamento** (as credenciais da EuPago, a régua). Outro ecrã, com as outras portas do `docs/26`. |
+| **Consultar o prestador a partir do Hub** (`POST /payments/{id}/check`). Fica para depois: a consulta já corre sozinha de minuto a minuto. |
+| **Resolver várias de uma vez.** Cada diferença é um caso, e decide uma pessoa (`AGENTS.md`, «Não se erra em documentos fiscais», regra 5). |
+
+### 34.2 Como o Hub lê e escreve
+
+As rotas pelo Hub fazem **o mesmo** que as da chave. Usam a sessão, o
+comerciante no cabeçalho `Eurolify-Comerciante` e o `eurolify.quem` da pessoa
+(`pessoa:per_…`), como em «Faturação» (§30.2).
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `GET /hub/payment-issues?estado=aberta\|resolvida` | a sessão com `payments:read` (dono, gestor, apoio) | a mesma `listarDiferencas`, mais o resumo do pagamento de cada uma (encomenda, método, montante, moeda e estado), para o ecrã não pedir um a um |
+| `POST /hub/payment-issues/{id}/resolve` `{ resolucao, pagamento? }` | `payments:resolve` (só o dono), **autenticação recente** (Q1) | a mesma `resolverDiferenca`; o `resolvida_por` passa a ser a pessoa |
+
+- **O prazo de espera e as respostas perdidas**, como nas outras escritas do
+  Hub (5 s, depois 503). Ao resolver, relê a lista: se a diferença já
+  aparecer resolvida, dá-a por feita.
+- **Um processo automático continua sem resolver**: a rota pede uma sessão de
+  pessoa, e a base só aceita `pessoa:…` ou `chave:…` em quem resolve
+  (`0044_pagamentos.sql`, gatilho da diferença).
+
+### 34.3 O ecrã
+
+| Onde | O que mostra | Estados além do normal |
+|---|---|---|
+| **Entrada** (`/`) | Um módulo «Pagamentos» na grelha, para quem tem `payments:read`: dono, gestor e apoio; o armazém não o vê. Com diferenças abertas, o número delas. | — |
+| **Diferenças de pagamento** (`/pagamentos/diferencas?comerciante=…`) | Dois separadores: «Por resolver» e «Resolvidas». Cada diferença: o motivo (texto, regra 3), quando chegou, a encomenda (os últimos 4 caracteres à vista), o método, o montante e o estado do pagamento. Mostra também a prova em linguagem comum, como «esperado 29,90 €, recebido 24,90 €» ou «passou de autorizado a cancelado». As resolvidas mostram o texto, quem e quando. Para o dono, em cada aberta, o botão «Resolver». Tabela a partir de 768 px, cartões abaixo (regra 5). | a carregar; erro com «Tentar outra vez»; sem diferenças («Não há diferenças por resolver.»); comerciante errado (como nas outras páginas); sem `payments:resolve` (só leitura, sem botões) |
+| **Resolver** (diálogo) | O resumo da diferença e o campo «O que se fez» (obrigatório, até 2000 caracteres). Num **pagamento incerto**: «O cliente pagou?» com «Sim, foi pago» e «Não, não foi pago», obrigatório, e a frase «Confirme no back-office do prestador antes de decidir. Se disser que foi pago, a encomenda passa a paga e segue para a fatura.» Num **reembolso**: «O estado do reembolso decide-se na devolução. Aqui só fica registado o que se fez.» Confirmar pede a autenticação recente (Q1). | `payments.invalid_transition` (o pagamento já não está incerto: «O pagamento mudou entretanto; feche e abra outra vez.»); `payments.immutable` (já resolvida por outra pessoa: dá-a por feita e relê) |
+| **A decidir** (§28) | Cada linha `fila_pagamento` passa a levar a «Diferenças de pagamento», com a diferença aberta. | — |
+
+Textos em português, espanhol e inglês. A prova mostra-se pelos campos que a
+API já grava (montantes, moedas, estados, referências do prestador). Nunca
+mostra o corpo do aviso, que pode trazer o telefone do MB WAY (`docs/26` §7).
+
+### 34.4 Testes (no código)
+
+- **API:**
+  - o dono resolve, com o texto e a pessoa no `resolvida_por`;
+  - num incerto, sem decidir dá erro; com «capturado», a encomenda fica paga;
+  - o gestor e o apoio lêem e não resolvem; o armazém não lê;
+  - outro comerciante não vê nem resolve (404);
+  - sem autenticação recente, recusa (Q1);
+  - a lista não traz o corpo dos avisos.
+- **Hub:**
+  - a lista e os dois separadores;
+  - o diálogo nos três casos (normal, incerto, reembolso);
+  - o erro de já resolvida;
+  - as capturas em telemóvel, tablet e computador, nos temas claro e escuro.
+
+### 34.5 Pergunta para o Diogo ou o Bruno
+
+**Q1. Resolver uma diferença pede autenticação recente (a passkey outra vez,
+se a última foi há mais de 10 minutos)?**
+
+- **a) Sempre** ⭐: resolver fica no registo como decisão de uma pessoa sobre
+  dinheiro. Num incerto, «foi pago» põe a encomenda paga e acorda a fatura.
+  É a regra de «fechar um período» na Faturação (§30.2).
+- **b) Só num pagamento incerto:** é o único caso em que a resolução muda o
+  estado do dinheiro; nos outros, só se escreve o que se fez.
+
+### 34.6 O que fica por verificar
+
+- A prova de cada motivo em linguagem comum: as chaves que a API grava em
+  cada caso (`apps/api/src/pagamentos/repositorio.ts`) leram-se no código.
+  Uma chave nova num motivo futuro aparece como texto em bruto até haver
+  tradução.
+- Os textos em espanhol e inglês saem do português aprovado; não são
+  aprovados palavra a palavra.
+
