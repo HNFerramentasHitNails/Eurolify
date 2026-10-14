@@ -2,6 +2,7 @@ import { agendarConclusoes } from "./stock/repositorio.js";
 import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import type { ConfigEnvios } from "./envios/adaptador.js";
+import { lerChavesEnvios } from "./envios/chave.js";
 import { agendarTrabalhoEnvios } from "./envios/etiquetas.js";
 import { agendarEncomendasParadas } from "./envios/paradas.js";
 import { adaptadorSendcloud } from "./envios/sendcloud.js";
@@ -169,17 +170,12 @@ const faturacao: ConfigFaturacao = {
 // parte C (§16), em modo teste; o adaptador dos CTT espera pela
 // especificação (V1): as contas dos CTT criam-se mas não passam a chamada de
 // teste (`shipping.carrier_unavailable`).
-const textoChaveEnvios = process.env["ENVIOS_CHAVE"]?.trim();
+// Durante a troca da chave (docs/36 §25), a antiga em ENVIOS_CHAVE_ANTERIOR,
+// com a versão dela: só decifra, e a volta dos envios passa as contas para a
+// nova. Mal postas, a API não arranca (`lerChavesEnvios`).
 const envios: ConfigEnvios = {
   adaptadores: { sendcloud: adaptadorSendcloud() },
-  ...(textoChaveEnvios === undefined || textoChaveEnvios === ""
-    ? {}
-    : {
-        chave: chavePagamentos(
-          textoChaveEnvios,
-          process.env["ENVIOS_CHAVE_VERSAO"]?.trim() || "1",
-        ),
-      }),
+  ...lerChavesEnvios(process.env),
 };
 
 const app = criarApp(

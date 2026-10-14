@@ -122,6 +122,8 @@ const FUNCOES_DA_API = [
   "envios_comerciantes_com_paradas",
   "envios_comerciantes_com_trabalho",
   "envios_conta_do_aviso",
+  // A troca da chave (docs/36 §25, 0103): as contas por voltar a cifrar.
+  "envios_contas_por_recifrar",
   // Os envios depois do apagamento do titular (0083): o gatilho do evento.
   "envios_devolucao_ficheiros_apagar",
   "envios_encomenda_limpa",

@@ -226,6 +226,12 @@ export class ErroDeRede extends Error {
 export interface ConfigEnvios {
   /** A chave que cifra as credenciais (ENVIOS_CHAVE), com o formato da dos pagamentos. */
   chave?: ChavePagamentos;
+  /**
+   * A chave anterior, só durante a troca (ENVIOS_CHAVE_ANTERIOR; docs/36
+   * §25): decifra as contas que ainda estão nela, que a volta dos envios
+   * passa para a `chave`. Nunca cifra nada.
+   */
+  chaveAnterior?: ChavePagamentos;
   adaptadores: Partial<Record<Transportadora, AdaptadorTransportadora>>;
   /** Quanto se espera por uma chamada à transportadora (por omissão 30 s). */
   tempoLimiteMs?: number;

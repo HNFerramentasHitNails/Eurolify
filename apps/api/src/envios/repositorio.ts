@@ -70,10 +70,31 @@ export async function noEnvios<T>(
   }
 }
 
+/**
+ * As chaves com que se decifram as contas: a actual e, durante a troca, a
+ * anterior (docs/36 §25). Cifra-se sempre com a actual.
+ */
+export interface ChavesEnvios {
+  actual: ChavePagamentos;
+  anterior?: ChavePagamentos;
+}
+
+/** A chave da versão com que a conta foi cifrada, ou `undefined`. */
+export function chaveDaVersao(
+  chaves: ChavesEnvios,
+  versao: string | null,
+): ChavePagamentos | undefined {
+  if (versao === chaves.actual.versao) return chaves.actual;
+  if (chaves.anterior !== undefined && versao === chaves.anterior.versao) {
+    return chaves.anterior;
+  }
+  return undefined;
+}
+
 export function adaptadorDe(
   cfg: ConfigEnvios | undefined,
   transportadora: Transportadora,
-): { adaptador: AdaptadorTransportadora; chave: ChavePagamentos } {
+): { adaptador: AdaptadorTransportadora; chave: ChavesEnvios } {
   const adaptador = cfg?.adaptadores[transportadora];
   if (cfg?.chave === undefined) {
     throw new ErroEnvios(
@@ -87,7 +108,15 @@ export function adaptadorDe(
       `ainda não há adaptador para ${transportadora} neste servidor`,
     );
   }
-  return { adaptador, chave: cfg.chave };
+  return {
+    adaptador,
+    chave: {
+      actual: cfg.chave,
+      ...(cfg.chaveAnterior === undefined
+        ? {}
+        : { anterior: cfg.chaveAnterior }),
+    },
+  };
 }
 
 /** A morada de recolha e o contacto da etiqueta (validados na parte B). */
@@ -265,9 +294,48 @@ export async function definirCredenciais(
     if (conta.estado === "arquivada") {
       throw new ErroEnvios("shipping.immutable", "a conta está arquivada");
     }
+    // Sem segredo novo, o guardado fica, mas passa para a chave actual com
+    // as credenciais: a versão é uma só para os dois (revisão do #466, P1-2).
+    // Se nenhuma chave o abre, pede-se outra vez em vez de gravar uma versão
+    // que mente.
+    let segredoQueFica: Buffer | null | undefined;
+    if (
+      dados.segredo_aviso === undefined &&
+      conta.segredo_aviso_cifra !== null &&
+      conta.chave_versao !== chave.versao
+    ) {
+      const daConta = chaveDaVersao(
+        {
+          actual: chave,
+          ...(cfg.chaveAnterior === undefined
+            ? {}
+            : { anterior: cfg.chaveAnterior }),
+        },
+        conta.chave_versao,
+      );
+      let segredo: string | undefined;
+      try {
+        segredo =
+          daConta === undefined
+            ? undefined
+            : decifrar(conta.segredo_aviso_cifra, id, "segredo_aviso", daConta);
+      } catch {
+        segredo = undefined;
+      }
+      if (segredo === undefined) {
+        throw new ErroEnvios(
+          "shipping.account_not_ready",
+          "o segredo dos avisos guardado já não se lê: envie-o também",
+        );
+      }
+      segredoQueFica = cifrar(segredo, id, "segredo_aviso", chave);
+    }
     await trx
       .updateTable("conta_transportadora")
       .set({
+        ...(segredoQueFica === undefined
+          ? {}
+          : { segredo_aviso_cifra: segredoQueFica }),
         credenciais_cifra: cifrar(
           JSON.stringify(dados.credenciais),
           id,
@@ -301,7 +369,7 @@ export function credenciaisDe(
     credenciais_cifra: Buffer | null;
     chave_versao: string | null;
   },
-  chave: ChavePagamentos,
+  chaves: ChavesEnvios,
 ): CredenciaisTransportadora {
   if (conta.credenciais_cifra === null) {
     throw new ErroEnvios(
@@ -309,15 +377,26 @@ export function credenciaisDe(
       "a conta não tem credenciais",
     );
   }
-  if (conta.chave_versao !== chave.versao) {
+  // Na actual ou, durante a troca, na anterior (docs/36 §25).
+  const chave = chaveDaVersao(chaves, conta.chave_versao);
+  if (chave === undefined) {
     throw new ErroEnvios(
       "shipping.account_not_ready",
       "as credenciais foram cifradas com outra versão da chave: defina-as outra vez",
     );
   }
-  const lidas: unknown = JSON.parse(
-    decifrar(conta.credenciais_cifra, conta.id, "credenciais", chave),
-  );
+  // Uma cifra que não abre (a chave mudou sem a versão mudar) é uma conta
+  // por ler, não um erro sem código (revisão do #466, P3-4).
+  let texto: string;
+  try {
+    texto = decifrar(conta.credenciais_cifra, conta.id, "credenciais", chave);
+  } catch {
+    throw new ErroEnvios(
+      "shipping.account_not_ready",
+      "as credenciais já não se leem com a chave deste servidor: defina-as outra vez",
+    );
+  }
+  const lidas: unknown = JSON.parse(texto);
   if (
     lidas === null ||
     typeof lidas !== "object" ||
