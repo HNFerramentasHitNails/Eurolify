@@ -1489,5 +1489,45 @@ botão e o PDF na página da devolução), com capturas.
   - o que a Sendcloud guarda (§16.2).
 - **A migração passou a 0093:** a 0092 é de outra sessão.
 
-**Por fazer:** o pedido 2 (Hub: o botão e o PDF na página da devolução, com
-capturas).
+**Por fazer:** o pedido 2 (Hub), desenhado no §22.10.
+
+### 22.10 O Hub: as devoluções e a etiqueta (desenho do pedido 2; por aprovar)
+
+Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
+envios»*. **Está por aprovar.** O §22.8 falava da «página da devolução», mas
+**o Hub não tem nenhum ecrã da pós-venda** (`docs/30` §14: «O Hub ainda não
+tem ecrãs da pós-venda»; procurei `returns` e `devolu` em `apps/hub/src`: só
+o âmbito no módulo «A decidir» e a tarefa da livre resolução). As rotas
+`/returns` são das chaves; o Hub usa rotas `/hub/…` com a sessão. Por isso o
+pedido 2 traz a página e as rotas do Hub, além do botão. Skills:
+`eurolify-design`, `eurolify-hub-modular`, `eurolify-hub-quality-gate`,
+`order-fulfilment`, `eu-gdpr-privacy`.
+
+Ex.: o armazém abre «Devoluções», filtra «À espera da encomenda», abre
+`rma_…` (verniz, 1 unidade, livre resolução, reembolsar até 27/10/2026),
+escolhe a conta da Sendcloud e o serviço de volta e carrega em «Pedir a
+etiqueta». A página mostra o número de seguimento e «Descarregar o PDF».
+
+| O quê | Regra |
+|---|---|
+| **O módulo «Devoluções»** | quem tem `returns:read` (os quatro papéis); entra no menu de módulos como os outros |
+| **A lista** | as devoluções mais recentes, com o filtro do estado: a encomenda, a origem (livre resolução, apoio, comercial), o estado, a data e o prazo do reembolso. A API devolve no máximo 200: quando vierem 200, o ecrã diz «as 200 mais recentes» e manda usar o filtro (nunca corta em silêncio). Cartões no telemóvel |
+| **A página da devolução** | só leitura neste pedido: o estado, a origem, as linhas (pedida, recebida, aceite), a transportadora e o seguimento, o prazo do reembolso. **O motivo escrito pelo cliente não se mostra na lista**, só na página |
+| **A etiqueta** | numa devolução `a_aguardar`, com `returns:write`: escolher a conta e o serviço (só os que servem, ditos pelo servidor) e «Pedir a etiqueta». Depois: o estado, o seguimento e «Descarregar o PDF». **Incerta:** o aviso para confirmar no painel da transportadora e «Anular», com motivo e a caixa «confirmei no painel», só passados 15 minutos (a API decide; o ecrã mostra o erro dela). **Recusada:** o motivo e «Pedir outra» |
+| **Custo** | ao lado do botão: «A etiqueta é paga pela conta do comerciante» (§22.2, L11). Não se desconta nada |
+| **As rotas do Hub** | `GET /hub/returns`, `GET /hub/returns/{id}`, `GET /hub/returns/{id}/label/services`, `GET` e `POST /hub/returns/{id}/label`, `GET …/label/file`, `POST …/label/void`. Usam as mesmas funções das rotas das chaves, com o papel da sessão (`returns:read` / `returns:write`); nenhuma regra nova no Hub |
+| **O PDF** | descarrega-se como o da expedição (`blob:`, sem cache); nunca se guarda no navegador |
+| **Textos** | PT, ES e EN; capturas a 375, 768 e 1280 px, claro e escuro, para o OK do aspecto |
+
+**Fica de fora deste pedido** (vem a seguir, se o Diogo quiser): registar a
+recepção, a inspecção, a decisão, fechar e cancelar a devolução no Hub. Hoje
+fazem-se pela API. A etiqueta não precisa deles.
+
+**Por onde pode sair errado:** um armazém que pede a etiqueta duas vezes
+(a API recusa com `label_exists` / `label_uncertain`; o ecrã desactiva o
+botão enquanto espera); o motivo do cliente à vista de quem não precisa (só na
+página, não na lista).
+
+**Testes:** o módulo só aparece com `returns:read`; sem `returns:write` não
+há botão; a lista diz quando chegou às 200; a incerta mostra o aviso e não o
+botão de pedir; as rotas do Hub isolam o comerciante e respeitam o papel.
