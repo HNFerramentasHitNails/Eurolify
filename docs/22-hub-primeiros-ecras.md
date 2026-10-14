@@ -3005,3 +3005,35 @@ se a última foi há mais de 10 minutos)?**
 - Os textos em espanhol e inglês saem do português aprovado; não são
   aprovados palavra a palavra.
 
+### 34.7 Em código (14/10/2026; ES)
+
+- **API (`apps/api/src/pagamentos/`):**
+  - `GET /hub/payment-issues?estado=` faz o mesmo que `GET /payment-issues`,
+    pela sessão com `payments:read`, e junta o resumo do pagamento de cada
+    diferença (`diferencasParaOHub`);
+  - `POST /hub/payment-issues/{id}/resolve` faz a mesma
+    `resolverDiferenca`, com `payments:resolve` e autenticação recente
+    sempre (Q1 «a»), e o `resolvida_por` é a pessoa.
+- **Hub (`apps/hub/src/`):**
+  - o ecrã `DiferencasPagamento.tsx` (`/pagamentos/diferencas`), com os dois
+    separadores e o diálogo de resolver;
+  - as regras do ecrã em `pagamentos.ts`: a prova em linguagem comum por
+    motivo, o caso do diálogo (incerto, reembolso, normal) e o endereço;
+  - o módulo «Pagamentos» na entrada, para `payments:read`;
+  - a ligação a partir de «A decidir» (fila `pagamento`).
+- **Textos novos em pt, es e en:**
+  - os três motivos de reembolso, que antes saíam como código também em «A
+    decidir»;
+  - os estados do pagamento em palavras.
+- **Desvio do desenho:** a entrada não mostra o número de diferenças abertas
+  no módulo. Nenhum módulo da entrada mostra números hoje, e isso pedia mais
+  uma leitura à API em cada abertura da entrada. O número vê-se em «A
+  decidir».
+- **Testes:**
+  - API: `pagamentos-api.test.ts`, «pelo Hub»: os papéis, outro comerciante,
+    sem autenticação recente, o incerto obrigado a decidir, a pessoa em
+    quem resolveu e a encomenda paga;
+  - Hub: `test/pagamentos.test.ts` e `test/modulos.test.ts`;
+  - capturas: a lista vazia, a lista e as resolvidas em 375, 768 e 1280,
+    claro e escuro, e o diálogo de um incerto.
+

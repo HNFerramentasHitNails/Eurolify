@@ -16,6 +16,7 @@ export type IdModulo =
   | "devolucoes"
   | "envios"
   | "faturacao"
+  | "pagamentos"
   | "chaves";
 
 export interface Modulo {
@@ -34,6 +35,7 @@ export interface Modulo {
     | "/devolucoes"
     | "/envios"
     | "/faturacao"
+    | "/pagamentos/diferencas"
     | "/chaves";
 }
 
@@ -71,6 +73,13 @@ export const MODULOS: readonly Modulo[] = [
     // dono, gestor e apoio; o armazém não o vê (docs/22 §30.3).
     ambitoNecessario: ["invoices:read", "tax:read"],
     caminho: "/faturacao",
+  },
+  // A fila de diferenças de pagamento (docs/22 §34.3): dono, gestor e apoio;
+  // o armazém não a vê.
+  {
+    id: "pagamentos",
+    ambitoNecessario: "payments:read",
+    caminho: "/pagamentos/diferencas",
   },
   { id: "chaves", ambitoNecessario: "keys:write", caminho: "/chaves" },
 ];

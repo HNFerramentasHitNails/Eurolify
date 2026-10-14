@@ -346,6 +346,27 @@ export type EstadoDevolucao =
   | "cancelada";
 
 /** Uma devolução na lista do Hub (docs/36 §22.10): sem o motivo do cliente. */
+/** Uma diferença da fila de pagamentos, como o Hub a lê (docs/22 §34.2). */
+export interface DiferencaPagamento {
+  id: string;
+  pagamento: {
+    id: string;
+    encomenda: string | null;
+    metodo: string | null;
+    montante: number | null;
+    moeda: string | null;
+    estado: string | null;
+  } | null;
+  aviso: string | null;
+  motivo: string;
+  prova: unknown;
+  estado: "aberta" | "resolvida";
+  resolucao: string | null;
+  resolvida_por: string | null;
+  resolvida_em: string | null;
+  criada_em: string;
+}
+
 export interface DevolucaoNaLista {
   id: string;
   encomenda: string;
@@ -1398,6 +1419,23 @@ export const api = {
     pedirBytes(
       `/hub/shipments/${encodeURIComponent(id)}/label/file${volume === 1 ? "" : `?volume=${String(volume)}`}`,
       comerciante,
+    ),
+  // A fila de diferenças de pagamento (docs/22 §34).
+  diferencasPagamento: (comerciante: string, estado: "aberta" | "resolvida") =>
+    pedir<{ dados: DiferencaPagamento[] }>(
+      "GET",
+      `/hub/payment-issues?${new URLSearchParams({ estado }).toString()}`,
+      { comerciante },
+    ),
+  resolverDiferenca: (
+    comerciante: string,
+    id: string,
+    corpo: { resolucao: string; pagamento?: "capturado" | "falhado" },
+  ) =>
+    pedir<unknown>(
+      "POST",
+      `/hub/payment-issues/${encodeURIComponent(id)}/resolve`,
+      { comerciante, corpo },
     ),
   // As devoluções e a etiqueta de devolução (docs/36 §22.10).
   devolucoes: (comerciante: string, estado: EstadoDevolucao | null) =>

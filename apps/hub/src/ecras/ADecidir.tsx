@@ -14,6 +14,7 @@ import {
   type Faturacao as DadosFaturacao,
 } from "../faturacao";
 import { entradaDe } from "../modulos";
+import { enderecoDiferencas } from "../pagamentos";
 import {
   consultaDe,
   curto,
@@ -580,6 +581,15 @@ function Linha({
               <br />
               <LigacaoInterna href={enderecoFaturacao(comerciante)}>
                 {t.decidirAbrirFaturacao}
+              </LigacaoInterna>
+            </>
+          ) : null}
+          {/* A diferença de pagamento resolve-se no seu ecrã (docs/22 §34). */}
+          {x.fila === "pagamento" ? (
+            <>
+              <br />
+              <LigacaoInterna href={enderecoDiferencas(comerciante)}>
+                {t.decidirAbrirDiferencas}
               </LigacaoInterna>
             </>
           ) : null}
