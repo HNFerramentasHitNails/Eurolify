@@ -3064,6 +3064,10 @@ se a última foi há mais de 10 minutos)?**
     com `payments:resolve` resolve pela rota antiga; é anterior).
 
 
+✅ **Aspecto dos acrescentos aprovado** (Diogo, 14/10/2026, *«A»*), pelas
+capturas do #470 (o diálogo do incerto antes e depois, a 1280 px em claro, e a
+lista a 375 px em escuro). Não visto no Safari nem num telemóvel real.
+
 **Acrescentos de 14/10/2026 (Diogo: Q1 A, Q2 A, Q3 A, no desenho fechado no
 #463).** Mantêm a autenticação recente e os dois desvios acima.
 
