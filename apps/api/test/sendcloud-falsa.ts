@@ -33,6 +33,10 @@ export function sendcloudFalsa() {
     anular: 200,
     /** Os pontos de recolha que a procura devolve (docs/36 §21). */
     pontos: [] as Record<string, unknown>[],
+    /** As devoluções criadas (docs/36 §22), pela referência. */
+    devolucoes: [] as { id: number; referencia: string; corpo: unknown }[],
+    /** Como responde à próxima devolução. */
+    devolver: "emitir" as "emitir" | "recusar" | "sem_etiqueta",
     /** A disponibilidade de cada ponto; sem entrada, 404. */
     disponivel: new Map<string, boolean | "erro_500">(),
     envios: [] as Envio[],
@@ -167,6 +171,55 @@ export function sendcloudFalsa() {
       );
       return json(200, { data: e.map((x) => resposta(x, false)) });
     }
+    if (metodo === "POST" && caminho === "/returns/announce-synchronously") {
+      const b = corpo as { external_reference?: string };
+      if (
+        estado.devolucoes.some((x) => x.referencia === b.external_reference)
+      ) {
+        return json(400, {
+          error: {
+            code: "invalid",
+            message:
+              "External reference has already been used in another return.",
+          },
+        });
+      }
+      if (estado.devolver === "recusar") {
+        return json(400, {
+          error: {
+            code: "invalid_postal_code",
+            message: "Invalid postal code.",
+          },
+        });
+      }
+      estado.numero += 1;
+      const id = 7000 + estado.numero;
+      estado.devolucoes.push({
+        id,
+        referencia: b.external_reference ?? "",
+        corpo,
+      });
+      return json(201, { return_id: id, parcel_id: id + 1 });
+    }
+    const devolucao = /^\/returns\/(\d+)$/.exec(caminho);
+    if (metodo === "GET" && devolucao !== null) {
+      const d = estado.devolucoes.find((x) => String(x.id) === devolucao[1]);
+      if (d === undefined) return json(404, {});
+      return json(200, {
+        data: {
+          id: d.id,
+          tracking_number:
+            estado.devolver === "sem_etiqueta" ? null : `RT${String(d.id)}`,
+          tracking_url: `https://tracking.exemplo/RT${String(d.id)}`,
+          label:
+            estado.devolver === "sem_etiqueta"
+              ? null
+              : {
+                  label_printer: `https://panel.sendcloud.sc/api/v3/parcels/${String(d.id + 1)}/documents/label`,
+                },
+        },
+      });
+    }
     if (metodo === "GET" && caminho === "/service-points") {
       return json(200, { data: estado.pontos });
     }
@@ -189,6 +242,13 @@ export function sendcloudFalsa() {
     const doc = /^\/parcels\/(\d+)\/documents\/label$/.exec(caminho);
     if (metodo === "GET" && doc !== null) {
       const e = estado.envios.find((x) => String(x.volume) === doc[1]);
+      const d = estado.devolucoes.find((x) => String(x.id + 1) === doc[1]);
+      if (d !== undefined) {
+        return new Response(Buffer.from(`%PDF-devolucao ${d.referencia}`), {
+          status: 200,
+          headers: { "content-type": "application/pdf" },
+        });
+      }
       if (e === undefined) return new Response("", { status: 404 });
       return new Response(Buffer.from(`%PDF-sendcloud ${e.referencia}`), {
         status: 200,
