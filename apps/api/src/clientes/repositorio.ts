@@ -2150,6 +2150,14 @@ export async function exportarCliente(
       gerada_em: new Date().toISOString(),
       fichas,
       pedidos_do_titular: pedidos,
+      // Os pedidos que chegaram e quando se respondeu (docs/23 §15.14): são
+      // dados sobre a pessoa, como os executados (RGPD, art. 15.º).
+      pedidos_recebidos: (
+        await sql<PedidoRecebido>`
+          select ${COLUNAS_PEDIDO_RECEBIDO} from pedido_titular_recebido r
+          where r.cliente_id = any(${ids}::uuid[])
+          order by r.recebido_em, r.id`.execute(trx)
+      ).rows,
       fichas_com_o_mesmo_contacto: await fichasComOMesmoContacto(trx, ids),
     };
   });

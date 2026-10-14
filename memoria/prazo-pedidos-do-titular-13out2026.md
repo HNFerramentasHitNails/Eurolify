@@ -24,5 +24,5 @@ até se saber quem é), Q-P3 «a» (o aviso do prazo passado); `docs/06` EO;
 - O limite da prorrogação (dois meses ao todo, leitura conservadora): **C**.
 - A oposição (art. 21.º) seguir o mesmo mês: **C**.
 - O aviso `task.overdue` desta fila não foi testado de ponta a ponta.
-- A exportação do titular não junta os pedidos recebidos (art. 15.º; por
-  decidir).
+- A exportação do titular junta os pedidos recebidos desde 14/10/2026
+  (`pedidos_recebidos`, como os executados).

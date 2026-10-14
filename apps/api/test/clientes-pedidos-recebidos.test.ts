@@ -255,6 +255,20 @@ describe.skipIf(URL_BASE === undefined)(
       ).toBe("2026-05-01");
     });
 
+    it("a exportação do titular junta os pedidos recebidos (RGPD, art. 15.º)", async () => {
+      const id = await ficha();
+      const r = await recebido(id, { recebido_em: haDias(2) });
+      const e = await ok(
+        pedir("POST", `/customers/${id}/export`, {
+          verificacao: "resposta do e-mail da ficha a 14/10/2026",
+        }),
+      );
+      expect(e["pedidos_recebidos"]).toMatchObject([
+        // Como os outros registos da exportação: os ids sem prefixo.
+        { id: String(r["id"]).slice(4), tipo: "apagamento", estado: "aberto" },
+      ]);
+    });
+
     it("recusa um pedido chegado no futuro, sem ficha, numa ficha que não está activa e de outra loja", async () => {
       const id = await ficha();
       await recusa(
