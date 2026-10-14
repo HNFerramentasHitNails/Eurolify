@@ -345,7 +345,6 @@ export type EstadoDevolucao =
   | "fechada"
   | "cancelada";
 
-/** Uma devolução na lista do Hub (docs/36 §22.10): sem o motivo do cliente. */
 /** Uma diferença da fila de pagamentos, como o Hub a lê (docs/22 §34.2). */
 export interface DiferencaPagamento {
   id: string;
@@ -367,6 +366,7 @@ export interface DiferencaPagamento {
   criada_em: string;
 }
 
+/** Uma devolução na lista do Hub (docs/36 §22.10): sem o motivo do cliente. */
 export interface DevolucaoNaLista {
   id: string;
   encomenda: string;
@@ -1422,7 +1422,7 @@ export const api = {
     ),
   // A fila de diferenças de pagamento (docs/22 §34).
   diferencasPagamento: (comerciante: string, estado: "aberta" | "resolvida") =>
-    pedir<{ dados: DiferencaPagamento[] }>(
+    pedir<{ dados: DiferencaPagamento[]; limite: number }>(
       "GET",
       `/hub/payment-issues?${new URLSearchParams({ estado }).toString()}`,
       { comerciante },

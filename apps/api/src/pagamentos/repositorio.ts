@@ -1742,6 +1742,9 @@ export async function listarDiferencas(
  * resumo do pagamento de cada uma (encomenda, método, montante, moeda e
  * estado), para o ecrã não o pedir um a um. Nunca o corpo do aviso.
  */
+/** Quantas resolvidas o ecrã do Hub lê de uma vez (as mais recentes). */
+export const LIMITE_RESOLVIDAS_NO_HUB = 200;
+
 export async function diferencasParaOHub(
   db: Kysely<BaseDados>,
   c: string,
@@ -1767,10 +1770,17 @@ export async function diferencasParaOHub(
         "p.montante",
         "p.moeda",
         "p.estado as pagamento_estado",
-      ])
-      .orderBy("d.criada_em")
-      .orderBy("d.id");
+      ]);
     if (estado !== undefined) q = q.where("d.estado", "=", estado);
+    // As por resolver pela ordem de chegada; as resolvidas, as mais recentes
+    // primeiro e só as últimas 200 (revisão do #458, P2-3).
+    q =
+      estado === "resolvida"
+        ? q
+            .orderBy("d.resolvida_em", "desc")
+            .orderBy("d.id", "desc")
+            .limit(LIMITE_RESOLVIDAS_NO_HUB)
+        : q.orderBy("d.criada_em").orderBy("d.id");
     return q.execute();
   });
 }

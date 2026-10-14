@@ -63,6 +63,7 @@ export function DiferencasPagamento({
   const [dados, setDados] = useState<{
     eu: Eu;
     lista: DiferencaPagamento[];
+    limite: number;
   } | null>(null);
   const [membros, setMembros] = useState<Membros["membros"]>([]);
   const [falha, setFalha] = useState<unknown>(null);
@@ -81,7 +82,7 @@ export function DiferencasPagamento({
       ]);
       if (este !== ultimo.current) return;
       setFalha(null);
-      setDados({ eu, lista: r.dados });
+      setDados({ eu, lista: r.dados, limite: r.limite });
     } catch (e) {
       if (este !== ultimo.current) return;
       if (semSessao(e)) {
@@ -115,7 +116,9 @@ export function DiferencasPagamento({
     if (!valido) return null;
     try {
       const r = await api.diferencasPagamento(c, separador);
-      setDados((d) => (d === null ? d : { ...d, lista: r.dados }));
+      setDados((d) =>
+        d === null ? d : { ...d, lista: r.dados, limite: r.limite },
+      );
       return r.dados;
     } catch {
       return null;
@@ -193,7 +196,21 @@ export function DiferencasPagamento({
             <CaixaDeErro erro={erro} aoTentar={() => void carregar()} />
           ) : dados === null ? (
             <ACarregar />
-          ) : dados.lista.length === 0 ? (
+          ) : (
+            <>
+              {/* Uma releitura que falhou não esconde a lista (P3-7). */}
+              {erro === null ? null : (
+                <CaixaDeErro erro={erro} aoTentar={() => void carregar()} />
+              )}
+              {separador === "resolvida" &&
+              dados.lista.length >= dados.limite ? (
+                <p className="secundario" role="status">
+                  {preencher(t.diferencasAsMaisRecentes, { n: dados.limite })}
+                </p>
+              ) : null}
+            </>
+          )}
+          {dados === null ? null : dados.lista.length === 0 ? (
             <p role="status">
               {separador === "aberta"
                 ? t.diferencasVazio
@@ -426,6 +443,7 @@ function DialogoResolver({
               <input
                 type="radio"
                 name="pago"
+                aria-required="true"
                 checked={pago === "capturado"}
                 onChange={() => {
                   setPago("capturado");
@@ -437,6 +455,7 @@ function DialogoResolver({
               <input
                 type="radio"
                 name="pago"
+                aria-required="true"
                 checked={pago === "falhado"}
                 onChange={() => {
                   setPago("falhado");
@@ -466,6 +485,9 @@ function DialogoResolver({
           </button>
           <button
             type="button"
+            // Durante o envio não se fecha: o pedido seguia e a lista ficava
+            // velha (revisão do #458, P3-6).
+            disabled={aEnviar}
             onClick={() => {
               aoFechar(null);
             }}

@@ -5958,8 +5958,9 @@ try {
             "Devoluções",
             "Envios",
             "Faturação",
+            "Diferenças de pagamento",
           ]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios e a faturação, sem as chaves",
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios, a faturação e as diferenças de pagamento, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();

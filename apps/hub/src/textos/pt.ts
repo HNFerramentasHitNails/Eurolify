@@ -1779,7 +1779,7 @@ export const pt = {
   volumesRecusados:
     "O serviço da etiqueta não serve estas caixas (quantas são, ou o peso de uma delas): mude o serviço ou as caixas.",
   // A fila de diferenças de pagamento (docs/22 §34).
-  modulo_pagamentos: "Pagamentos",
+  modulo_pagamentos: "Diferenças de pagamento",
   termos_pagamentos:
     "pagamentos diferenças fila incerto montante multibanco mb way eupago reembolso",
   diferencasTitulo: "Diferenças de pagamento",
@@ -1806,7 +1806,7 @@ export const pt = {
   diferencaPagouSim: "Sim, foi pago",
   diferencaPagouNao: "Não, não foi pago",
   diferencaReembolsoAviso:
-    "O estado do reembolso decide-se na devolução. Aqui só fica registado o que se fez.",
+    "O estado do reembolso decide-se pela integração (reconciliar o reembolso), e um reembolso incerto continua na fila «Reembolso» de «A decidir». Aqui só fica registado o que se fez.",
   diferencaConfirmar: "Resolver",
   diferencaFaltaTexto: "Escreva o que se fez.",
   diferencaFaltaPago: "Diga se o cliente pagou.",
@@ -1854,6 +1854,7 @@ export const pt = {
   estadoPagamento_ganha: "disputa ganha",
   estadoPagamento_perdida: "disputa perdida",
   provaSemPormenor: "Sem pormenores.",
+  diferencasAsMaisRecentes: "As {n} mais recentes.",
 };
 
 export type Textos = typeof pt;

@@ -1784,7 +1784,7 @@ export const en: Textos = {
   volumesRecusados:
     "The label's service does not take these boxes (how many, or the weight of one of them): change the service or the boxes.",
   // The payment differences queue (docs/22 §34).
-  modulo_pagamentos: "Payments",
+  modulo_pagamentos: "Payment differences",
   termos_pagamentos:
     "payments differences queue uncertain amount multibanco mb way eupago refund",
   diferencasTitulo: "Payment differences",
@@ -1811,7 +1811,7 @@ export const en: Textos = {
   diferencaPagouSim: "Yes, it was paid",
   diferencaPagouNao: "No, it was not paid",
   diferencaReembolsoAviso:
-    "The refund's status is decided in the return. Here only what was done is recorded.",
+    "The refund's status is decided through the integration (reconcile the refund), and an uncertain refund stays in the “Refund” queue of “To decide”. Here only what was done is recorded.",
   diferencaConfirmar: "Resolve",
   diferencaFaltaTexto: "Write what was done.",
   diferencaFaltaPago: "Say whether the customer paid.",
@@ -1860,4 +1860,5 @@ export const en: Textos = {
   estadoPagamento_ganha: "dispute won",
   estadoPagamento_perdida: "dispute lost",
   provaSemPormenor: "No details.",
+  diferencasAsMaisRecentes: "The {n} most recent.",
 };

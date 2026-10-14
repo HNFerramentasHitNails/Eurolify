@@ -31,6 +31,7 @@ import {
   criarMetodo,
   definirCredenciais,
   diferencasParaOHub,
+  LIMITE_RESOLVIDAS_NO_HUB,
   lerPagamento,
   listarContas,
   listarDiferencas,
@@ -826,7 +827,12 @@ export function rotasDosPagamentos(
         params: Type.Object({ id: IdDiferenca }),
         body: Type.Object(
           {
-            resolucao: Type.String({ minLength: 1, maxLength: 2000 }),
+            resolucao: Type.String({
+              minLength: 1,
+              maxLength: 2000,
+              // Só espaços não é resolução (o CHECK da base corta-os).
+              pattern: "\\S",
+            }),
             pagamento: Type.Optional(umDe(["capturado", "falhado"] as const)),
           },
           { additionalProperties: false },
@@ -888,7 +894,10 @@ export function rotasDosPagamentos(
           { additionalProperties: false },
         ),
         response: {
-          200: Type.Object({ dados: Type.Array(Livre) }),
+          200: Type.Object({
+            dados: Type.Array(Livre),
+            limite: Type.Integer(),
+          }),
           ...RESPOSTA_DE_ERRO,
         },
       },
@@ -896,6 +905,7 @@ export function rotasDosPagamentos(
     async (pedido, resposta) =>
       emPagamentos(resposta, async () => {
         const s = daSessao(pedido, "payments:read");
+        void resposta.header("cache-control", "private, no-store");
         const linhas = await diferencasParaOHub(
           base,
           s.comercianteId,
@@ -925,6 +935,7 @@ export function rotasDosPagamentos(
             resolvida_em: iso(d.resolvida_em),
             criada_em: d.criada_em.toISOString(),
           })),
+          limite: LIMITE_RESOLVIDAS_NO_HUB,
         };
       }),
   );
@@ -939,7 +950,12 @@ export function rotasDosPagamentos(
         params: Type.Object({ id: IdDiferenca }),
         body: Type.Object(
           {
-            resolucao: Type.String({ minLength: 1, maxLength: 2000 }),
+            resolucao: Type.String({
+              minLength: 1,
+              maxLength: 2000,
+              // Só espaços não é resolução (o CHECK da base corta-os).
+              pattern: "\\S",
+            }),
             pagamento: Type.Optional(umDe(["capturado", "falhado"] as const)),
           },
           { additionalProperties: false },

@@ -1804,7 +1804,7 @@ export const es: Textos = {
   volumesRecusados:
     "El servicio de la etiqueta no sirve para estas cajas (cuántas son, o el peso de una de ellas): cambie el servicio o las cajas.",
   // La cola de diferencias de pago (docs/22 §34).
-  modulo_pagamentos: "Pagos",
+  modulo_pagamentos: "Diferencias de pago",
   termos_pagamentos:
     "pagos diferencias cola incierto importe multibanco mb way eupago reembolso",
   diferencasTitulo: "Diferencias de pago",
@@ -1831,7 +1831,7 @@ export const es: Textos = {
   diferencaPagouSim: "Sí, se pagó",
   diferencaPagouNao: "No, no se pagó",
   diferencaReembolsoAviso:
-    "El estado del reembolso se decide en la devolución. Aquí solo queda registrado qué se hizo.",
+    "El estado del reembolso se decide por la integración (conciliar el reembolso), y un reembolso incierto sigue en la cola «Reembolso» de «Por decidir». Aquí solo queda registrado qué se hizo.",
   diferencaConfirmar: "Resolver",
   diferencaFaltaTexto: "Escriba qué se hizo.",
   diferencaFaltaPago: "Diga si el cliente pagó.",
@@ -1879,4 +1879,5 @@ export const es: Textos = {
   estadoPagamento_ganha: "disputa ganada",
   estadoPagamento_perdida: "disputa perdida",
   provaSemPormenor: "Sin detalles.",
+  diferencasAsMaisRecentes: "Las {n} más recientes.",
 };

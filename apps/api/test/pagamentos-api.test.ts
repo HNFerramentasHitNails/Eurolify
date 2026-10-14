@@ -902,8 +902,12 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
         throw new TypeError("fetch failed");
       };
       const p = await ok(pedir("POST", `/checkout/${k.token}/payment`), 201);
+      // Um segundo incerto, para decidir «não foi pago».
+      const k2 = await encomenda(s);
+      const p2 = await ok(pedir("POST", `/checkout/${k2.token}/payment`), 201);
       delete eupago.respostas.multibanco;
       expect(p["estado"]).toBe("incerto");
+      expect(p2["estado"]).toBe("incerto");
       const pessoas: Record<string, { pessoa: string; sessao: string }> = {};
       for (const papel of ["dono", "gestor", "apoio", "armazem"]) {
         const x = await h.pessoaCom(s.c, papel);
@@ -947,6 +951,12 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
         });
         expect(JSON.stringify(r)).not.toContain("corpo");
       }
+      // A lista não fica em nenhuma cache (revisão do #458, P3-2).
+      expect(
+        (await como("dono", "GET", "/hub/payment-issues")).headers[
+          "cache-control"
+        ],
+      ).toBe("private, no-store");
       expect(
         await codigo(como("armazem", "GET", "/hub/payment-issues")),
       ).toEqual([403, "member.role_escalation"]);
@@ -969,6 +979,13 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
         404,
         "payments.not_found",
       ]);
+      // O dono desta loja com o cabeçalho da outra: não é membro dela.
+      const cruzado = await h.pedir("POST", url, {
+        sessao: pessoas["dono"]?.sessao ?? "",
+        comerciante: outro.c,
+        corpo,
+      });
+      expect(cruzado.statusCode).toBe(403);
       // O gestor e o apoio não resolvem.
       for (const papel of ["gestor", "apoio"]) {
         expect(await codigo(como(papel, "POST", url, corpo))).toEqual([
@@ -991,6 +1008,10 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
         "autenticada_em",
         "0 seconds",
       );
+      // Só espaços não é resolução (revisão do #458, P3-5).
+      expect(
+        (await como("dono", "POST", url, { resolucao: "   " })).statusCode,
+      ).toBe(400);
       // Num incerto, fechar sem decidir não deixa o pagamento órfão.
       expect(
         await codigo(como("dono", "POST", url, { resolucao: "Visto." })),
@@ -1012,6 +1033,36 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
       expect(
         await ok(pedir("GET", `/checkout/${k.token}/payment`)),
       ).toMatchObject({ encomenda: { estado: "paga" } });
+      // O segundo: não foi pago; fica falhado, e as resolvidas vêm das mais
+      // recentes para as mais antigas (revisão do #458, P2-3).
+      const id2 = String(
+        (
+          (
+            (
+              await ok(como("dono", "GET", "/hub/payment-issues?estado=aberta"))
+            )["dados"] as Json[]
+          ).find(
+            (d) =>
+              d["motivo"] === "incerto" &&
+              (d["pagamento"] as Json | null)?.["id"] === p2["id"],
+          ) as Json
+        )["id"],
+      );
+      const r2 = await como(
+        "dono",
+        "POST",
+        `/hub/payment-issues/${id2}/resolve`,
+        {
+          resolucao: "Visto na EuPago: não pagou.",
+          pagamento: "falhado",
+        },
+      );
+      expect(r2.statusCode, r2.body).toBe(204);
+      const resolvidas = (
+        await ok(como("dono", "GET", "/hub/payment-issues?estado=resolvida"))
+      )["dados"] as Json[];
+      expect(resolvidas.slice(0, 2).map((d) => d["id"])).toEqual([id2, id]);
+      expect(resolvidas[0]).toMatchObject({ pagamento: { estado: "falhado" } });
       // Resolvida não se resolve outra vez.
       expect(await codigo(como("dono", "POST", url, corpo))).toEqual([
         409,

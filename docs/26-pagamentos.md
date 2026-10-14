@@ -407,7 +407,8 @@ a sandbox**, porque não há credenciais de teste.
 - **Um pagamento depois de falhado ou expirado** pode usar outro método da
   régua (`POST /checkout/{token}/payment` com `metodo`), dentro das 24 h.
 - **Por fazer:** a Stripe (parte 2, depois da Q2); a confirmação contra a
-  sandbox da EuPago (V1, V4, V5); o ecrã da fila no Hub.
+  sandbox da EuPago (V1, V4, V5). O ecrã da fila no Hub está em código
+  (`docs/22` §34.7, #458).
 
 **Portas antes do modo real** (a base recusa-o hoje; nenhum dinheiro real
 passa por aqui antes delas):
