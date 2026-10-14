@@ -19,7 +19,7 @@ Pedido do Diogo, 14/10/2026: *«sim, aprovo; avança com o código»*. Issue
 
 ## Números (com data e como se contaram)
 
-- 14/10/2026, base local: `test/envios-chave.test.ts` 5 de 5 verdes; os
+- 14/10/2026, base local: `test/envios-chave.test.ts` 14 de 14 verdes depois da revisão do agente (#466: 0 P0, 3 P1, 5 P2, 5 P3; corrigidos todos menos o P3-5); antes dela, os
   testes dos envios, `comerciante` e `seguranca-base` juntos: 17 ficheiros,
   193 testes verdes.
 

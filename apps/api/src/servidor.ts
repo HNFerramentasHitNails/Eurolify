@@ -2,6 +2,7 @@ import { agendarConclusoes } from "./stock/repositorio.js";
 import { comRasto } from "./base/rasto.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import type { ConfigEnvios } from "./envios/adaptador.js";
+import { lerChavesEnvios } from "./envios/chave.js";
 import { agendarTrabalhoEnvios } from "./envios/etiquetas.js";
 import { agendarEncomendasParadas } from "./envios/paradas.js";
 import { adaptadorSendcloud } from "./envios/sendcloud.js";
@@ -169,48 +170,12 @@ const faturacao: ConfigFaturacao = {
 // parte C (§16), em modo teste; o adaptador dos CTT espera pela
 // especificação (V1): as contas dos CTT criam-se mas não passam a chamada de
 // teste (`shipping.carrier_unavailable`).
-const textoChaveEnvios = process.env["ENVIOS_CHAVE"]?.trim();
 // Durante a troca da chave (docs/36 §25), a antiga em ENVIOS_CHAVE_ANTERIOR,
 // com a versão dela: só decifra, e a volta dos envios passa as contas para a
-// nova. Com a mesma versão das duas, não se sabe qual abre cada conta: não
-// arranca.
-const textoChaveEnviosAnterior = process.env["ENVIOS_CHAVE_ANTERIOR"]?.trim();
-const chaveEnvios =
-  textoChaveEnvios === undefined || textoChaveEnvios === ""
-    ? undefined
-    : chavePagamentos(
-        textoChaveEnvios,
-        process.env["ENVIOS_CHAVE_VERSAO"]?.trim() || "1",
-      );
-const versaoEnviosAnterior =
-  process.env["ENVIOS_CHAVE_ANTERIOR_VERSAO"]?.trim() ?? "";
-if (
-  textoChaveEnviosAnterior !== undefined &&
-  textoChaveEnviosAnterior !== "" &&
-  versaoEnviosAnterior === ""
-) {
-  throw new Error("ENVIOS_CHAVE_ANTERIOR sem ENVIOS_CHAVE_ANTERIOR_VERSAO");
-}
-const chaveEnviosAnterior =
-  textoChaveEnviosAnterior === undefined || textoChaveEnviosAnterior === ""
-    ? undefined
-    : chavePagamentos(textoChaveEnviosAnterior, versaoEnviosAnterior);
-if (chaveEnviosAnterior !== undefined) {
-  if (chaveEnvios === undefined) {
-    throw new Error("ENVIOS_CHAVE_ANTERIOR sem ENVIOS_CHAVE");
-  }
-  if (chaveEnviosAnterior.versao === chaveEnvios.versao) {
-    throw new Error(
-      "ENVIOS_CHAVE_ANTERIOR_VERSAO tem de ser diferente da ENVIOS_CHAVE_VERSAO",
-    );
-  }
-}
+// nova. Mal postas, a API não arranca (`lerChavesEnvios`).
 const envios: ConfigEnvios = {
   adaptadores: { sendcloud: adaptadorSendcloud() },
-  ...(chaveEnvios === undefined ? {} : { chave: chaveEnvios }),
-  ...(chaveEnviosAnterior === undefined
-    ? {}
-    : { chaveAnterior: chaveEnviosAnterior }),
+  ...lerChavesEnvios(process.env),
 };
 
 const app = criarApp(

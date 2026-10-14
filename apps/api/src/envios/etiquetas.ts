@@ -1412,10 +1412,17 @@ export async function correrTrabalho(
     const x = await recifrarContas(db, cfg);
     r.contasRecifradas = x.recifradas;
     r.contasPorRecifrar = x.faltam;
+    // Uma cifra que a anterior não abre é para uma pessoa; um erro da base
+    // conta como os outros (revisão do #466, P3-1).
+    if (x.ilegiveis > 0) {
+      r.falhas += x.ilegiveis;
+      r.erros["shipping.key_rotation"] =
+        (r.erros["shipping.key_rotation"] ?? 0) + x.ilegiveis;
+    }
     if (x.falhas > 0) {
       r.falhas += x.falhas;
-      r.erros["shipping.key_rotation"] =
-        (r.erros["shipping.key_rotation"] ?? 0) + x.falhas;
+      r.erros["envios_chave.base"] =
+        (r.erros["envios_chave.base"] ?? 0) + x.falhas;
     }
   } catch (erro) {
     falhou(erro);

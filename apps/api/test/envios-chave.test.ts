@@ -6,11 +6,13 @@ import {
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
 import type { ConfigEnvios } from "../src/envios/adaptador.js";
-import { recifrarContas } from "../src/envios/chave.js";
+import { lerChavesEnvios, recifrarContas } from "../src/envios/chave.js";
 import { receberAviso } from "../src/envios/etiquetas.js";
 import {
+  credenciaisDe,
   criarConta,
   definirCredenciais,
+  mudarConta,
   testarConta,
 } from "../src/envios/repositorio.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
@@ -198,11 +200,207 @@ describe.skipIf(URL_BASE === undefined)("Envios: trocar a chave", () => {
       { ...so2, chaveAnterior: estragada },
       1000,
     );
-    expect(r.falhas).toBeGreaterThanOrEqual(1);
+    expect(r.ilegiveis).toBeGreaterThanOrEqual(1);
+    expect(r.falhas).toBe(0);
+    expect(r.faltam).toBeGreaterThanOrEqual(1);
     expect(await conta(c, id)).toMatchObject({
       estado: "pronta",
       chave_versao: "1",
     });
     await recifrarTudo(troca);
+  });
+
+  // Revisão do #466 (P1-1): com mais contas do que o limite, as que ficam
+  // para a próxima volta contam nas que faltam; só com zero se tira a anterior.
+  it("as contas além do limite contam nas que faltam até passarem todas", async () => {
+    await recifrarTudo(troca);
+    await contaPronta(so1);
+    await contaPronta(so1);
+    await contaPronta(so1);
+    const r = await recifrarContas(base.api, troca, 2);
+    expect(r.recifradas).toBe(2);
+    expect(r.faltam).toBe(1);
+    const s2 = await recifrarContas(base.api, troca, 2);
+    expect(s2.recifradas).toBe(1);
+    expect(s2.faltam).toBe(0);
+  });
+
+  // P1-3: a conta arquivada ainda segue expedições: passa também, e só a
+  // cifra e a versão mudam; o resto continua imutável.
+  it("a conta arquivada também passa para a nova, e continua imutável no resto", async () => {
+    const { c, id } = await contaPronta(so1);
+    await comComerciante(base.api, c, async (trx) => {
+      const { versao } = await trx
+        .selectFrom("conta_transportadora")
+        .select("versao")
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      await mudarConta(trx, c, id, versao, { arquivar: true });
+    });
+    await recifrarTudo(troca);
+    expect(await conta(c, id)).toMatchObject({
+      estado: "arquivada",
+      chave_versao: "2",
+    });
+    expect(
+      credenciaisDe(
+        await comComerciante(base.api, c, (trx) =>
+          trx
+            .selectFrom("conta_transportadora")
+            .select(["id", "credenciais_cifra", "chave_versao"])
+            .where("id", "=", id)
+            .executeTakeFirstOrThrow(),
+        ),
+        { actual: v2 },
+      ),
+    ).toEqual({ chave: CHAVE_BOA });
+    await expect(
+      comComerciante(base.api, c, (trx) =>
+        trx
+          .updateTable("conta_transportadora")
+          .set({ nome: "Outro" })
+          .where("id", "=", id)
+          .execute(),
+      ),
+    ).rejects.toThrow(/arquivada não muda/);
+  });
+
+  // P1-2: credenciais novas sem segredo, durante a troca: o segredo
+  // guardado passa para a chave nova com elas, e os avisos continuam válidos.
+  it("credenciais novas sem segredo, durante a troca, levam o segredo para a chave nova", async () => {
+    const { c, id } = await contaPronta(so1);
+    await comComerciante(base.api, c, (trx) =>
+      definirCredenciais(
+        trx,
+        c,
+        id,
+        { credenciais: { chave: CHAVE_BOA } },
+        "pessoa:teste",
+        troca,
+      ),
+    );
+    expect(await conta(c, id)).toMatchObject({ chave_versao: "2" });
+    expect(await avisoValido(c, id, so2)).toBe(true);
+  });
+
+  // P2-3: credenciais novas a meio da volta: a volta espera pela conta e
+  // não as tapa com as antigas.
+  it("credenciais novas a meio da volta sobrevivem", async () => {
+    const { c, id } = await contaPronta(so1);
+    let volta: Promise<unknown> = Promise.resolve();
+    await comComerciante(base.api, c, async (trx) => {
+      await trx
+        .selectFrom("conta_transportadora")
+        .select("id")
+        .where("id", "=", id)
+        .forUpdate()
+        .execute();
+      volta = recifrarContas(base.api, troca, 1000);
+      await new Promise((ok) => setTimeout(ok, 300));
+      await definirCredenciais(
+        trx,
+        c,
+        id,
+        { credenciais: { chave: "nova" } },
+        "pessoa:teste",
+        troca,
+      );
+    });
+    await volta;
+    const linha = await comComerciante(base.api, c, (trx) =>
+      trx
+        .selectFrom("conta_transportadora")
+        .select(["id", "credenciais_cifra", "chave_versao"])
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow(),
+    );
+    expect(linha.chave_versao).toBe("2");
+    expect(credenciaisDe(linha, { actual: v2 })).toEqual({ chave: "nova" });
+  });
+
+  // P2-2: outra versão com credenciais novas (muda `credenciais_em`) não é
+  // a troca da chave: a conta volta a rascunho.
+  it("credenciais novas noutra versão também devolvem a conta a rascunho", async () => {
+    const { c, id } = await contaPronta(so2);
+    await comComerciante(base.api, c, (trx) =>
+      trx
+        .updateTable("conta_transportadora")
+        .set({
+          credenciais_cifra: Buffer.from("outra"),
+          chave_versao: "9",
+          credenciais_em: new Date(),
+        })
+        .where("id", "=", id)
+        .execute(),
+    );
+    expect(await conta(c, id)).toMatchObject({ estado: "rascunho" });
+  });
+
+  // P2-5: a função entre comerciantes devolve o comerciante como estava.
+  it("a lista entre comerciantes deixa o comerciante da ligação como estava", async () => {
+    const { c } = await contaPronta(so1);
+    const depois = await comComerciante(base.api, c, async (trx) => {
+      await sql`select * from envios_contas_por_recifrar('2', null, 1000)`.execute(
+        trx,
+      );
+      return (
+        await sql<{
+          v: string;
+        }>`select current_setting('eurolify.comerciante', true) as v`.execute(
+          trx,
+        )
+      ).rows[0]?.v;
+    });
+    expect(depois).toBe(c);
+    await recifrarTudo(troca);
+  });
+});
+
+describe("Envios: ler as chaves das variáveis (revisão do #466, P2-4)", () => {
+  const k = () => randomBytes(32).toString("base64");
+
+  it("sem nada, sem chaves; só a actual, versão 1 por omissão", () => {
+    expect(lerChavesEnvios({})).toEqual({});
+    expect(lerChavesEnvios({ ENVIOS_CHAVE: k() }).chave?.versao).toBe("1");
+  });
+
+  it("a troca: a anterior com a versão dela", () => {
+    const r = lerChavesEnvios({
+      ENVIOS_CHAVE: k(),
+      ENVIOS_CHAVE_VERSAO: "2",
+      ENVIOS_CHAVE_ANTERIOR: k(),
+      ENVIOS_CHAVE_ANTERIOR_VERSAO: "1",
+    });
+    expect([r.chave?.versao, r.chaveAnterior?.versao]).toEqual(["2", "1"]);
+  });
+
+  it("mal postas, não arranca, e diz qual", () => {
+    expect(() =>
+      lerChavesEnvios({
+        ENVIOS_CHAVE_ANTERIOR: k(),
+        ENVIOS_CHAVE_ANTERIOR_VERSAO: "1",
+      }),
+    ).toThrow(/sem ENVIOS_CHAVE$/);
+    expect(() =>
+      lerChavesEnvios({ ENVIOS_CHAVE: k(), ENVIOS_CHAVE_ANTERIOR: k() }),
+    ).toThrow(/sem ENVIOS_CHAVE_ANTERIOR_VERSAO/);
+    expect(() =>
+      lerChavesEnvios({ ENVIOS_CHAVE: k(), ENVIOS_CHAVE_ANTERIOR_VERSAO: "1" }),
+    ).toThrow(/sem ENVIOS_CHAVE_ANTERIOR$/);
+    expect(() =>
+      lerChavesEnvios({
+        ENVIOS_CHAVE: k(),
+        ENVIOS_CHAVE_ANTERIOR: k(),
+        ENVIOS_CHAVE_ANTERIOR_VERSAO: "1",
+      }),
+    ).toThrow(/tem de ser diferente/);
+    expect(() =>
+      lerChavesEnvios({
+        ENVIOS_CHAVE: k(),
+        ENVIOS_CHAVE_VERSAO: "2",
+        ENVIOS_CHAVE_ANTERIOR: "curta",
+        ENVIOS_CHAVE_ANTERIOR_VERSAO: "1",
+      }),
+    ).toThrow(/^ENVIOS_CHAVE_ANTERIOR: tem de ter 32 bytes/);
   });
 });
