@@ -1425,8 +1425,9 @@ a 3/11 o mês passou e o Eurolify não o sabe.
 Os textos novos (o nome da fila e os dois motivos no Hub, o nome da fila no
 e-mail, em pt, es e en) foram aprovados pelo Diogo a 13/10/2026 (*«A»*).
 
-Não feito nesta parte: o segundo aviso (T5, §15.15); a exportação do titular
-ainda não junta os pedidos recebidos.
+Não feito nesta parte: o segundo aviso (T5, §15.15, feito a 14/10/2026). A
+exportação do titular junta os pedidos recebidos (`pedidos_recebidos`) desde
+14/10/2026, como já juntava os executados (RGPD, art. 15.º).
 
 **Fica de fora:** o pedido pela Loja (o login dos clientes, Q5 da CX); o
 envio da resposta ao titular (o comerciante responde pelo seu canal); a
