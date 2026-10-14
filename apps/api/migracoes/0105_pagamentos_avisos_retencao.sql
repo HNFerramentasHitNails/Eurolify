@@ -95,14 +95,19 @@ CREATE OR REPLACE FUNCTION aviso_pagamento_antes_de_gravar() RETURNS trigger
 BEGIN
   -- O prazo dos avisos sem pagamento (0105): só dentro da função da limpeza,
   -- só o corpo, só o que a regra deixa e só para o resumo dele.
+  -- Cada recusa diz qual das condições falhou (revisão do #467, P3-4).
   IF TG_OP = 'UPDATE' AND public.pagamentos_avisos_resumo_em_curso() THEN
-    IF (to_jsonb(NEW) - 'corpo') = (to_jsonb(OLD) - 'corpo')
-       AND public.aviso_pagamento_resumivel(OLD.comerciante_id, OLD.id, OLD.pagamento_id,
-             OLD.recebido_em, OLD.corpo)
-       AND NEW.corpo = public.aviso_pagamento_resumo(OLD.comerciante_id, OLD.corpo) THEN
-      RETURN NEW;
+    IF (to_jsonb(NEW) - 'corpo') IS DISTINCT FROM (to_jsonb(OLD) - 'corpo') THEN
+      RAISE EXCEPTION 'payments.immutable: o prazo dos avisos só muda o corpo';
     END IF;
-    RAISE EXCEPTION 'payments.immutable: só o corpo de um aviso sem pagamento, 90 dias depois, passa a resumo';
+    IF NOT public.aviso_pagamento_resumivel(OLD.comerciante_id, OLD.id, OLD.pagamento_id,
+             OLD.recebido_em, OLD.corpo) THEN
+      RAISE EXCEPTION 'payments.immutable: este aviso não passa a resumo (com pagamento, dentro dos 90 dias, já em resumo ou com uma diferença aberta)';
+    END IF;
+    IF NEW.corpo IS DISTINCT FROM public.aviso_pagamento_resumo(OLD.comerciante_id, OLD.corpo) THEN
+      RAISE EXCEPTION 'payments.immutable: o corpo só passa ao resumo dele';
+    END IF;
+    RETURN NEW;
   END IF;
   -- O apagamento do titular (0072): só as colunas com dados pessoais, só
   -- dentro da função do dono.
@@ -146,13 +151,22 @@ BEGIN
   FOR c IN SELECT x FROM public.pagamentos_avisos_comerciantes() x LOOP
     EXIT WHEN total >= 50000;
     PERFORM pg_catalog.set_config('eurolify.comerciante', c::text, true);
+    -- A data à vista do planeador, para o índice (revisão do #467, P2-2).
+    -- Os avisos que outra transacção tem presos (um reenvio a ser
+    -- aplicado) ficam para amanhã, e a regra repete-se na linha que se
+    -- escreve: um aviso que entretanto ganhou pagamento ou diferença não
+    -- muda nem faz falhar a corrida (revisão do #467, P2-1).
     UPDATE public.aviso_pagamento a
     SET corpo = public.aviso_pagamento_resumo(c, a.corpo)
     WHERE a.id IN (
-      SELECT x.id FROM public.aviso_pagamento x
-      WHERE x.comerciante_id = c AND x.pagamento_id IS NULL
-        AND public.aviso_pagamento_resumivel(c, x.id, x.pagamento_id, x.recebido_em, x.corpo)
-      LIMIT 50000 - total);
+        SELECT x.id FROM public.aviso_pagamento x
+        WHERE x.comerciante_id = c AND x.pagamento_id IS NULL
+          AND x.recebido_em < now() - interval '90 days'
+          AND public.aviso_pagamento_resumivel(c, x.id, x.pagamento_id, x.recebido_em, x.corpo)
+        LIMIT 50000 - total
+        FOR UPDATE SKIP LOCKED)
+      AND a.pagamento_id IS NULL
+      AND public.aviso_pagamento_resumivel(c, a.id, a.pagamento_id, a.recebido_em, a.corpo);
     GET DIAGNOSTICS n = ROW_COUNT;
     total := total + n;
   END LOOP;
@@ -176,6 +190,7 @@ BEGIN
     PERFORM pg_catalog.set_config('eurolify.comerciante', c::text, true);
     n := n + (SELECT count(*) FROM public.aviso_pagamento a
       WHERE a.comerciante_id = c AND a.pagamento_id IS NULL
+        AND a.recebido_em < now() - interval '91 days'
         AND public.aviso_pagamento_resumivel(c, a.id, a.pagamento_id, a.recebido_em, a.corpo,
                                              interval '1 day'));
   END LOOP;

@@ -481,9 +481,8 @@ chave do rasto (0054), e a marca de que veio do prazo:
 
 ### 16.3 Como corre
 
-- **Uma função da base** (migração nova; a 0103 é dos envios e a 0104 dos
-  clientes, por isso a próxima livre quando entrar),
-  `pagamentos_avisos_limpar()`, `SECURITY DEFINER`, comerciante a comerciante
+- **Uma função da base** (migração 0105; a 0103 é dos envios e a 0104 dos
+  clientes), `pagamentos_avisos_resumir()`, `SECURITY DEFINER`, comerciante a comerciante
   (`set_config('eurolify.comerciante', c, true)`, como a
   `faturacao_autorizacoes_apagar`, 0100), até **50 000 avisos por execução**,
   devolve quantos passaram a resumo. Corre na limpeza diária das 05:00 UTC
@@ -509,9 +508,13 @@ chave do rasto (0054), e a marca de que veio do prazo:
 - `assinatura_invalida` (corpo vazio) e um corpo já em resumo não mudam;
 - o resumo é igual ao da 0102 para o mesmo corpo (a mesma chave do rasto);
 - a API e o dono **sem** a marca continuam recusados ao mudar o corpo;
-- um comerciante não toca nos avisos de outro (o RLS forçado);
+- um comerciante não toca nos avisos de outro (o RLS forçado): a diferença
+  aberta de um segura só o aviso dele (a chave estrangeira da 0044 já não
+  deixa uma diferença apontar para o aviso de outro comerciante);
 - um reenvio do mesmo evento depois do resumo continua a contar como repetido;
-- o limite por execução e a função dos atrasos;
+- a função dos atrasos; um aviso preso por outra transacção fica para a
+  corrida seguinte, sem a fazer falhar; **o limite de 50 000 por execução
+  fica por testar** (pedia 50 000 avisos num teste);
 - na VPS: a limpeza chama a função e a verificação avisa os atrasos
   (`infra/vps/testes/verificacao.sh`).
 
@@ -543,6 +546,10 @@ chave do rasto (0054), e a marca de que veio do prazo:
   uma pessoa a resolver, e enquanto estiver aberta o aviso não se toca.
 - **O texto do `erro`** (§16.2): a confirmar no código do adaptador; se
   copiar valores do corpo, passa a resumo também.
+- **Um aviso com `erro` resumido e reenviado depois** (o prestador ainda a
+  reenviar ao fim de 90 dias) aplica-se pelo corpo do reenvio, mas a linha
+  fica com o resumo, sem o corpo original. Risco aceite: não verifiquei até
+  quando a EuPago reenvia (§16.2); revisão do #467, P3-2.
 - **As cópias de segurança** guardam o corpo inteiro até expirarem (14 dias,
   `docs/17`); diz-se na política de privacidade (skill `eu-gdpr-privacy`).
 - **A resolução da diferença** (`diferenca_pagamento.resolucao`), num aviso
@@ -572,6 +579,32 @@ chave do rasto (0054), e a marca de que veio do prazo:
 | `pagamentos_avisos_resumir()` (até 50 000 por corrida) e `pagamentos_avisos_em_atraso()`, só para o `eurolify_limpeza` | migração 0105; `infra/vps/preparar.sh` |
 | a limpeza das 05:00 chama-a e regista a contagem; a verificação das 07:00 avisa os atrasos | `eurolify-limpeza`, `eurolify-verificacao`; `infra/vps/testes/verificacao.sh` (caso 8) |
 | testes: o prazo dos dois lados, os três resultados sem pagamento, o corpo vazio, o corpo que não é JSON, o já em resumo pela 0102, a diferença aberta e a resolvida, outro comerciante, as recusas sem a marca e com a marca, o resumo igual ao da 0102, o reenvio repetido e o erro ainda tratável | `apps/api/test/pagamentos-avisos-retencao.test.ts` |
+
+**Duas formas de resumo:** o apagamento do titular (0072, 0102) grava
+`{"resumo", "pseudonimizado"}` e o prazo grava também `"motivo": "prazo"`.
+O filtro da 0072 e da 0102 (`NOT LIKE '{"pseudonimizado"%'`) não reconhece
+nenhuma das duas (o jsonb põe `resumo` antes de `pseudonimizado`), por isso
+o apagamento volta a resumir um corpo já resumido; a sessão dos clientes
+corrige-o na 0104 (revisão do #467, P3-3). A 0105 reconhece as duas pelo
+conteúdo (`aviso_pagamento_em_resumo`).
+
+**A revisão do agente** (Sonnet 5.5; sem P0 nem P1):
+- **P2-1** (um reenvio aplicado durante a limpeza fazia-a falhar inteira):
+  a limpeza salta as linhas presas (`FOR UPDATE SKIP LOCKED`) e repete a
+  regra na linha que escreve; testado;
+- **P2-2** (o índice não servia): a data passou para o `WHERE`, à vista do
+  planeador;
+- **P2-3** (testes prometidos no §16.4): o isolamento acrescentado; o limite
+  de 50 000 fica por testar e diz-se no §16.4;
+- **P2-4** (o gatilho com pagamento só se provava pela função): um aviso
+  com `pagamento_id` recusado pelo gatilho, com a marca; e as recusas com a
+  marca passaram a correr com o papel do dono das tabelas (antes, o teste
+  ligava com outro papel e a marca não contava: as recusas vinham do gatilho
+  da 0044), mais um caso que passa. O reenvio continua testado em SQL, sem
+  `receberAviso`;
+- **P3-1** (o nome da função no §16.3), **P3-2** e **P3-3** (§16.5 e acima),
+  **P3-4** (cada recusa do gatilho diz qual condição falhou): corrigidos;
+- **P3-5** (os testes dependem da ordem): fica, como o teste da 0100.
 
 **O texto do `erro`** (§16.2): as mensagens do adaptador da EuPago ao ler
 um aviso são textos fixos, sem valores do corpo (`eupago.ts`, `lerAviso`,

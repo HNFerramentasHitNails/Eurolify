@@ -168,6 +168,27 @@ describe.skipIf(URL_BASE === undefined)(
       // Para o teste das recusas.
       await aviso("recusas_120", a, contaA, 120, "sem_pagamento");
       await aviso("recusas_89", a, contaA, 89, "sem_pagamento");
+      // Com pagamento, 120 dias: fica (segue a encomenda). O pagamento não
+      // existe: a linha entra sem as chaves estrangeiras (modo replica), só
+      // para o gatilho ver um `pagamento_id` (revisão do #467, P2-4).
+      const { rows } = await dono.transaction().execute(async (trx) => {
+        await sql`set local session_replication_role = replica`.execute(trx);
+        await sql`select set_config('eurolify.comerciante', ${a}, true)`.execute(
+          trx,
+        );
+        return sql<{ id: string }>`
+          insert into aviso_pagamento
+            (comerciante_id, conta_id, id_evento, corpo, assinatura_valida, resultado,
+             pagamento_id, recebido_em, processado_em)
+          values (${a}::uuid, ${contaA}::uuid, 'ev:com_pagamento_120', ${TELEFONE}, true,
+            'aplicado', gen_random_uuid(), now() - interval '120 days', now())
+          returning id`.execute(trx);
+      });
+      ids["com_pagamento_120"] = rows[0]?.id ?? "";
+      comercianteDe["com_pagamento_120"] = a;
+      // No outro comerciante, uma diferença aberta segura o aviso dele.
+      await aviso("outro_segurado_200", b, contaB, 200, "sem_pagamento");
+      await diferenca("outro_segurado_200");
       diferencaAberta = await diferenca("com_aberta_120");
       diferencaResolvida = await diferenca("com_resolvida_120");
       await comoDono(a, (trx) =>
@@ -261,12 +282,23 @@ describe.skipIf(URL_BASE === undefined)(
     });
 
     it("com a marca, só o resumo certo, só no corpo e só no que a regra deixa", async () => {
+      // A marca só vale para o dono das tabelas (clientes_dono_a_escrever),
+      // que nos testes não é quem liga: escreve-se com o papel dele, como a
+      // função da limpeza escreve.
       const comMarca = (fn: (trx: Kysely<unknown>) => Promise<unknown>) =>
         comoDono(a, async (trx) => {
+          const { rows } = await sql<{ dono: string }>`
+            select pg_get_userbyid(relowner) as dono from pg_class
+            where oid = 'public.cliente'::regclass`.execute(trx);
+          await sql`set local role ${sql.id(rows[0]?.dono ?? "")}`.execute(trx);
           await sql`insert into aviso_resumo_em_curso values (pg_current_xact_id())`.execute(
             trx,
           );
-          return fn(trx);
+          const r = await fn(trx);
+          // Como a função: a marca sai no fim.
+          await sql`delete from aviso_resumo_em_curso
+            where transaccao = pg_current_xact_id()`.execute(trx);
+          return r;
         });
       // Outro texto que não o resumo.
       expect(
@@ -276,7 +308,7 @@ describe.skipIf(URL_BASE === undefined)(
               where id = ${ids["recusas_120"]}::uuid`.execute(trx),
           ),
         ),
-      ).toMatch(/payments\.immutable/);
+      ).toMatch(/payments\.immutable: o corpo só passa ao resumo dele/);
       // O resumo certo, mas também outra coluna.
       expect(
         await mensagemDoErro(
@@ -286,7 +318,7 @@ describe.skipIf(URL_BASE === undefined)(
               where id = ${ids["recusas_120"]}::uuid`.execute(trx),
           ),
         ),
-      ).toMatch(/payments\.immutable/);
+      ).toMatch(/payments\.immutable: o prazo dos avisos só muda o corpo/);
       // O resumo certo, dentro dos 90 dias.
       expect(
         await mensagemDoErro(
@@ -295,7 +327,7 @@ describe.skipIf(URL_BASE === undefined)(
               where id = ${ids["recusas_89"]}::uuid`.execute(trx),
           ),
         ),
-      ).toMatch(/payments\.immutable/);
+      ).toMatch(/payments\.immutable: este aviso não passa a resumo/);
       // O resumo certo, com uma diferença aberta.
       expect(
         await mensagemDoErro(
@@ -304,7 +336,14 @@ describe.skipIf(URL_BASE === undefined)(
               where id = ${ids["com_aberta_120"]}::uuid`.execute(trx),
           ),
         ),
-      ).toMatch(/payments\.immutable/);
+      ).toMatch(/payments\.immutable: este aviso não passa a resumo/);
+      // E o que a regra deixa passa (prova de que as recusas não são todas).
+      await aviso("manual_120", a, contaA, 120, "sem_pagamento");
+      await comMarca((trx) =>
+        sql`update aviso_pagamento set corpo = aviso_pagamento_resumo(comerciante_id, corpo)
+          where id = ${ids["manual_120"]}::uuid`.execute(trx),
+      );
+      expect(await corpo("manual_120")).not.toContain("912345678");
       // A API com a marca posta não a vê: a tabela é só do dono.
       expect(
         await mensagemDoErro(
@@ -315,16 +354,16 @@ describe.skipIf(URL_BASE === undefined)(
           ),
         ),
       ).toMatch(/permission denied/);
-      // Com pagamento, a regra não deixa (segue a encomenda).
-      const comPagamento = await comoDono(a, (trx) =>
-        sql<{
-          r: boolean;
-        }>`select aviso_pagamento_resumivel(${a}::uuid, ${ids["recusas_120"]}::uuid,
-            gen_random_uuid(), now() - interval '200 days', ${TELEFONE}) as r`.execute(
-          trx,
+      // Com pagamento, o gatilho recusa (segue a encomenda).
+      expect(
+        await mensagemDoErro(
+          comMarca((trx) =>
+            sql`update aviso_pagamento set corpo = aviso_pagamento_resumo(comerciante_id, corpo)
+              where id = ${ids["com_pagamento_120"]}::uuid`.execute(trx),
+          ),
         ),
-      );
-      expect(comPagamento.rows[0]?.r).toBe(false);
+      ).toMatch(/payments\.immutable: este aviso não passa a resumo/);
+      expect(await corpo("com_pagamento_120")).toBe(TELEFONE);
       expect(await corpo("recusas_120")).toBe(TELEFONE);
       expect(await corpo("recusas_89")).toBe(TELEFONE);
     });
@@ -403,6 +442,8 @@ describe.skipIf(URL_BASE === undefined)(
       expect(await corpo("sem_pagamento_89")).toBe(TELEFONE);
       expect(await corpo("recusas_89")).toBe(TELEFONE);
       expect(await corpo("com_aberta_120")).toBe(TELEFONE);
+      expect(await corpo("com_pagamento_120")).toBe(TELEFONE);
+      expect(await corpo("outro_segurado_200")).toBe(TELEFONE);
       expect(await corpo("invalido_120")).toBe("");
       expect(await corpo("ja_0102_100")).toBe(
         '{"resumo": "ab12cd34", "pseudonimizado": true}',
@@ -441,6 +482,35 @@ describe.skipIf(URL_BASE === undefined)(
           where id = ${ids["erro_95"]}::uuid`.execute(trx),
       );
       expect(await corpo("erro_95")).not.toContain("912345678");
+    });
+
+    it("um aviso preso por outra transacção fica para a corrida seguinte, sem fazer falhar a limpeza", async () => {
+      await aviso("preso_120", a, contaA, 120, "erro");
+      // Outra transacção (um reenvio a ser aplicado) segura a linha.
+      let soltar = () => {};
+      const solto = new Promise<void>((r) => {
+        soltar = r;
+      });
+      let preso = () => {};
+      const estaPreso = new Promise<void>((r) => {
+        preso = r;
+      });
+      const outra = comoDono(a, async (trx) => {
+        await sql`select id from aviso_pagamento where id = ${ids["preso_120"]}::uuid
+          for update`.execute(trx);
+        preso();
+        await solto;
+      });
+      await estaPreso;
+      try {
+        expect(await resumir()).toBe(0);
+      } finally {
+        soltar();
+        await outra;
+      }
+      expect(await corpo("preso_120")).toBe(TELEFONE);
+      expect(await resumir()).toBe(1);
+      expect(await corpo("preso_120")).not.toContain("912345678");
     });
 
     it("a diferença resolvida depois do prazo deixa o aviso passar na limpeza seguinte", async () => {
