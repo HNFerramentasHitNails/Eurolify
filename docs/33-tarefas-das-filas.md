@@ -141,8 +141,19 @@ caso quando foi decidido») e deixa de aparecer na lista.
   nem NIF, nem e-mail): esses vêem-se no ecrã da fila, com as permissões dela.
   O texto do motivo é livre: o Hub diz para não escrever dados de clientes
   nele. Se mesmo assim os tiver, é um dos «textos livres» do grupo C
-  do `docs/23` §15.1 (decisão DU): **a ligar ao apagamento** quando o caso
-  for de um titular que o peça — por verificar no código da parte 1.
+  do `docs/23` §15.1 (decisão DU): **ligado ao apagamento a 14/10/2026
+  (migração 0102)**. Quando o titular pede o apagamento,
+  `cliente_pseudonimizar()` passa o `atribuicao_rasto.motivo` dos casos dele a
+  «(pseudonimizado)» (`tarefas_limpar_motivos()`; os casos vêm de
+  `tarefas_casos_do_titular()`: o duplicado pelas duas fichas do par, o pedido
+  recebido pela ficha, e pela encomenda o pagamento, o documento fiscal, o
+  prazo do reembolso, a livre resolução, o problema e o reembolso; a fila das
+  ligações à faturação não tem titular). Só muda a coluna `motivo`: o resto da
+  linha fica. Uma mudança de prazo feita depois do pedido, numa encomenda por
+  acabar, limpa-se quando ela acabar (`titular_limpar_encomenda()`). O gatilho
+  do rasto passou a deixar essa única excepção, com a marca da
+  pseudonimização; o resto continua recusado. O resultado do apagamento
+  traz `motivos_de_prazo_limpos`.
 - **Exportação do titular:** a atribuição não tem dados do cliente; o caso
   exporta-se pelo domínio dele. **Proposta:** não entra na exportação.
 - **Apagamento do titular:** pseudonimizar a ficha não muda a atribuição.
@@ -287,7 +298,7 @@ pedido):
     limpeza lê as mesmas funções que a lista. Largar em silêncio seria pior
     do que falhar com o erro à vista;
   - **P2-6** (o motivo livre no apagamento do titular): o código dos pedidos
-    do titular (decisão DU) ainda não existe. Liga-se lá; até lá, o Hub diz
+    do titular (decisão DU) ainda não existia. **Ligado a 14/10/2026 (migração 0102, §6).** O Hub continua a dizer
     para não escrever dados de clientes no motivo;
   - **P3-1** (gatilhos sem ALWAYS): regra da 0053;
   - **P3-4** (quem mudou, visto por quem só lê a fila): como no desenho;
