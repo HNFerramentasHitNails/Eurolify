@@ -185,6 +185,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0097_faturacao_recusas_da_conta",
         "0100_faturacao_autorizacoes_limpeza",
         "0101_envios_volumes",
+        "0102_tarefas_motivo_no_apagamento",
       ]);
     });
 

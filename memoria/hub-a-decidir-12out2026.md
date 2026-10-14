@@ -38,6 +38,6 @@
 - Safari e um telemóvel real.
 - O motivo livre de uma mudança de prazo vê-se no histórico por todos os
   papéis que lêem a fila. A ligação dele ao apagamento do titular (DU)
-  continua por fazer (`docs/33` §6).
+  fez-se a 14/10/2026 (migração 0102, `docs/33` §6).
 - Os testes do componente sem servidor para o conflito, «Ver mais» e
   atribuir a outra pessoa.

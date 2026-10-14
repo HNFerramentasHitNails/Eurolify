@@ -110,7 +110,8 @@ seus gatilhos (§4.1).
 | `criada_em`, `actualizada_em` | — | — |
 
 Cada mudança (atribuir, tirar, mudar o prazo) grava-se em
-**`atribuicao_rasto`**, que só se acrescenta, com o contexto da transacção
+**`atribuicao_rasto`**, que só se acrescenta (excepção: o motivo passa a
+«(pseudonimizado)» no apagamento do titular, §6), com o contexto da transacção
 (`docs/28` §3.1: quem, canal, pedido, motivo, quem autorizou, IA).
 
 **Não há estado guardado.** «Aberta», «vencida» e «sem responsável»
@@ -141,11 +142,29 @@ caso quando foi decidido») e deixa de aparecer na lista.
   nem NIF, nem e-mail): esses vêem-se no ecrã da fila, com as permissões dela.
   O texto do motivo é livre: o Hub diz para não escrever dados de clientes
   nele. Se mesmo assim os tiver, é um dos «textos livres» do grupo C
-  do `docs/23` §15.1 (decisão DU): **a ligar ao apagamento** quando o caso
-  for de um titular que o peça — por verificar no código da parte 1.
+  do `docs/23` §15.1 (decisão DU): **ligado ao apagamento a 14/10/2026
+  (migração 0102)**. Quando o titular pede o apagamento,
+  `cliente_pseudonimizar()` passa o `atribuicao_rasto.motivo` dos casos dele a
+  «(pseudonimizado)» (`tarefas_limpar_motivos()`; os casos vêm de
+  `tarefas_casos_do_titular()`: o duplicado pelas duas fichas do par, o pedido
+  recebido pela ficha, e pela encomenda o pagamento, o documento fiscal, o
+  prazo do reembolso, a livre resolução, o problema e o reembolso; a fila das
+  ligações à faturação não tem titular). Só muda a coluna `motivo`: o resto da
+  linha fica. Uma mudança de prazo feita depois do pedido, numa encomenda por
+  acabar, limpa-se quando ela acabar (`titular_limpar_encomenda()`). O gatilho
+  do rasto passou a deixar essa única excepção, com a marca da
+  pseudonimização; o resto continua recusado. O resultado do apagamento
+  traz `motivos_de_prazo_limpos`.
 - **Exportação do titular:** a atribuição não tem dados do cliente; o caso
   exporta-se pelo domínio dele. **Proposta:** não entra na exportação.
-- **Apagamento do titular:** pseudonimizar a ficha não muda a atribuição.
+- **Apagamento do titular:** pseudonimizar a ficha não muda a atribuição;
+  só o motivo livre do rasto passa a marcador (ver acima). O que fica por
+  limpar: uma mudança de prazo escrita **depois** do apagamento num caso que
+  já não passa pela limpeza — um caso novo numa encomenda já limpa, o caso
+  `pedido_titular` do próprio pedido até se fechar, ou uma escrita que entre
+  ao mesmo tempo que o apagamento. O Hub diz para não escrever dados de
+  clientes no motivo; uma encomenda sem ficha (`cliente_id` vazio) não tem
+  titular e não se limpa (nunca se decide pelo nome nem pelo e-mail).
 - **Pessoas da equipa:** quem sai da equipa fica no histórico das
   atribuições e no rasto, como nos outros rastos (`docs/28`).
 
@@ -255,7 +274,7 @@ aprovação: a peça 21 passa a 2,5–5.
 | a régua das sete filas, com o âmbito que lê e o que decide (o espelho em TS conferido por um teste) | `tarefas_filas()`, migração 0066; `src/tarefas/filas.ts` |
 | uma função por domínio com os casos abertos, que filtra também pelo comerciante | `pagamentos_casos_a_decidir()`, `documentos_casos_a_decidir()`, `clientes_casos_a_decidir()`, `posvenda_casos_a_decidir()` |
 | «na fila desde» no documento, no par de duplicados, no reembolso e no problema, posto pelo gatilho do domínio; as linhas antigas usam o rasto ou a data | migração 0066 |
-| a atribuição e o rasto dela (só se acrescenta; o contexto pelo `rasto_completar()`), com o RLS forçado; cada linha do rasto põe o evento | `atribuicao`, `atribuicao_rasto` |
+| a atribuição e o rasto dela (só se acrescenta, salvo o motivo no apagamento do titular, 0102; o contexto pelo `rasto_completar()`), com o RLS forçado; cada linha do rasto põe o evento | `atribuicao`, `atribuicao_rasto` |
 | atribuir, mudar o prazo e marcar o aviso, com a tranca do caso e a versão; quem escreve vem de `eurolify.quem` | `tarefas_atribuir()`, `tarefas_mudar_prazo()`, `tarefas_marcar_vencida()` |
 | quem sai da equipa (pela própria pessoa, pelo dono ou desactivado pelo operador) ou muda de papel larga os casos que já não decide | `membro_tarefas_largar()` |
 | `GET /tasks`, `GET /tasks/{fila}/{caso}`, `POST …/assign`, `POST …/deadline` | `src/tarefas/rotas.ts` |
@@ -287,7 +306,7 @@ pedido):
     limpeza lê as mesmas funções que a lista. Largar em silêncio seria pior
     do que falhar com o erro à vista;
   - **P2-6** (o motivo livre no apagamento do titular): o código dos pedidos
-    do titular (decisão DU) ainda não existe. Liga-se lá; até lá, o Hub diz
+    do titular (decisão DU) ainda não existia. **Ligado a 14/10/2026 (migração 0102, §6).** O Hub continua a dizer
     para não escrever dados de clientes no motivo;
   - **P3-1** (gatilhos sem ALWAYS): regra da 0053;
   - **P3-4** (quem mudou, visto por quem só lê a fila): como no desenho;
