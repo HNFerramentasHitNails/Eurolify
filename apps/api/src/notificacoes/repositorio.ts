@@ -6,6 +6,7 @@ import {
   mensagemDe,
   type DadosDaLigacao,
   type DadosDoEnvio,
+  type DadosDoTitular,
   type DadosDaTarefa,
   type DadosDoAviso,
 } from "./modelos.js";
@@ -204,7 +205,9 @@ async function tomarVez(
       ? ligacaoEspera(trx, n.referencia)
       : n.tipo === "shipment.needs_attention"
         ? envioEspera(trx, n.dados)
-        : devolucaoEspera(trx, n.referencia));
+        : n.tipo === "privacy.deadline_passed"
+          ? pedidoDoTitularEspera(trx, n.referencia)
+          : devolucaoEspera(trx, n.referencia));
   if (espera !== null) {
     await mudar(trx, id, { estado: "cancelada", ultimo_erro: espera });
     res.canceladas += 1;
@@ -229,7 +232,11 @@ async function tomarVez(
   // As faturas retidas contam-se agora, não à hora do erro: a fatura que o
   // deu só fica retida depois (docs/29 §18; revisão do #422, P1-2).
   let dados = n.dados as unknown as
-    DadosDoAviso | DadosDaTarefa | DadosDaLigacao | DadosDoEnvio;
+    | DadosDoAviso
+    | DadosDaTarefa
+    | DadosDaLigacao
+    | DadosDoEnvio
+    | DadosDoTitular;
   if (n.tipo === "invoicing.connection_error") {
     const { rows: r } = await sql<{
       n: number;
@@ -300,6 +307,21 @@ async function envioEspera(
     trx,
   );
   return rows[0]?.motivo ?? null;
+}
+
+/**
+ * Nada, se o pedido do titular continua aberto e com o prazo em vigor
+ * passado (docs/23 §15.15); senão, o código (`pedido_ja_fechado` ou
+ * `prazo_prorrogado`): o e-mail diria o contrário da realidade.
+ */
+async function pedidoDoTitularEspera(
+  trx: Transaction<BaseDados>,
+  pedido: string,
+): Promise<string | null> {
+  const { rows } = await sql<{
+    motivo: string | null;
+  }>`select clientes_aviso_espera(${pedido}::uuid) as motivo`.execute(trx);
+  return rows[0] === undefined ? "pedido_ja_fechado" : rows[0].motivo;
 }
 
 /** Nada, se o caso do aviso ainda espera; senão, o código. */
