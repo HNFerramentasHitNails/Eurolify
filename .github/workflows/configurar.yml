@@ -3,8 +3,10 @@
 # (ADR-0028: a VPS opera-se pelo GitHub), depois de criar ou mudar os cinco
 # segredos SMTP_* do ambiente «ensaio», que só aceita o main.
 #
-# A chave «configurar» só entrega «smtp <base64> run:<n> github:<conta>» ou
-# «teste run:<n> github:<conta>» (o e-mail de teste, §13.1); na VPS, o serviço valida
+# A chave «configurar» só entrega «smtp <base64> run:<n> github:<conta>»,
+# «teste run:<n> github:<conta>» (o e-mail de teste, §13.1) ou
+# «chave-envios trocar|tirar-anterior run:<n> github:<conta>» (a troca da
+# chave dos envios, docs/36 §25.7); na VPS, o serviço valida
 # cada valor, escreve o /etc/eurolify/api-smtp.env (600, root) e recria a API
 # com a imagem que está no ar. Os valores nunca vão para a saída nem para o
 # registo, de um lado nem do outro.
@@ -14,9 +16,9 @@ on:
   workflow_dispatch:
     inputs:
       accao:
-        description: "configurar: leva os cinco SMTP_* para a API; testar: envia um e-mail de teste do remetente para ele próprio, com o que a API já tem (docs/34 §13.1)"
+        description: "configurar: leva os cinco SMTP_* para a API; testar: envia um e-mail de teste do remetente para ele próprio, com o que a API já tem (docs/34 §13.1); chave-envios-trocar: a chave dos envios passa a anterior e nasce uma nova; chave-envios-tirar-anterior: acaba a troca, só com 0 contas por passar (docs/36 §25.7)"
         type: choice
-        options: [configurar, testar]
+        options: [configurar, testar, chave-envios-trocar, chave-envios-tirar-anterior]
         default: configurar
 
 permissions:
@@ -85,6 +87,22 @@ jobs:
           ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
             -i ~/.ssh/chave "eurolify-configurar@${VPS}" \
             "teste run:${GITHUB_RUN_ID} github:${GITHUB_ACTOR_ID}"
+      - name: Trocar a chave dos envios
+        # Sem segredos: a chave nasce e fica na máquina (docs/36 §25.7).
+        if: inputs.accao == 'chave-envios-trocar' || inputs.accao == 'chave-envios-tirar-anterior'
+        env:
+          VPS: ${{ secrets.VPS_ENDERECO }}
+          ACCAO: ${{ inputs.accao }}
+        run: |
+          set -euo pipefail
+          case "$ACCAO" in
+            chave-envios-trocar) pedido=trocar ;;
+            chave-envios-tirar-anterior) pedido=tirar-anterior ;;
+            *) echo "acção desconhecida" >&2; exit 1 ;;
+          esac
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/chave "eurolify-configurar@${VPS}" \
+            "chave-envios ${pedido} run:${GITHUB_RUN_ID} github:${GITHUB_ACTOR_ID}"
       - name: Apagar a chave do executor
         if: always()
         run: rm -f ~/.ssh/chave

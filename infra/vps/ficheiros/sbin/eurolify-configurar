@@ -32,6 +32,13 @@ recusar() {
 pedido=""
 IFS= read -r pedido || true
 
+# A troca da chave dos envios (docs/36 §25.7): «chave-envios trocar» ou
+# «chave-envios tirar-anterior», com a execução e a conta. Não leva segredos:
+# a chave nasce e fica na máquina.
+if [[ "$pedido" =~ ^chave-envios\ (trocar|tirar-anterior)\ (run:[0-9]{1,20})\ github:[0-9]{1,20}$ ]]; then
+  exec /usr/local/sbin/eurolify-chave-envios "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+fi
+
 # O e-mail de teste (docs/34 §13.1; Diogo, 12/10/2026: «A»): uma mensagem do
 # remetente para ele próprio, com o api-smtp.env que está na máquina, num
 # contentor de uma vez com a imagem da API que está no ar. Não muda nada.

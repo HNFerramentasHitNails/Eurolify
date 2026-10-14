@@ -60,7 +60,7 @@ sozinho** o que não conhece (chaves, regras, contentores): avisa.
 | `ovh-dns.ini` | chave da API da OVH só para a zona `eurolify.eu`, no formato do `certbot` (`dns_ovh_endpoint`, `…_application_key`, `…_application_secret`, `…_consumer_key`) |
 | `ovh-dns.expira` | data de troca dessa chave, `AAAA-MM-DD` (a chave actual não expira; troca-se a 2027-03-31) |
 | `api-totp.env` | `TOTP_CHAVE=` (32 bytes em base64) e `TOTP_CHAVE_VERSAO=`: a chave que cifra os segredos TOTP das palavras-passe; **gerada na máquina pelo passo 10, uma vez**. Uma cópia guarda-se **fora da máquina e à parte das cópias da base** (como a `age.key`, também com o Diogo; nunca dentro do dump, senão a cifra deixa de servir). Ver «A chave dos segredos TOTP» abaixo |
-| `api-envios.env` | `ENVIOS_CHAVE=` (32 bytes em base64) e `ENVIOS_CHAVE_VERSAO=`: a chave que cifra as credenciais das contas de transportadora (`docs/36` §17); **gerada na máquina pelo passo 10, uma vez**, e diferente da dos pagamentos. Uma cópia guarda-se **fora da máquina e à parte das cópias da base**, como a do TOTP. Ver «A chave dos envios» abaixo |
+| `api-envios.env` | `ENVIOS_CHAVE=` (32 bytes em base64) e `ENVIOS_CHAVE_VERSAO=` (durante uma troca, também `ENVIOS_CHAVE_ANTERIOR=` e `ENVIOS_CHAVE_ANTERIOR_VERSAO=`, `docs/36` §25.7): a chave que cifra as credenciais das contas de transportadora (`docs/36` §17); **gerada na máquina pelo passo 10, uma vez**, e diferente da dos pagamentos. Uma cópia guarda-se **fora da máquina e à parte das cópias da base**, como a do TOTP. Ver «A chave dos envios» abaixo |
 
 O `preparar.sh` avisa de cada um que falte; as tarefas que precisam dele
 falham e avisam.
@@ -131,9 +131,26 @@ trava, não a única.
   recebe as chaves da transportadora outra vez pelo Hub.
 - **Mudança de máquina (Paris, ADR-0018):** copiar o `api-envios.env` para
   a máquina nova **antes** de correr o `preparar.sh`, ou ele gera outra chave.
-- **Chave exposta:** revoga-se primeiro (`AGENTS.md`): tirar o ficheiro à
-  mão, gerar outro com a `ENVIOS_CHAVE_VERSAO` acima da anterior e voltar a
-  pôr as credenciais de cada conta. Fica registado numa memória.
+- **Chave exposta, ou trocá-la por precaução** (`docs/36` §25.7): revoga-se
+  primeiro (`AGENTS.md`), sem pedir as credenciais outra vez:
+  1. No GitHub, fluxo **configurar**, acção **chave-envios-trocar** (o
+     ambiente `ensaio` pede a aprovação). Na máquina, a chave que estava
+     passa a `ENVIOS_CHAVE_ANTERIOR` e nasce uma nova com a versão seguinte;
+     fica uma cópia do ficheiro de antes ao lado (`api-envios.env.antes-…`)
+     e a API recria-se com as duas. Com uma API que ainda não sabe trocar, é
+     recusado e nada muda.
+  2. A volta dos envios passa as contas para a nova, até 100 de 5 em 5
+     minutos. O `eurolify-medir` diz se a anterior está na API e quantas
+     contas há em cada versão.
+  3. Com todas na nova, a mesma acção **chave-envios-tirar-anterior**: só
+     passa sem contas noutra versão, e a API recria-se só com a nova.
+  4. O Diogo ou o Bruno guardam uma cópia do ficheiro novo fora da máquina
+     (como acima) e apagam as cópias `api-envios.env.antes-…`, que têm a
+     chave exposta. Fica registado numa memória.
+
+  Se a API não se recriar com o ficheiro novo, o script volta ao de antes.
+  Uma conta que a anterior não abre fica no registo da volta como
+  `shipping.key_rotation`: essa recebe as credenciais outra vez pelo Hub.
 
 ## Regras para quem mexer
 

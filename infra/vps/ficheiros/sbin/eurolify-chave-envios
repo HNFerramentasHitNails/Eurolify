@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# A troca da chave dos envios na máquina (docs/36 §25.7; Diogo, 14/10/2026:
+# «sim, aprovo; avança com o código»). Corre como root, chamado pelo
+# eurolify-configurar (fluxo «configurar»), que já validou o pedido.
+#
+#   eurolify-chave-envios trocar <run:n>          a actual passa a anterior e
+#                                                 nasce uma nova; a API
+#                                                 recria-se com as duas
+#   eurolify-chave-envios tirar-anterior <run:n>  só se nenhuma conta ainda
+#                                                 está noutra versão; a API
+#                                                 recria-se só com a actual
+#
+# Antes de mudar o ficheiro, uma cópia dele ao lado (600, root), com a data.
+# Se a API não se recriar com o ficheiro novo, volta o anterior. Nunca
+# imprime nem regista uma chave: só versões e números.
+set -Eeuo pipefail
+umask 077
+export LC_ALL=C
+# shellcheck source=../lib/comum.sh
+source /usr/local/lib/eurolify/comum.sh
+# shellcheck source=../lib/chave-envios.sh
+source /usr/local/lib/eurolify/chave-envios.sh
+
+API_ENVIOS_ENV="${EUROLIFY_API_ENVIOS_ENV:-/etc/eurolify/api-envios.env}"
+
+recusar() {
+  echo "Troca da chave dos envios recusada: $1. Nada mudou."
+  registar "chave-envios: recusado ($1)"
+  exit 65
+}
+
+accao="${1:-}"
+execucao="${2:-}"
+[[ "$accao" =~ ^(trocar|tirar-anterior)$ && "$execucao" =~ ^run:[0-9]{1,20}$ ]] ||
+  recusar "pedido fora do formato"
+[[ -f "$API_ENVIOS_ENV" && ! -L "$API_ENVIOS_ENV" ]] ||
+  recusar "não há $API_ENVIOS_ENV (os envios estão desligados)"
+chave_envios_valida "$API_ENVIOS_ENV" ||
+  recusar "$API_ENVIOS_ENV não tem o formato esperado (LEIA-ME, «A chave dos envios»)"
+
+carregar_config
+imagem_api="$(docker inspect -f '{{.Config.Image}}' eurolify-api 2>/dev/null || true)"
+resumo_api="${imagem_api##*@}"
+# A recriação é a do eurolify-publicar, só para a imagem desta máquina (como
+# o eurolify-configurar).
+[[ -n "$imagem_api" && "${imagem_api%@*}" == "${IMAGEM_REPO:-}" && "$resumo_api" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+  recusar "o eurolify-api não está no ar com uma imagem de ${IMAGEM_REPO:-?} com resumo"
+# Uma API que não conhece a anterior deixava as contas sem se ler.
+docker run --rm --pull=never --network none --cap-drop ALL --entrypoint grep "$imagem_api" \
+  -q ENVIOS_CHAVE_ANTERIOR dist/envios/chave.js >/dev/null 2>&1 ||
+  recusar "a imagem no ar ainda não sabe trocar a chave (publicar primeiro)"
+
+# Quantas contas não arquivadas e arquivadas estão noutra versão que não a
+# actual: o superutilizador da base lê-as todas (só o número).
+contas_noutra_versao() {
+  local v
+  v="$(chave_envios_versao "$API_ENVIOS_ENV")"
+  # A versão já foi validada ([0-9A-Za-z_-]{1,20}): entra na instrução sem
+  # aspas por dentro.
+  docker exec eurolify-postgres psql -U postgres -d "$BASE_NOME" -v ON_ERROR_STOP=1 -qAtc \
+    "select count(*) from public.conta_transportadora where chave_versao is not null and chave_versao <> '$v'"
+}
+
+# A API corre com o ficheiro: as suas linhas estão no ambiente do contentor,
+# e a anterior só se o ficheiro a tem (comparado em memória, sem mostrar).
+corre_com_o_ficheiro() {
+  local ambiente linha
+  ambiente="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null)" || return 1
+  while IFS= read -r linha; do
+    grep -qxF -- "$linha" <<<"$ambiente" || return 1
+  done <"$API_ENVIOS_ENV"
+  if [[ -z "$(chave_envios_versao_anterior "$API_ENVIOS_ENV")" ]] &&
+    grep -q '^ENVIOS_CHAVE_ANTERIOR' <<<"$ambiente"; then
+    return 1
+  fi
+}
+
+copia="$API_ENVIOS_ENV.antes-$(date -u +%Y%m%dT%H%M%SZ)"
+case "$accao" in
+  trocar)
+    [[ -z "$(chave_envios_versao_anterior "$API_ENVIOS_ENV")" ]] ||
+      recusar "já há uma troca a meio (a anterior ainda está no ficheiro): tire-a primeiro"
+    ;;
+  tirar-anterior)
+    [[ -n "$(chave_envios_versao_anterior "$API_ENVIOS_ENV")" ]] ||
+      recusar "não há chave anterior para tirar"
+    faltam="$(contas_noutra_versao)" || recusar "a base não respondeu à contagem das contas"
+    [[ "$faltam" =~ ^[0-9]+$ ]] || recusar "a contagem das contas não se leu"
+    ((faltam == 0)) ||
+      recusar "ainda há $faltam contas noutra versão da chave (a volta dos envios passa-as de 5 em 5 minutos; as que ficarem no registo como «shipping.key_rotation» são para uma pessoa)"
+    ;;
+esac
+
+cp -p -- "$API_ENVIOS_ENV" "$copia"
+if [[ "$accao" == trocar ]]; then
+  trocar_chave_envios "$API_ENVIOS_ENV" || { rm -f -- "$copia"; recusar "não se gerou a chave nova"; }
+  echo "Chave nova na versão $(chave_envios_versao "$API_ENVIOS_ENV"); a anterior é a $(chave_envios_versao_anterior "$API_ENVIOS_ENV")."
+  registar "chave-envios: trocada para a versão $(chave_envios_versao "$API_ENVIOS_ENV") ($execucao)"
+else
+  tirar_chave_anterior_envios "$API_ENVIOS_ENV" || { rm -f -- "$copia"; recusar "não se escreveu o ficheiro"; }
+  echo "Chave anterior tirada; fica a versão $(chave_envios_versao "$API_ENVIOS_ENV")."
+  registar "chave-envios: anterior tirada ($execucao)"
+fi
+echo "Cópia do ficheiro anterior: $copia."
+
+if /usr/local/sbin/eurolify-publicar "$resumo_api" --so-recriar && corre_com_o_ficheiro; then
+  echo "A API recriou-se e corre com o ficheiro novo."
+  if [[ "$accao" == trocar ]]; then
+    echo "ATENÇÃO: o Diogo ou o Bruno guardam uma cópia do ficheiro novo fora da máquina, à parte das cópias da base (LEIA-ME, «A chave dos envios»)."
+    echo "Quando o registo da volta dos envios disser contasPorRecifrar 0, lance «chave-envios-tirar-anterior»."
+  fi
+  exit 0
+fi
+# Volta o ficheiro de antes e a API com ele.
+mv -fT -- "$copia" "$API_ENVIOS_ENV"
+registar "chave-envios: a API não se recriou com o ficheiro novo; voltou o anterior"
+echo "ATENÇÃO: a API não se recriou com o ficheiro novo: voltou o anterior."
+/usr/local/sbin/eurolify-publicar "$resumo_api" --so-recriar ||
+  echo "ATENÇÃO: e a recriação com o anterior também falhou: ver o eurolify-medir."
+exit 1

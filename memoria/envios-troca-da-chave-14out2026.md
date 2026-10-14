@@ -29,3 +29,15 @@ Pedido do Diogo, 14/10/2026: *«sim, aprovo; avança com o código»*. Issue
   feito: pedido à parte em `infra/vps` (ADR-0028).
 - A chave dos pagamentos e a da faturação têm o mesmo problema.
 - A suite completa da API e a revisão do agente: no pedido.
+
+## A troca na VPS (§25.7, mesmo dia)
+
+- Acções `chave-envios-trocar` e `chave-envios-tirar-anterior` no fluxo
+  «configurar» (desvio: não um fluxo novo, para não pedir outra chave SSH e
+  outro utilizador). Script `eurolify-chave-envios`; funções em
+  `lib/chave-envios.sh`; o `eurolify-medir` mostra a anterior e as contas por
+  versão.
+- Testes: `infra/vps/testes/chave-envios.sh` (45 verificações) e
+  `chave-envios-troca.sh` (39), verdes num Ubuntu 24.04 (mirror.gcr.io), a
+  14/10/2026; `shellcheck` limpo; `preparar.sh --mostrar` sai com 0.
+- Por fazer: aplicar o `preparar.sh` na máquina depois de juntar.

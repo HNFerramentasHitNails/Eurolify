@@ -1976,3 +1976,41 @@ Sonnet 5.5, só leitura (ADR-0035), publicada no pedido: 0 P0, 3 P1, 5 P2,
 - **Fica como está:** P3-5 (a contagem corre de 5 em 5 minutos sem
   anterior): é o que diz quantas contas ficaram por ler, e são poucas linhas
   por comerciante.
+
+### 25.7 A troca na VPS (desenho e código; 14/10/2026)
+
+Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
+envios»*; desenho aprovado no mesmo dia: *«sim, aprovo; avança com o
+código»*.
+
+| O quê | Regra | Onde |
+|---|---|---|
+| Quem lança | o Diogo ou o Bruno, no fluxo **configurar** do GitHub, acções `chave-envios-trocar` e `chave-envios-tirar-anterior`; o ambiente `ensaio` pede a aprovação e só aceita o `main` | `.github/workflows/configurar.yml` |
+| O caminho | a chave do fluxo «configurar» só entrega `chave-envios trocar|tirar-anterior run:<n> github:<conta>`; o serviço da máquina valida outra vez e o `eurolify-configurar` passa ao `eurolify-chave-envios`. Não leva segredos: a chave nasce e fica na máquina | `eurolify-pedido`, `eurolify-trabalho`, `eurolify-configurar`, `eurolify-chave-envios` |
+| Trocar | só com a imagem no ar a saber trocar (tem `ENVIOS_CHAVE_ANTERIOR`) e sem troca a meio; cópia do ficheiro ao lado; a actual passa a anterior e nasce uma nova na versão seguinte (a seguinte em número, ou a data e a hora); a API recria-se com a imagem que está no ar e confere-se que corre com o ficheiro | `trocar_chave_envios` (`lib/chave-envios.sh`) |
+| Tirar a anterior | só sem contas noutra versão (contadas pelo superutilizador da base: só o número); a API recria-se só com a actual | `tirar_chave_anterior_envios` |
+| Se a recriação falha | volta o ficheiro de antes e a API com ele | `eurolify-chave-envios` |
+| Medir | se a anterior está na API e quantas contas há em cada versão | `eurolify-medir` |
+| O ficheiro | as duas linhas, ou as quatro com a anterior noutra versão; o `eurolify-publicar` e o `preparar.sh` aceitam as duas formas | `chave_envios_valida` |
+
+**Desvio ao proposto:** em vez de um fluxo novo `chave-envios`, as duas
+acções entram no fluxo **configurar**, que já tem a chave SSH, o utilizador
+e a aprovação do ambiente `ensaio`: um fluxo novo pedia outra chave no
+GitHub e outro utilizador na máquina, para o mesmo efeito.
+
+**Fica de fora:** a cópia fora da máquina (é do Diogo ou do Bruno, como até
+aqui) e apagar as cópias `api-envios.env.antes-…` (à mão, depois de guardar
+a nova; têm a chave antiga).
+
+**Como se testou:** `infra/vps/testes/chave-envios.sh` (as funções:
+validar as quatro linhas, trocar, recusar a troca a meio, tirar, a versão em
+data, o `openssl` a falhar) e `infra/vps/testes/chave-envios-troca.sh` (o
+caminho inteiro pelo `eurolify-trabalho`, com um docker e um
+`eurolify-publicar` de mentira: a imagem antiga recusada, trocar, a troca a
+meio, contas por passar, a recriação que falha e volta o ficheiro, tirar,
+nenhuma chave na saída nem no registo); `shellcheck` e o `preparar.sh
+--mostrar`, num Ubuntu 24.04.
+
+**Para ficar em uso:** depois de juntar, aplicar o `preparar.sh` na máquina
+pelo fluxo «aplicar-script» (instala o `eurolify-chave-envios` e os scripts
+mudados).
