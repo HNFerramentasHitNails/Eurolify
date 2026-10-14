@@ -18,6 +18,10 @@
 -- linhas com o prazo passado há mais de um dia.
 SET LOCAL lock_timeout = '10s';
 
+-- A limpeza e a contagem percorrem a tabela por comerciante (revisão do
+-- #456, P3-2).
+CREATE INDEX autorizacao_faturacao_comerciante ON autorizacao_faturacao (comerciante_id);
+
 -- O fim do pedido mais o prazo da Q1 já passou.
 CREATE FUNCTION autorizacao_faturacao_apagavel(p_usada timestamptz, p_expira timestamptz)
   RETURNS boolean LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$

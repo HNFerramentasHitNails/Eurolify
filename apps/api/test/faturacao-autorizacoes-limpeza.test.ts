@@ -129,8 +129,13 @@ describe.skipIf(URL_BASE === undefined)(
       await pedido("usado_29", a, 29.0001, 29);
       // Ainda válido: fica.
       await pedido("valido", a, 0, null);
-      // Noutro comerciante, expirado há 40 dias: também se apaga.
+      // Noutro comerciante, expirado há 40 dias: também se apaga, mesmo com
+      // a chave revogada (quem pediu já não está; revisão do #456, P3-1).
       await pedido("outro_40", b, 40, null);
+      await sql`update chave_api set revogada_em = now(), revogada_por = 'operador:teste'
+        where comerciante_id = ${b.c}::uuid`.execute(dono);
+      // Para o dono da base apagar à mão (35 dias).
+      await pedido("expirado_35", a, 35, null);
     }, 120_000);
 
     afterAll(async () => {
@@ -217,18 +222,35 @@ describe.skipIf(URL_BASE === undefined)(
       ).toMatch(/invoices\.immutable/);
     });
 
+    it("depois dos 30 dias o dono da base pode apagar; a regra é a mesma", async () => {
+      await sql`delete from autorizacao_faturacao where id = ${ids["expirado_35"]}::uuid`.execute(
+        dono,
+      );
+      delete ids["expirado_35"];
+    });
+
     it("a limpeza apaga o que passou os 30 dias, de todos os comerciantes, e a verificação deixa de avisar", async () => {
       // Antes: só o de 32 dias e o do outro comerciante passaram o dia da
       // limpeza.
       expect(await emAtraso()).toBe(2);
-      const apagadas = await dono.transaction().execute(async (trx) => {
-        await sql`set local role eurolify_limpeza`.execute(trx);
-        const { rows } = await sql<{ n: number }>`
-          select faturacao_autorizacoes_apagar() as n`.execute(trx);
-        await sql`select faturacao_autorizacoes_em_atraso()`.execute(trx);
-        return rows[0]?.n;
-      });
+      const [apagadas, contexto] = await dono
+        .transaction()
+        .execute(async (trx) => {
+          // O contexto de quem chama volta como estava (revisão do #456,
+          // P3-1).
+          await sql`select set_config('eurolify.comerciante', 'antes', true)`.execute(
+            trx,
+          );
+          await sql`set local role eurolify_limpeza`.execute(trx);
+          const { rows } = await sql<{ n: number }>`
+            select faturacao_autorizacoes_apagar() as n`.execute(trx);
+          await sql`select faturacao_autorizacoes_em_atraso()`.execute(trx);
+          const c = await sql<{ c: string }>`
+            select current_setting('eurolify.comerciante') as c`.execute(trx);
+          return [rows[0]?.n, c.rows[0]?.c];
+        });
       expect(apagadas).toBe(3);
+      expect(contexto).toBe("antes");
       expect(await restantes()).toEqual(["expirado_29", "usado_29", "valido"]);
       expect(await emAtraso()).toBe(0);
       // Outra vez: nada a apagar.

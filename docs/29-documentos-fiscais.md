@@ -755,7 +755,7 @@ ser igual ao registado.
 
 | O quê | Onde |
 |---|---|
-| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás e apagar); RLS forçado | migração 0081 |
+| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás; apagar, só 30 dias depois do fim, desde a 0099, §20); RLS forçado | migração 0081 |
 | `urlAutorizacao` e `trocarCodigo` no contrato do adaptador; no Moloni, com `MOLONI_REDIRECT_URI` | `src/faturacao/adaptador.ts`, `src/faturacao/moloni.ts`, `src/servidor.ts` |
 | `pedirAutorizacao` e `concluirAutorizacao` (marca usada antes de trocar; grava só depois de conferir a empresa) | `src/faturacao/repositorio.ts` |
 | as três rotas; a página do endereço de resposta (sem nada de fora, sem cache, o texto escapado) e o reencaminhamento com `MOLONI_RETORNO_URL` | `src/faturacao/rotas.ts` |
@@ -1098,9 +1098,12 @@ Ex.: a «Loja Exemplo» pede a autorização às 10:00 de 14/10/2026 e conclui �
   - apaga as linhas cujo fim já passou há mais do que o prazo da Q1. O fim é
     `usada_em` se a linha foi usada, senão `expira_em`;
   - apaga em lotes de até 50 000, como a 0026, e devolve quantas apagou.
-- **O gatilho da 0081** continua a recusar o `DELETE` a toda a gente, menos a
-  esta função. A função marca a transacção com uma variável local, que o
-  gatilho lê. A API não tem `DELETE` na tabela, nem passa a ter.
+- **O gatilho da 0081** passa a deixar apagar só o que tem mais de 30 dias
+  desde o fim, a quem quer que apague, dono da base incluído; o resto
+  continua recusado. A regra fica numa função só, que o gatilho, a limpeza e
+  a contagem usam. A API não tem `DELETE` na tabela, nem passa a ter.
+  (O desenho previa uma variável local que só a função punha; uma regra pelo
+  tempo é mais simples e não depende de quem apaga.)
 - **Quem a chama:**
   - a limpeza diária da VPS (`eurolify-limpeza`, 05:00 UTC), com o papel
     `eurolify_limpeza`, que só recebe o `EXECUTE` desta função;
@@ -1137,7 +1140,8 @@ uma regra com prazo fixo. Fonte: `eur-lex`,
 
 - uma linha usada ou expirada há mais do que o prazo é apagada; uma dentro do
   prazo e uma ainda válida ficam;
-- o `DELETE` directo, pela API ou pelo dono da base, continua recusado;
+- dentro dos 30 dias, o `DELETE` directo continua recusado, também ao dono da
+  base; depois deles, o dono apaga; a API nunca;
 - o papel da limpeza só tem o `EXECUTE`;
 - a contagem do atraso conta só o que passou o prazo há mais de um dia;
 - um pedido de autorização a decorrer não é tocado.
