@@ -1776,8 +1776,8 @@ export const es: Textos = {
   etiquetaDevolucaoSemPermissao:
     "Aún no hay etiqueta de devolución, y su función no permite pedirla.",
   // Vários volumes numa expedição (docs/36 §23).
-  volumesBotao: "Bultos",
-  volumesTitulo: "Bultos (varias cajas)",
+  volumesBotao: "Cajas",
+  volumesTitulo: "Cajas (varias)",
   volumesAjuda:
     "Cuando el pedido no cabe en una caja: el peso de cada caja, en gramos (2 a 15 cajas). Sale una etiqueta y un número de seguimiento por caja, y la expedición solo queda entregada cuando lleguen todas.",
   volumesMaximoDoServico:
@@ -1789,12 +1789,18 @@ export const es: Textos = {
   volumesAcrescentar: "Añadir una caja",
   volumesTirar: "Quitar la última caja",
   volumesInvalidos: "Escriba el peso de cada caja, en gramos (2 a 15 cajas).",
-  volumesMudadosAgora: "Los bultos quedaron guardados.",
+  volumesMudadosAgora: "Las cajas quedaron guardadas.",
   voltarAUmaCaixa: "Volver a una caja",
   volumesContagem: "{n} cajas",
   volumesLinha: "Caja {n}: {g}",
   volumesDescarregar: "Descargar la etiqueta de la caja {n}",
   volumesDoEvento: "caja {n}",
-  correccaoVolumes: "Bultos",
+  correccaoVolumes: "Cajas",
   volumesPesoTotal: "Peso de las cajas, juntas",
+  volumesServicoDeUmaCaixaPeca:
+    "El servicio de esta etiqueta solo admite una caja: pida al propietario o al gestor que cambie el servicio.",
+  volumesTiraPesoCorrigido:
+    "Al guardar los bultos, se quita el peso corregido a mano: el peso pasa a ser el de cada caja.",
+  volumesRecusados:
+    "El servicio de la etiqueta no sirve para estas cajas (cuántas son, o el peso de una de ellas): cambie el servicio o las cajas.",
 };

@@ -1772,6 +1772,12 @@ export const pt = {
   volumesDoEvento: "caixa {n}",
   correccaoVolumes: "Volumes",
   volumesPesoTotal: "Peso das caixas, juntas",
+  volumesServicoDeUmaCaixaPeca:
+    "O serviço desta etiqueta só leva uma caixa: peça ao dono ou ao gestor que mude o serviço.",
+  volumesTiraPesoCorrigido:
+    "Ao guardar os volumes, o peso corrigido à mão sai: o peso passa a ser o de cada caixa.",
+  volumesRecusados:
+    "O serviço da etiqueta não serve estas caixas (quantas são, ou o peso de uma delas): mude o serviço ou as caixas.",
 };
 
 export type Textos = typeof pt;

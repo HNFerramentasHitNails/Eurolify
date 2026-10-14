@@ -90,18 +90,25 @@ export function volumesDoTexto(textos: readonly string[]): number[] | null {
 }
 
 /**
- * Quantas caixas leva o serviço que a etiqueta vai usar (o escolhido, ou o
- * vendido), pela lista que a API devolve; `null` se não se sabe.
+ * Quantas caixas leva o serviço que a etiqueta vai usar: o escolhido, ou o
+ * vendido, como a API decide; procura-se esse serviço (conta e código) na
+ * lista dos que servem. Se não está lá (não serve a caixa), `null`: não se
+ * sabe, e a API decide (revisão do pedido do Hub, P2-2).
  */
 export function maxVolumesDaEtiqueta(info: {
+  escolhido: { conta: string; servico: string } | null;
+  vendido: { conta: string; servico: string } | null;
   opcoes: readonly {
-    escolhido: boolean;
-    vendido: boolean;
+    conta: string;
+    servico: string;
     max_volumes?: number;
   }[];
 }): number | null {
-  const o =
-    info.opcoes.find((x) => x.escolhido) ?? info.opcoes.find((x) => x.vendido);
+  const alvo = info.escolhido ?? info.vendido;
+  if (alvo === null) return null;
+  const o = info.opcoes.find(
+    (x) => x.conta === alvo.conta && x.servico === alvo.servico,
+  );
   return o === undefined ? null : (o.max_volumes ?? 1);
 }
 

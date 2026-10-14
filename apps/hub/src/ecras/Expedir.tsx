@@ -630,13 +630,13 @@ function Expedicao({
     seguimento: seguimento.trim() === "" ? null : seguimento.trim(),
   });
 
-  async function descarregar(volume = 1) {
+  async function descarregar(volume = 1, formato = etiqueta?.ficheiro) {
     try {
       const bytes = await api.ficheiroEtiqueta(comerciante, x.id, volume);
       const url = URL.createObjectURL(bytes);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `etiqueta-${x.id}${volume === 1 ? "" : `-volume-${String(volume)}`}.${etiqueta?.ficheiro === "zpl" ? "zpl" : "pdf"}`;
+      a.download = `etiqueta-${x.id}${volume === 1 ? "" : `-volume-${String(volume)}`}.${formato === "zpl" ? "zpl" : "pdf"}`;
       document.body.append(a);
       a.click();
       a.remove();
@@ -717,7 +717,8 @@ function Expedicao({
                 </p>
               ) : null}
               <dl>
-                {etiqueta.seguimento === null ? null : (
+                {etiqueta.seguimento === null ||
+                etiqueta.volumes != null ? null : (
                   <>
                     <dt>{t.etiquetaSeguimento}</dt>
                     <dd>
@@ -771,7 +772,18 @@ function Expedicao({
                         {v.seguimento === null ? null : (
                           <>
                             {" — "}
-                            <code translate="no">{v.seguimento}</code>
+                            {v.url_seguimento === null ||
+                            !v.url_seguimento.startsWith("https://") ? (
+                              <code translate="no">{v.seguimento}</code>
+                            ) : (
+                              <a
+                                href={v.url_seguimento}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {v.seguimento}
+                              </a>
+                            )}
                           </>
                         )}
                         {v.ficheiro === null ? null : (
@@ -780,7 +792,9 @@ function Expedicao({
                             <button
                               type="button"
                               disabled={ocupado !== null}
-                              onClick={() => void descarregar(v.volume)}
+                              onClick={() =>
+                                void descarregar(v.volume, v.ficheiro)
+                              }
                             >
                               {preencher(t.volumesDescarregar, {
                                 n: v.volume,
@@ -864,6 +878,7 @@ function Expedicao({
                 <Correccoes
                   comerciante={comerciante}
                   expedicao={x.id}
+                  comVolumes={etiqueta.volumes_g != null}
                   mudaServico={mudaServico}
                   ocupado={ocupado !== null}
                   concluido={async (texto) => {
@@ -894,9 +909,9 @@ function Expedicao({
                             ? preencher(t.etiquetaGramas, {
                                 g: Number(cr.depois),
                               })
-                            : cr.campo === "volumes" && Array.isArray(cr.depois)
-                              ? (cr.depois as unknown[])
-                                  .map((g) =>
+                            : cr.campo === "volumes"
+                              ? (Array.isArray(cr.depois) ? cr.depois : [])
+                                  .map((g: unknown) =>
                                     preencher(t.etiquetaGramas, {
                                       g: Number(g),
                                     }),
@@ -1064,12 +1079,15 @@ function Expedicao({
 function Correccoes({
   comerciante,
   expedicao,
+  comVolumes,
   mudaServico,
   ocupado,
   concluido,
 }: {
   comerciante: string;
   expedicao: string;
+  /** Com vários volumes, o peso corrige-se neles (docs/36 §23.9). */
+  comVolumes: boolean;
   mudaServico: boolean;
   ocupado: boolean;
   /** Depois de gravar: o texto do sucesso, e a expedição relida. */
@@ -1090,6 +1108,18 @@ function Correccoes({
   const [motivo, setMotivo] = useState("");
   const [invalido, setInvalido] = useState<keyof Textos | null>(null);
   const id = `correccao-${expedicao}`;
+  // Uma caixa acrescentada: o foco vai para o campo dela (revisão, P2-5).
+  const caixasAntes = useRef(0);
+  useEffect(() => {
+    if (aberto === "volumes" && pesos.length > caixasAntes.current) {
+      if (caixasAntes.current > 0) {
+        document
+          .getElementById(`${id}-volume-${String(pesos.length)}`)
+          ?.focus();
+      }
+    }
+    caixasAntes.current = pesos.length;
+  }, [aberto, pesos.length, id]);
   // Ao abrir, o foco vai para o título do formulário (o botão que o abriu
   // desaparece; revisão do #429, P3-4).
   useEffect(() => {
@@ -1140,7 +1170,15 @@ function Correccoes({
         navegar("/entrar", { substituir: true });
         return;
       }
-      setFalha(erroDeExpedir(mostrar));
+      // A recusa dos volumes não é a da etiqueta: o serviço não leva estas
+      // caixas (revisão, P2-3).
+      setFalha(
+        aberto === "volumes" &&
+          mostrar instanceof ErroHub &&
+          mostrar.codigo === "shipping.invalid_field"
+          ? new ErroDoEcra("volumesRecusados")
+          : erroDeExpedir(mostrar),
+      );
     } finally {
       setAGravar(false);
     }
@@ -1210,13 +1248,15 @@ function Correccoes({
   if (aberto === null) {
     return (
       <div className="accoes">
-        <button
-          type="button"
-          disabled={ocupado}
-          onClick={() => void abrir("peso")}
-        >
-          {t.corrigirPeso}
-        </button>
+        {comVolumes ? null : (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => void abrir("peso")}
+          >
+            {t.corrigirPeso}
+          </button>
+        )}
         <button
           type="button"
           disabled={ocupado}
@@ -1269,7 +1309,14 @@ function Correccoes({
             <p className={maxVolumes > 1 ? "secundario" : "aviso"} role="note">
               {maxVolumes > 1
                 ? preencher(t.volumesMaximoDoServico, { n: maxVolumes })
-                : t.volumesServicoDeUmaCaixa}
+                : mudaServico
+                  ? t.volumesServicoDeUmaCaixa
+                  : t.volumesServicoDeUmaCaixaPeca}
+            </p>
+          )}
+          {info.peso_corrigido_g === null ? null : (
+            <p className="aviso" role="note">
+              {t.volumesTiraPesoCorrigido}
             </p>
           )}
           <fieldset
@@ -1292,7 +1339,7 @@ function Correccoes({
                   value={p}
                   {...(invalido === "volumesInvalidos" &&
                   pesoDoTexto(p) === null
-                    ? { "aria-invalid": true }
+                    ? { "aria-invalid": true, "aria-describedby": `${id}-erro` }
                     : {})}
                   onChange={(ev) => {
                     const novo = [...pesos];
@@ -1303,27 +1350,27 @@ function Correccoes({
                 />
               </div>
             ))}
+            {/* Os botões ficam, desligados no limite: o foco não se perde
+                (revisão, P2-5). */}
             <div className="accoes">
-              {pesos.length < 15 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPesos([...pesos, ""]);
-                  }}
-                >
-                  {t.volumesAcrescentar}
-                </button>
-              ) : null}
-              {pesos.length > 2 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPesos(pesos.slice(0, -1));
-                  }}
-                >
-                  {t.volumesTirar}
-                </button>
-              ) : null}
+              <button
+                type="button"
+                disabled={pesos.length >= Math.min(15, maxVolumes ?? 15)}
+                onClick={() => {
+                  setPesos([...pesos, ""]);
+                }}
+              >
+                {t.volumesAcrescentar}
+              </button>
+              <button
+                type="button"
+                disabled={pesos.length <= 2}
+                onClick={() => {
+                  setPesos(pesos.slice(0, -1));
+                }}
+              >
+                {t.volumesTirar}
+              </button>
             </div>
           </fieldset>
         </>
@@ -1432,7 +1479,17 @@ function Correccoes({
       )}
       <div className="accoes">
         {info === null ? null : (
-          <button type="submit" className="principal" disabled={aGravar}>
+          <button
+            type="submit"
+            className="principal"
+            disabled={
+              aGravar ||
+              // Já se sabe que o serviço não leva estas caixas (P2-4).
+              (aberto === "volumes" &&
+                maxVolumes !== null &&
+                pesos.length > maxVolumes)
+            }
+          >
             {aGravar ? t.aCarregar : t.guardarCorreccao}
           </button>
         )}

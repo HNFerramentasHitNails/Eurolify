@@ -206,20 +206,26 @@ describe("os volumes (docs/36 §23)", () => {
     ).toHaveLength(15);
   });
 
-  it("o máximo é o do serviço da etiqueta: o escolhido, senão o vendido; sem nenhum, não se sabe", () => {
-    const o = (
-      escolhido: boolean,
-      vendido: boolean,
-      max?: number,
-    ): { escolhido: boolean; vendido: boolean; max_volumes?: number } => ({
-      escolhido,
-      vendido,
-      ...(max === undefined ? {} : { max_volumes: max }),
-    });
+  it("o máximo é o do serviço da etiqueta: o escolhido, senão o vendido; fora da lista, não se sabe", () => {
+    const a = { conta: "c1", servico: "A" };
+    const b = { conta: "c1", servico: "B" };
+    const opcoes = [{ ...a }, { ...b, max_volumes: 3 }];
+    // O escolhido manda sobre o vendido.
+    expect(maxVolumesDaEtiqueta({ escolhido: b, vendido: a, opcoes })).toBe(3);
+    // Sem escolhido, o vendido; sem max_volumes, uma caixa.
+    expect(maxVolumesDaEtiqueta({ escolhido: null, vendido: a, opcoes })).toBe(
+      1,
+    );
+    // A mesma conta com outro serviço não conta.
     expect(
-      maxVolumesDaEtiqueta({ opcoes: [o(false, true), o(true, false, 3)] }),
-    ).toBe(3);
-    expect(maxVolumesDaEtiqueta({ opcoes: [o(false, true)] })).toBe(1);
-    expect(maxVolumesDaEtiqueta({ opcoes: [o(false, false, 5)] })).toBeNull();
+      maxVolumesDaEtiqueta({
+        escolhido: { conta: "c1", servico: "C" },
+        vendido: a,
+        opcoes,
+      }),
+    ).toBeNull();
+    expect(
+      maxVolumesDaEtiqueta({ escolhido: null, vendido: null, opcoes }),
+    ).toBeNull();
   });
 });
