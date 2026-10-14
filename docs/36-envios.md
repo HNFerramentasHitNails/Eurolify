@@ -1778,7 +1778,7 @@ O Diogo aprovou o aspecto depois de ver as capturas (14/10/2026,
 caixas, juntas».
 
 **Revisão do agente** (Sonnet, só leitura, 14/10/2026; publicada no pedido):
-sem P0 nem P1. Os cinco P2 e seis dos sete P3 corrigidos:
+sem P0 nem P1. Os cinco P2 e os sete P3 corrigidos:
 
 | Achado | O que se fez |
 |---|---|
