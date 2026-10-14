@@ -73,3 +73,6 @@ especificação.
 - **Ficou por verificar:**
   - a passagem só com o teclado pela página da devolução;
   - o PDF verdadeiro de uma conta real.
+- **O aspecto do Hub das devoluções:** o Diogo aprovou-o depois de ver as
+  capturas (14/10/2026, *«aprovo; junta quando ficar verde»*); juntou-se no
+  #451.

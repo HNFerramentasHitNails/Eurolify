@@ -1489,7 +1489,7 @@ botão e o PDF na página da devolução), com capturas.
   - o que a Sendcloud guarda (§16.2).
 - **A migração passou a 0093:** a 0092 é de outra sessão.
 
-**Por fazer:** o pedido 2 (Hub), desenhado no §22.10.
+**Pedido 2 (Hub):** desenhado no §22.10, em código no §22.11 (#451).
 
 ### 22.10 O Hub: as devoluções e a etiqueta (desenho do pedido 2; por aprovar)
 
@@ -1603,4 +1603,107 @@ pedido tal como veio.
   estado da devolução; o ecrã só a pede quando se pode pedir, e pedir
   confere-o.
 
-O aspecto vai ao Diogo com as capturas antes de se juntar.
+O Diogo aprovou o aspecto depois de ver as capturas (14/10/2026, *«aprovo;
+junta quando ficar verde»*); juntou-se no #451.
+
+## 23. Vários volumes numa expedição (desenho; parte 3, Q6, issue #393)
+
+Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
+envios»*. **Este desenho está por aprovar.** A Q6 (`docs/06`, ED) deixou um
+volume por expedição e os vários volumes para a parte 3 (§1, «Fora desta
+fatia»). É a última peça da parte 3 que estava planeada; a cotação em tempo
+real só entra se um comerciante a pedir (Q3). Esta parte usa só a
+Sendcloud: os CTT continuam sem especificação (§11, V1). Skills:
+`order-fulfilment`, `consumer-rights-eu`, `eurolify-transport-logistics-eu`,
+`third-party-extensions`.
+
+**O que já existe e serve hoje:** dividir a encomenda em várias expedições
+(`POST /orders/{id}/shipments`, uma etiqueta e um seguimento cada). Os
+vários volumes servem para o caso em que a transportadora cobra e segue a
+encomenda como **um envio com várias caixas** (uma recolha, um preço).
+
+Ex.: uma encomenda de 12 vernizes e um candeeiro UV não cabe numa caixa. O
+armazém diz «2 volumes»: 1,2 kg e 2,8 kg. Sai uma etiqueta por caixa, cada
+uma com o seu seguimento, no mesmo envio. A expedição só fica «entregue»
+quando as duas chegam.
+
+### 23.1 O que se leu (Sendcloud, W)
+
+Documentação lida a 14/10/2026 em `sendcloud.dev` (resumo da pesquisa,
+**W**). Nada se correu contra uma conta real.
+
+| Ponto | O que diz | Página |
+|---|---|---|
+| O que é | um envio com várias caixas («multicollo»), cada uma no array `parcels`, com o seu peso | `docs/shipments/multicollo` |
+| Quantas | até 15 caixas no anúncio síncrono, 50 no assíncrono; a transportadora pode pôr um limite mais baixo | idem |
+| Que serviços | `POST /api/v3/shipping-options` com `functionalities.multicollo = true` | idem |
+| Etiquetas e seguimento | uma etiqueta e um número de seguimento **por caixa**; cada etiqueta lê-se pelo documento da caixa (`parcel_id`) | idem |
+| Divergência | a página do multicollo fala do anúncio assíncrono; a das «user flows» fala de `POST /api/v3/shipments/announce`. **Por confirmar (V15)** | `docs/getting-started/api-user-flows` |
+
+### 23.2 A regra legal
+
+| # | Regra | Fonte (`eur-lex`, lida a 14/10/2026) |
+|---|---|---|
+| L13 | Vários bens de uma encomenda entregues em separado, ou um bem em vários lotes: a livre resolução conta **do dia em que o consumidor tem a posse física do último bem ou lote** | Dir. 2011/83/UE, art. 9.º, n.º 2, alínea b), subalíneas i) e ii) (consolidada aplicável desde 27/09/2026, `corpus/consumidores-e-vendas/32011L0083-direitos-dos-consumidores.md`); DL 24/2014, art. 10.º, n.º 1, alínea b), subalíneas i) e ii) (consolidado do DRE, `legislacao-pt/decreto-lei-24-2014.md`, obtido a 10/10/2026) |
+
+O que isto quer dizer aqui: **a expedição só fica «entregue» quando todos
+os volumes chegaram**. É a L6 (§5) um nível abaixo: entre expedições já
+conta a última; dentro de uma expedição passa a contar o último volume.
+
+### 23.3 O que entra
+
+| O quê | Regra |
+|---|---|
+| **Os volumes da expedição** | antes da etiqueta, quem expede (`fulfilment:write`) diz quantos volumes (1 a 15) e o peso de cada um, com motivo; por omissão, 1 volume com o peso calculado (como hoje). Depois da etiqueta, não mudam (anula-se primeiro) |
+| **O serviço** | com mais de 1 volume, só um serviço que a transportadora declare para vários volumes, e até ao máximo dela (o contrato do adaptador ganha `maxVolumes`, por omissão 1). O serviço vendido que não sirva fica à espera de uma pessoa, como no §19 (mudar o serviço) |
+| **A etiqueta** | um pedido só, com os volumes; volta um seguimento e um PDF **por volume**. A resposta perdida fica `incerta` para a expedição inteira, como hoje |
+| **O seguimento** | os eventos de cada volume ficam no histórico da expedição, com o volume. A expedição passa a «expedida» com o primeiro volume em trânsito; **«entregue» só com todos entregues** (L13); um volume perdido ou devolvido abre um problema na encomenda (fila da Q4) e a expedição não fica entregue |
+| **«Para levantar»** (§20, §21) | conta por volume: o aviso diz quantos estão à espera |
+| **Anular** | anula-se o envio inteiro, todos os volumes juntos |
+| **O ficheiro** | um PDF por volume, com o mesmo prazo da Q7 (30 dias depois de a expedição acabar) |
+| **O Hub** | em «Expedir», «Volumes» antes de pedir a etiqueta; depois, um seguimento e «Descarregar» por volume (pedido 2, com capturas) |
+
+### 23.4 O que fica de fora, e porquê
+
+| Fica de fora |
+|---|
+| **Medidas das caixas:** o modelo não tem dimensões (D3); os serviços que as exigem continuam fora |
+| **Serviços diferentes por volume:** um envio, um serviço |
+| **Vários volumes para um ponto de recolha** (§21): só se a transportadora o declarar; até lá, recusa-se |
+| **Vários volumes na etiqueta de devolução** (§22) |
+| **O anúncio assíncrono** (até 50 caixas): 15 chegam para o piloto |
+| **Os CTT:** sem especificação (§11, V1) |
+
+### 23.5 Por onde é que isto ainda pode sair errado
+
+- **«Entregue» cedo de mais:** um volume entregue e o outro perdido. A
+  protecção é a regra do §23.3 (entregue só com todos), com teste.
+- **O peso:** a soma dos volumes pode não bater com o calculado. Não se
+  bloqueia (a balança manda), mas mostra-se a diferença, como no §19.
+- **Uma caixa sem etiqueta:** a transportadora aceita 2 de 3. Fica `incerta`
+  e uma pessoa decide; nunca se pede só a que falta sozinha.
+- **Volumes depois da etiqueta:** a base recusa mudá-los sem anular.
+
+### 23.6 Testes que têm de falhar sem a protecção
+
+- com mais de 1 volume, um serviço sem vários volumes é recusado; acima do
+  máximo também;
+- um volume entregue e outro em trânsito: a expedição não fica entregue; os
+  dois entregues: fica;
+- um volume perdido abre o problema na encomenda;
+- os volumes não mudam depois da etiqueta;
+- uma resposta com menos seguimentos do que volumes fica `incerta`;
+- isolamento entre comerciantes.
+
+### 23.7 Por verificar numa conta de teste
+
+| # | O quê |
+|---|---|
+| V15 | o caminho do anúncio com várias caixas (síncrono ou só assíncrono) e se o modo teste tem algum serviço com `multicollo` |
+| V16 | se a Sendcloud dá um estado por caixa ou um só para o envio |
+
+### 23.8 Como entra no código
+
+Dois pedidos: (1) a API e a base (migração nova, a partir da 0097; o
+contrato do adaptador, a Sendcloud, os testes e a revisão do agente); (2) o
+Hub (os volumes em «Expedir»), com capturas.
