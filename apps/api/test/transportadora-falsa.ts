@@ -41,6 +41,9 @@ export function transportadoraFalsa() {
     /** Os pontos que já não recebem; «rede» = não responde. */
     pontosFechados: new Set<string>(),
     disponibilidade: "responde" as "responde" | "rede",
+    /** Como responde ao próximo pedido de etiqueta de devolução (docs/36 §22). */
+    pedirDevolucao: "emitir" as "emitir" | "recusar" | "rede" | "erro",
+    pedidosDevolucao: [] as PedidoEtiqueta[],
   };
   const emitir = (referencia: string): EtiquetaEmitida => {
     estado.numero += 1;
@@ -130,6 +133,27 @@ export function transportadoraFalsa() {
           return new Promise<never>(() => undefined);
         default:
           return { estado: "emitida", ...emitir(pedido.referencia) };
+      }
+    },
+    pedirEtiquetaDevolucao(_c, pedido) {
+      estado.pedidosDevolucao.push(pedido);
+      switch (estado.pedirDevolucao) {
+        case "recusar":
+          return Promise.resolve({
+            estado: "recusada",
+            motivo: "serviço sem devoluções",
+          });
+        case "rede":
+          return Promise.reject(new ErroDeRede("tempo esgotado"));
+        case "erro":
+          // Um erro que não é de rede, depois de criar (revisão do #447, P1).
+          emitir(pedido.referencia);
+          return Promise.reject(new TypeError("corpo ilegível"));
+        default:
+          return Promise.resolve({
+            estado: "emitida",
+            ...emitir(pedido.referencia),
+          });
       }
     },
     consultarEtiqueta(_c, referencia) {

@@ -77,7 +77,8 @@ Esta parte usa só a Sendcloud: os CTT continuam sem especificação (§11, V1).
 - **O jurista** tem de dizer se o dono do ponto é «um terceiro indicado
   pelo consumidor» (**C**; não encontrei regra no `eur-lex`).
 - **O Hub** (o campo no método e o ponto em «Expedir»): pedido 2,
-  `docs/36` §21.11. O aspecto espera pelo OK do Diogo com as capturas.
+  `docs/36` §21.11, junto no #443. O Diogo aprovou o aspecto depois de ver
+  as capturas (13/10/2026, *«aprovo; junta quando ficar verde»*).
   Testes do Hub a 13/10/2026, contados pelo resumo do `vitest`: 293 verdes,
   antes e depois da revisão do agente (#443). As asserções novas entraram
   nos testes que já existiam.

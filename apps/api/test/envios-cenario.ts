@@ -173,6 +173,7 @@ export function cenariosDeEnvios(
           "fulfilment:read",
           "fulfilment:write",
           "returns:read",
+          "returns:write",
         ],
       })
     ).segredo;

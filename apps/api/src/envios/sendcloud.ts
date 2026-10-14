@@ -26,6 +26,10 @@ import {
 //   `Sendcloud-Signature`. O conteúdo não está descrito na v3: o aviso é só
 //   um sinal para consultar (D4).
 // - Serviços: POST /shipping-options, por origem e destino (D1, D3).
+// - Devoluções (docs/36 §22, lida a 13/10/2026, **W**): POST
+//   /returns/announce-synchronously (sem seguimento nem etiqueta na
+//   resposta) e GET /returns/{id} (o seguimento e a etiqueta); a referência
+//   repetida dá 400; a lista não procura por ela.
 // - Pontos de recolha (docs/36 §21, lida a 13/10/2026, **W**): GET
 //   /service-points (país, código postal, transportadora) e POST
 //   /service-points/{id}/check-availability antes de criar o envio; na
@@ -516,6 +520,126 @@ export function adaptadorSendcloud(
       return {
         estado: "recusada",
         motivo: motivoDe(r.json, `a Sendcloud recusou (${String(r.estado)})`),
+      };
+    },
+
+    async pedirEtiquetaDevolucao(c, p): Promise<ResultadoEtiqueta> {
+      // Só há modo teste (0074): como na etiqueta de envio (D2).
+      if (p.servico !== SERVICO_DE_TESTE) {
+        return {
+          estado: "recusada",
+          motivo: `em modo teste só se pede o serviço ${SERVICO_DE_TESTE}`,
+        };
+      }
+      // Só o que a volta precisa (§22.3): sem linhas, preços nem o motivo
+      // do cliente; a Sendcloud não escreve ao cliente.
+      const r = await chamar(
+        buscar,
+        c,
+        "POST",
+        "/returns/announce-synchronously",
+        {
+          from_address: morada(p.remetente),
+          to_address: morada(p.destinatario),
+          ship_with: {
+            type: "shipping_option_code",
+            properties: { shipping_option_code: p.servico },
+          },
+          weight: { value: (p.pesoG / 1000).toFixed(3), unit: "kg" },
+          external_reference: p.chaveIdempotencia,
+          send_tracking_emails: false,
+          delivery_option: "drop_off_point",
+        },
+      );
+      if (r.estado === 400) {
+        const e = objecto(objecto(r.json)?.["error"]);
+        const m = texto(e?.["message"]) ?? "";
+        // A mesma referência já tem uma devolução: existe, e não se sabe
+        // qual (a lista não procura pela referência). Uma pessoa resolve.
+        if (/external reference/i.test(m)) {
+          throw new ErroDeRede("a devolução com esta referência já existe");
+        }
+        return {
+          estado: "recusada",
+          motivo: (m || motivoDe(r.json, "a Sendcloud recusou (400)")).slice(
+            0,
+            500,
+          ),
+        };
+      }
+      // Só um 4xx claro prova que nada se criou; o resto (202, 409, 3xx…)
+      // não se sabe: incerta (revisão do #447, P3).
+      if (r.estado !== 201 && r.estado !== 200) {
+        if ([401, 403, 404, 422].includes(r.estado)) {
+          return {
+            estado: "recusada",
+            motivo: motivoDe(
+              r.json,
+              `a Sendcloud recusou (${String(r.estado)})`,
+            ),
+          };
+        }
+        throw new ErroDeRede(`a Sendcloud respondeu ${String(r.estado)}`);
+      }
+      const id = texto(objecto(r.json)?.["return_id"]);
+      if (id === null) throw new ErroDeRede("a resposta não traz a devolução");
+      const l = await chamar(
+        buscar,
+        c,
+        "GET",
+        `/returns/${encodeURIComponent(id)}`,
+      );
+      if (l.estado !== 200) {
+        throw new ErroDeRede(`a devolução respondeu ${String(l.estado)}`);
+      }
+      const d = objecto(objecto(l.json)?.["data"]) ?? objecto(l.json);
+      const seguimento = texto(d?.["tracking_number"]);
+      const url = texto(d?.["tracking_url"]);
+      const etiqueta = texto(objecto(d?.["label"])?.["label_printer"]);
+      // A etiqueta só se vai buscar à própria Sendcloud, com as credenciais.
+      if (
+        seguimento === null ||
+        etiqueta === null ||
+        !etiqueta.startsWith("https://panel.sendcloud.sc/")
+      ) {
+        throw new ErroDeRede("a devolução ainda não tem etiqueta");
+      }
+      let f: Response;
+      try {
+        f = await buscar(etiqueta, {
+          method: "GET",
+          headers: { accept: "application/pdf", authorization: autorizacao(c) },
+          signal: AbortSignal.timeout(TEMPO_DA_CHAMADA_MS),
+        });
+      } catch (erro) {
+        throw new ErroDeRede("a Sendcloud não respondeu", { cause: erro });
+      }
+      if (f.status !== 200) {
+        throw new ErroDeRede(
+          `o ficheiro da etiqueta não veio (${String(f.status)})`,
+        );
+      }
+      // A devolução já existe (e foi paga): qualquer falha a ler o ficheiro
+      // é incerta, nunca recusada (revisão do #447, P1).
+      const conteudo = await f.arrayBuffer().then(
+        (b) => Buffer.from(b),
+        (erro: unknown) => {
+          throw new ErroDeRede("o ficheiro da etiqueta não se leu", {
+            cause: erro,
+          });
+        },
+      );
+      if (!conteudo.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
+        throw new ErroDeRede("o ficheiro da etiqueta não é um PDF");
+      }
+      return {
+        estado: "emitida",
+        seguimento: seguimento.slice(0, 200),
+        urlSeguimento:
+          url !== null && url.startsWith("https://") && url.length <= 500
+            ? url
+            : null,
+        ficheiro: { formato: "pdf", conteudo },
       };
     },
 
