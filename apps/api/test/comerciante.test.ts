@@ -183,7 +183,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0095_faturacao_conta_emissor",
         "0096_clientes_aviso_prazo_passado",
         "0097_faturacao_recusas_da_conta",
-        "0098_envios_volumes",
+        "0099_envios_volumes",
       ]);
     });
 
@@ -332,7 +332,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // (0085), as correcções da expedição (0086), os pedidos do titular
       // recebidos (0092) e a etiqueta de devolução, o ficheiro e o
       // histórico dela (0093), as recusas da empresa do emissor (0097) e o
-      // seguimento de cada volume (0098).
+      // seguimento de cada volume (0099).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(100);
