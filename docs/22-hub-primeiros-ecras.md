@@ -2983,6 +2983,9 @@ da sessão, e quem escreve é `pessoa:per_…`.
 
 ### 34.5 Perguntas
 
+✅ **Q1: A** (Diogo, 14/10/2026, *«A»*): o montante, a referência e a data à
+vista, e a confirmação escrita do que se viu, que fica no texto da resolução.
+
 **Q1.** Num pagamento incerto, «Foi pago» marca a encomenda como paga só pela
 palavra do dono. Ex.: a EuPago não respondeu a uma cobrança MB WAY de
 123,00 €; o dono escolhe «Foi pago» e a encomenda pode seguir para envio.
