@@ -731,7 +731,7 @@ else
     # do #215, P2-3). As contagens da fila do titular e das sessões de
     # checkout (0088; docs/23 §15.11; revisão do #433, P2-2). Os pedidos do
     # titular por avisar do prazo legal (0096; docs/23 §15.15). Os pedidos de
-    # autorização da faturação: apagar e contar o atraso (0099; docs/29 §20).
+    # autorização da faturação: apagar e contar o atraso (0100; docs/29 §20).
     for f in 'contas_aplicar_prazos()' 'contas_prazos_em_atraso()' 'ficheiros_sem_uso_em_atraso()' \
       'titular_pendentes_em_atraso()' 'checkout_sessoes_em_atraso()' \
       'clientes_pedidos_sem_aviso_em_atraso()' 'faturacao_autorizacoes_apagar()' \

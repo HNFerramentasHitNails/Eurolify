@@ -755,7 +755,7 @@ ser igual ao registado.
 
 | O quê | Onde |
 |---|---|
-| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás; apagar, só 30 dias depois do fim, desde a 0099, §20); RLS forçado | migração 0081 |
+| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás; apagar, só 30 dias depois do fim, desde a 0100, §20); RLS forçado | migração 0081 |
 | `urlAutorizacao` e `trocarCodigo` no contrato do adaptador; no Moloni, com `MOLONI_REDIRECT_URI` | `src/faturacao/adaptador.ts`, `src/faturacao/moloni.ts`, `src/servidor.ts` |
 | `pedirAutorizacao` e `concluirAutorizacao` (marca usada antes de trocar; grava só depois de conferir a empresa) | `src/faturacao/repositorio.ts` |
 | as três rotas; a página do endereço de resposta (sem nada de fora, sem cache, o texto escapado) e o reencaminhamento com `MOLONI_RETORNO_URL` | `src/faturacao/rotas.ts` |
@@ -778,7 +778,7 @@ ser igual ao registado.
   dois comerciantes.
 - **P3-4 e P3-5, ficam:** a tabela não tem retenção, e quem conclui pode ser
   outra chave de dono do mesmo comerciante. **O P3-4 fechou-se no §20**
-  (30 dias, migração 0099).
+  (30 dias, migração 0100).
 
 **Por fazer:** o botão e o ecrã no Hub; registar `MOLONI_REDIRECT_URI` na
 conta de Developer e no ambiente `ensaio`; medir na conta trial se o `state`
@@ -1153,9 +1153,9 @@ uma regra com prazo fixo. Fonte: `eur-lex`,
 - O jurista confirma, com a Q4 do `docs/28`, que este prazo curto não choca
   com nenhuma obrigação de prova (**C**).
 
-### 20.7 Em código (14/10/2026; migração 0099; ER)
+### 20.7 Em código (14/10/2026; migração 0100; ER)
 
-- **Migração 0099:**
+- **Migração 0100:**
   - `autorizacao_faturacao_apagavel` é a regra, num sítio: o fim (usada ou
     expirada) mais 30 dias já passou;
   - o gatilho da 0081 deixa apagar só o que ela deixa, a quem quer que

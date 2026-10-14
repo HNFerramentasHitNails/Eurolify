@@ -114,7 +114,7 @@ if [[ "$(docker inspect -f '{{.State.Running}}' eurolify-postgres 2>/dev/null)" 
   em_atraso clientes_pedidos_sem_aviso_em_atraso "os pedidos do titular por avisar" \
     "pedido(s) do titular com o prazo legal passado há mais de um dia sem aviso: a tarefa dos avisos (clientes/aviso-prazo.ts) não está a correr (docker logs eurolify-api)"
   # Os pedidos de autorização da faturação com os 30 dias passados há mais
-  # de um dia (migração 0099; docs/29 §20). Sem a função (0099 por publicar),
+  # de um dia (migração 0100; docs/29 §20). Sem a função (0100 por publicar),
   # não avisa.
   em_atraso faturacao_autorizacoes_em_atraso "os pedidos de autorização da faturação" \
     "pedido(s) de autorização da faturação por apagar há mais de um dia: a limpeza diária (eurolify-limpeza) não os está a apagar (journalctl -u eurolify-limpeza)"

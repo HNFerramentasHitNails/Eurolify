@@ -13,7 +13,7 @@ import {
   type BaseDeTeste,
 } from "./base-de-teste.js";
 
-// A limpeza dos pedidos de autorização do emissor (migração 0099; docs/29
+// A limpeza dos pedidos de autorização do emissor (migração 0100; docs/29
 // §20; Q1 «a»: 30 dias). A função chama-a o programa eurolify-limpeza da VPS
 // com o papel eurolify_limpeza; a API não a pode chamar nem apagar. Cada
 // prazo testa-se dos dois lados: um dia depois apaga, um dia antes fica.
@@ -28,7 +28,7 @@ async function mensagemDoErro(promessa: Promise<unknown>): Promise<string> {
 }
 
 describe.skipIf(URL_BASE === undefined)(
-  "faturação: a limpeza dos pedidos de autorização (0099)",
+  "faturação: a limpeza dos pedidos de autorização (0100)",
   () => {
     let base: BaseDeTeste;
     let dono: Kysely<unknown>;

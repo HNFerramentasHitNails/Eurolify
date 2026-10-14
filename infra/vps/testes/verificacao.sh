@@ -3,7 +3,7 @@
 # tarefas da API que limpam dados pessoais (docs/23 §15.11; migração 0088):
 # a fila do titular e as sessões de checkout; e a do aviso do prazo legal dos
 # pedidos do titular (docs/23 §15.15; migração 0096); e a da limpeza dos pedidos
-# de autorização da faturação (docs/29 §20; migração 0099). Corre como root num contentor
+# de autorização da faturação (docs/29 §20; migração 0100). Corre como root num contentor
 # Ubuntu descartável (fluxo verificar), sem docker a sério: um docker de
 # mentira responde às consultas do psql. Nunca correr numa máquina a sério.
 set -Eeuo pipefail
@@ -120,7 +120,7 @@ verificar 0 0 falha
 confere "a falha da contagem dos avisos avisa só a categoria" contem "$saida" \
   "não consegui contar os pedidos do titular por avisar: a consulta falhou"
 
-# 7. Os pedidos de autorização da faturação (0099): sem atraso, nada; com
+# 7. Os pedidos de autorização da faturação (0100): sem atraso, nada; com
 # atraso, a linha com o número e a limpeza; sem a função, nada.
 verificar 0 0 0 0
 confere "sem atraso, as autorizações não aparecem" sem_texto "$saida" "autorização"
@@ -128,7 +128,7 @@ verificar 0 0 0 2
 confere "a limpeza das autorizações parada avisa com o número" contem "$saida" \
   "2 pedido(s) de autorização da faturação por apagar há mais de um dia: a limpeza diária (eurolify-limpeza) não os está a apagar"
 verificar 0 0 0 -
-confere "sem a função (0099 por publicar), as autorizações não aparecem" sem_texto "$saida" "autorização"
+confere "sem a função (0100 por publicar), as autorizações não aparecem" sem_texto "$saida" "autorização"
 
 if ((falhas)); then
   echo "$falhas verificação(ões) falharam"
