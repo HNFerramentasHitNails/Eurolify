@@ -307,7 +307,7 @@ contra um ambiente de teste.
 
 | # | O quê | O que falta |
 |---|---|---|
-| V1 | API dos CTT para etiquetas e seguimento | **Pesquisa de 12/10/2026 (W, resumos):** não há documentação pública da API de envios dos CTT. O acesso é por contrato CTT Expresso e as credenciais e a especificação pedem-se ao gestor comercial ([CTT, plugins](https://www.ctt.pt/empresas/e-commerce-e-logistica/e-commerce/plugins-para-lojas-online)). A API pública que os CTT têm ([services.ctt.pt](https://services.ctt.pt/api_docs/DecisionServerRS/)) é para máquinas de triagem. Falta a especificação e as credenciais de teste |
+| V1 | API dos CTT para etiquetas e seguimento | **14/10/2026: pista da «CTT Express Iberic Web Services API» (SOAP) e a lista do que pedir aos CTT no §24.** **Pesquisa de 12/10/2026 (W, resumos):** não há documentação pública da API de envios dos CTT. O acesso é por contrato CTT Expresso e as credenciais e a especificação pedem-se ao gestor comercial ([CTT, plugins](https://www.ctt.pt/empresas/e-commerce-e-logistica/e-commerce/plugins-para-lojas-online)). A API pública que os CTT têm ([services.ctt.pt](https://services.ctt.pt/api_docs/DecisionServerRS/)) é para máquinas de triagem. Falta a especificação e as credenciais de teste |
 | V2 | Os serviços dos CTT | códigos, peso máximo, se pedem telefone ou e-mail, Açores e Madeira, se aceitam algum perigoso |
 | V3 | Seguimento | se os CTT avisam (com que assinatura) ou se só se consulta; de quanto em quanto tempo se pode consultar |
 | V4 | Anular uma etiqueta | se e até quando se pode |
@@ -1793,3 +1793,71 @@ sem P0 nem P1. Os cinco P2 e os sete P3 corrigidos:
 As capturas foram tiradas outra vez depois das correcções (24 verificações
 da secção dos volumes passaram).
 
+
+## 24. Que transportadora para um comerciante português (pesquisa; Q1 e Q2, issue #393)
+
+Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
+envios»*, depois de se saber que a Sendcloud não aceita contas com faturação
+em Portugal (§11, V6). O Diogo pede aos CTT a especificação e as credenciais
+de teste (*«sim, peço aos CTT»*). Isto é só pesquisa: **nada aqui foi lido
+na documentação técnica nem corrido contra um ambiente de teste**.
+
+### 24.1 Uma pista para a API dos CTT (V1)
+
+O módulo `delivery_cttexpress` da OCA (Odoo Community Association, pacote
+`odoo-addon-delivery-cttexpress` 18.0.1.0.0.3, publicado a 18/05/2026,
+licença AGPL-3; lido a 14/10/2026 na descrição do pacote no PyPI, **W**)
+liga-se à **«CTT Express Iberic Web Services API»**, «válida para Portugal e
+Espanha»:
+
+| O quê | O que a descrição diz |
+|---|---|
+| Endereços | teste `iberws.tourlineexpress.com:8686`; produção `iberws.tourlineexpress.com:8700` |
+| Tecnologia | SOAP (o módulo usa a biblioteca `zeep`) |
+| Credenciais | contrato, agência, código de cliente, utilizador e palavra-passe |
+| Formato da etiqueta | térmica (uma etiqueta) ou folhas com 1, 3 ou 4 etiquetas |
+| O que tem | etiqueta, anular o envio, manifesto entre datas, pedido de recolha |
+| O que não tem | o cálculo do preço dos portes (não nos afecta: Q3, o preço é do comerciante) |
+
+O que isto **não** diz (fica para a especificação dos CTT):
+- se um contrato **CTT Expresso** português usa esta API ou outra;
+- os códigos dos serviços, os pesos máximos e Açores e Madeira (V2);
+- o seguimento: se há avisos ou só consulta (V3);
+- até quando se anula (V4).
+
+**O código da OCA não se copia:** é AGPL-3 e o Eurolify não o usa (memória
+`odoo-skills-avaliado-03out2026.md`). Serve só para saber o que pedir.
+
+### 24.2 O que pedir aos CTT
+
+Ao gestor comercial, para um contrato CTT Expresso:
+1. a especificação da API de envios (o WSDL, se for SOAP) e se é a «Iberic
+   Web Services» do §24.1;
+2. credenciais de **teste**: contrato, agência, código de cliente, utilizador
+   e palavra-passe;
+3. os serviços do contrato, com os códigos, os pesos máximos e se servem
+   Açores e Madeira;
+4. como chega o seguimento (aviso com assinatura, ou consulta) e de quanto em
+   quanto tempo se pode consultar;
+5. até quando se anula uma etiqueta, e se há etiquetas de devolução e envios
+   com várias caixas;
+6. onde tratam os dados dos clientes e o acordo de tratamento de dados (RGPD,
+   §6).
+
+As credenciais ficam nas definições do ambiente; nunca no chat nem no
+repositório.
+
+### 24.3 Agregadores que dizem servir Portugal (só para registo)
+
+Pesquisa de 14/10/2026 (**W**, resumos de pesquisa, nenhuma página técnica
+lida):
+
+| Agregador | O que a pesquisa diz | Antes de o considerar |
+|---|---|---|
+| ShippyPro | empresa italiana; a página dela sobre os CTT diz que liga a conta do comerciante e faz etiquetas, seguimento e devoluções, em PDF A6 ou ZPL ([ShippyPro, CTT](https://www.shippypro.com/en/carriers/ctt)) | se aceita contas com faturação em Portugal; onde trata os dados; a API |
+| Packlink PRO | Portugal aparece entre os países; a página de ajuda é da Auctane, S.L.U. | o grupo a que pertence e onde trata os dados (regra 4 do `AGENTS.md`) |
+
+Outros que apareceram são empresas de fora da UE: receberiam dados de
+clientes fora da UE e ficam de fora sem decisão escrita (regra 4 do
+`AGENTS.md`). Um agregador só entra com decisão do Diogo ou do Bruno; a Q2
+fica como está até lá.
