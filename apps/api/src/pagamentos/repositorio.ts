@@ -1770,6 +1770,13 @@ export async function diferencasParaOHub(
         "p.montante",
         "p.moeda",
         "p.estado as pagamento_estado",
+        // Para a pessoa conferir na conta do prestador (Q1 A, 14/10/2026): as
+        // duas referências, que não são dados pessoais. Nunca as `instrucoes`
+        // (o telefone do MB WAY, o resto).
+        "p.prestador",
+        "p.referencia",
+        "p.referencia_prestador",
+        "p.criado_em as pagamento_criado_em",
       ]);
     if (estado !== undefined) q = q.where("d.estado", "=", estado);
     // As por resolver pela ordem de chegada; as resolvidas, as mais recentes

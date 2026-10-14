@@ -292,3 +292,26 @@ export async function registarVerificacao(
       .execute(),
   );
 }
+
+/**
+ * O fuso do comerciante (os ecrãs «A decidir» e «Diferenças de pagamento»
+ * mostram as datas nele; revisão do #470, P3-3).
+ */
+export function fusoDo(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+): Promise<string> {
+  return comComerciante(
+    db,
+    comercianteId,
+    async (trx) =>
+      (
+        await trx
+          .selectFrom("comerciante")
+          .select("fuso")
+          .where("id", "=", comercianteId)
+          .executeTakeFirstOrThrow()
+      ).fuso,
+    { soLeitura: true },
+  );
+}

@@ -1805,6 +1805,23 @@ export const pt = {
     "Confirme no back-office do prestador antes de decidir. Se disser que foi pago, a encomenda passa a paga e segue para a fatura.",
   diferencaPagouSim: "Sim, foi pago",
   diferencaPagouNao: "Não, não foi pago",
+  diferencaPagamentoAConferir: "Pagamento a conferir: {montante}, de {data}.",
+  diferencaPagamentoReferencia: "Referência do prestador: {referencia}.",
+  diferencaPagamentoIdentificador:
+    "Identificador enviado ao prestador: {identificador}.",
+  diferencaSugestaoPago:
+    "Vi na conta da {prestador} o pagamento de {montante} com a referência {referencia}.",
+  diferencaSugestaoNaoPago:
+    "Vi na conta da {prestador} que o pagamento de {montante} com a referência {referencia} não entrou.",
+  diferencaSugestaoPagoSemReferencia:
+    "Vi na conta da {prestador} o pagamento de {montante} de {data}.",
+  diferencaSugestaoNaoPagoSemReferencia:
+    "Vi na conta da {prestador} que o pagamento de {montante} de {data} não entrou.",
+  diferencaSugestaoNota: "Preenchido com uma sugestão; pode alterar.",
+  diferencaNaoFicaPaga:
+    "A encomenda não fica paga. Pode devolver ao cliente o que pagou, na conta do prestador, e pedir-lhe um pagamento novo, ou cancelar a encomenda.",
+  diferencaNaoFicaPagaDialogo:
+    "A encomenda não fica paga. Pode devolver ao cliente o que pagou, na conta do prestador, e pedir-lhe um pagamento novo, ou cancelar a encomenda. Escreva aqui o que fez.",
   diferencaReembolsoAviso:
     "O estado do reembolso decide-se pela integração (reconciliar o reembolso), e um reembolso incerto continua na fila «Reembolso» de «A decidir». Aqui só fica registado o que se fez.",
   diferencaConfirmar: "Resolver",

@@ -947,9 +947,21 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
             montante: expect.any(Number) as unknown,
             moeda: "EUR",
             estado: "incerto",
+            // Para conferir na conta do prestador (Q1 A, 14/10/2026).
+            prestador: "eupago",
+            // O identificador nosso (hex de 32) e, separada, a do prestador
+            // (nula num incerto): nunca fundidas (revisão do #470, P2-1).
+            identificador: expect.stringMatching(/^[0-9a-f]{32}$/) as unknown,
+            referencia_prestador: null,
+            criado_em: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) as unknown,
           },
         });
         expect(JSON.stringify(r)).not.toContain("corpo");
+        // As `instrucoes` (o telefone do MB WAY, o resto) não saem: só o
+        // resumo. A referência de Multibanco sai, como `referencia_prestador`.
+        expect(JSON.stringify(r)).not.toContain("instrucoes");
+        expect(r["fuso"]).toBe("Europe/Lisbon");
+        expect(JSON.stringify(r)).not.toContain('"referencia"');
       }
       // A lista não fica em nenhuma cache (revisão do #458, P3-2).
       expect(

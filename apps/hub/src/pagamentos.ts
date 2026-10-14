@@ -43,6 +43,116 @@ export function casoDoDialogo(d: DiferencaPagamento): CasoDoDialogo {
   return "normal";
 }
 
+/**
+ * Montante ou moeda diferentes (Q2 A, 14/10/2026): a encomenda não fica paga.
+ * O ecrã diz-o e dá as duas saídas (devolver e pedir de novo, ou cancelar).
+ */
+export function naoFicaPaga(d: DiferencaPagamento): boolean {
+  return d.motivo === "montante_diferente" || d.motivo === "moeda_diferente";
+}
+
+/** Os nomes dos prestadores (marcas, iguais em todas as línguas). */
+const NOMES_DE_PRESTADOR: Record<string, string> = { eupago: "EuPago" };
+
+/**
+ * O que a pessoa confere na conta do prestador num pagamento incerto
+ * (Q1 A, 14/10/2026): o prestador, o montante, a data e as duas referências,
+ * separadas. null se a API não der o montante (nada se inventa).
+ */
+export function pagamentoAConferir(
+  d: DiferencaPagamento,
+  tag: string,
+  fuso?: string,
+): {
+  prestador: string;
+  montante: string;
+  data: string;
+  referencia: string | null;
+  identificador: string | null;
+} | null {
+  const p = d.pagamento;
+  if (p === null || typeof p.montante !== "number") return null;
+  const prestador = typeof p.prestador === "string" ? p.prestador : "";
+  return {
+    prestador: NOMES_DE_PRESTADOR[prestador] ?? prestador,
+    montante: emDinheiro(p.montante, p.moeda, tag),
+    data: dataDoPagamento(p.criado_em, tag, fuso),
+    // Só a do prestador é «a referência»; a nossa tem rótulo próprio.
+    referencia: textoOuNull(p.referencia_prestador),
+    identificador: textoOuNull(p.identificador),
+  };
+}
+
+const textoOuNull = (x: unknown): string | null =>
+  typeof x === "string" && x !== "" ? x : null;
+
+/** A data do pagamento, no fuso do comerciante se o Hub o tiver. */
+function dataDoPagamento(
+  iso: unknown,
+  tag: string,
+  fuso: string | undefined,
+): string {
+  if (typeof iso !== "string") return "";
+  const quando = new Date(iso);
+  if (Number.isNaN(quando.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat(tag, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      ...(fuso === undefined ? {} : { timeZone: fuso }),
+    }).format(quando);
+  } catch {
+    return ""; // um fuso que o navegador não conhece
+  }
+}
+
+/**
+ * O texto sugerido para a resolução de um pagamento incerto, conforme a
+ * pessoa escolhe «Sim, foi pago» ou «Não, não foi pago». É só uma sugestão,
+ * que a pessoa edita; o que se grava é o que ela deixar. Leva a referência só
+ * se houver a do prestador (a nossa não se vê na conta dele); sem ela, o
+ * montante e a data. Vazio se faltar o que citar.
+ */
+export function sugestaoDaResolucao(
+  t: Textos,
+  d: DiferencaPagamento,
+  pago: "capturado" | "falhado",
+  tag: string,
+  fuso?: string,
+): string {
+  const v = pagamentoAConferir(d, tag, fuso);
+  if (v === null || v.prestador === "") return "";
+  const foi = pago === "capturado";
+  if (v.referencia !== null) {
+    return preencher(
+      foi ? t.diferencaSugestaoPago : t.diferencaSugestaoNaoPago,
+      v as Record<string, string>,
+    );
+  }
+  if (v.data === "") return "";
+  return preencher(
+    foi
+      ? t.diferencaSugestaoPagoSemReferencia
+      : t.diferencaSugestaoNaoPagoSemReferencia,
+    v as Record<string, string>,
+  );
+}
+
+/**
+ * O texto da resolução depois de escolher «foi pago» ou «não foi pago»: a
+ * sugestão nova só entra se o campo está vazio ou ainda tem a sugestão
+ * anterior; um texto que a pessoa escreveu ou alterou nunca se pisa.
+ * null = não mexer.
+ */
+export function textoDepoisDaSugestao(
+  atual: string,
+  sugeridoAntes: string,
+  nova: string,
+): string | null {
+  if (nova === "") return null;
+  return atual.trim() === "" || atual === sugeridoAntes ? nova : null;
+}
+
 /** Um montante em euros (a API dá-o em unidades, não em cêntimos). */
 export function emDinheiro(
   valor: number,

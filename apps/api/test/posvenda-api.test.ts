@@ -3469,6 +3469,14 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         prova: expect.objectContaining({ reembolso: r.id }) as unknown,
       }),
     ]);
+    // Uma vez só em «A decidir» (0106; Q3 A): o reembolso incerto está na fila
+    // `reembolso`, e a diferença dele (aberta, acima) não está na `pagamento`.
+    const naFila = async (fila: string) =>
+      ((await ok(s.adm("GET", `/tasks?fila=${fila}`)))["dados"] as Json[]).map(
+        (x) => x["caso"],
+      );
+    expect(await naFila("reembolso")).toEqual([r.id]);
+    expect(await naFila("pagamento")).toEqual([]);
     // A tarefa nunca o repete, nem a execução: só a reconciliação.
     await confirmar();
     expect(
@@ -3524,6 +3532,9 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         resolvida_por: expect.stringMatching(/^chave:/) as string,
       }),
     ]);
+    // Reconciliado, sai das duas filas.
+    expect(await naFila("reembolso")).toEqual([]);
+    expect(await naFila("pagamento")).toEqual([]);
     delete eupago.respostas.reembolso;
   });
 

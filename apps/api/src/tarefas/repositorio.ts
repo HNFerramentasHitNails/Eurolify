@@ -229,26 +229,6 @@ export function podemSerResponsaveis(
   );
 }
 
-/** O fuso do comerciante (o ecrã «A decidir» mostra os prazos nele). */
-export function fusoDo(
-  db: Kysely<BaseDados>,
-  comercianteId: string,
-): Promise<string> {
-  return comComerciante(
-    db,
-    comercianteId,
-    async (trx) =>
-      (
-        await trx
-          .selectFrom("comerciante")
-          .select("fuso")
-          .where("id", "=", comercianteId)
-          .executeTakeFirstOrThrow()
-      ).fuso,
-    { soLeitura: true },
-  );
-}
-
 /**
  * O responsável de agora de um caso aberto (sem o prefixo), na transacção
  * de quem vai escrever; nenhum se não tem, ou se o caso não está aberto

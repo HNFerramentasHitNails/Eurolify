@@ -355,6 +355,16 @@ export interface DiferencaPagamento {
     montante: number | null;
     moeda: string | null;
     estado: string | null;
+    /**
+     * Para conferir na conta do prestador (Q1 A, 14/10/2026); sem as
+     * instruções. Opcionais: uma API mais antiga não os dá.
+     */
+    prestador?: string | null;
+    /** A referência do prestador (a de Multibanco); quase sempre nula num incerto. */
+    referencia_prestador?: string | null;
+    /** O nosso identificador, o que se enviou ao prestador (não é a referência dele). */
+    identificador?: string | null;
+    criado_em?: string | null;
   } | null;
   aviso: string | null;
   motivo: string;
@@ -1422,7 +1432,7 @@ export const api = {
     ),
   // A fila de diferenças de pagamento (docs/22 §34).
   diferencasPagamento: (comerciante: string, estado: "aberta" | "resolvida") =>
-    pedir<{ dados: DiferencaPagamento[]; limite: number }>(
+    pedir<{ dados: DiferencaPagamento[]; limite: number; fuso?: string }>(
       "GET",
       `/hub/payment-issues?${new URLSearchParams({ estado }).toString()}`,
       { comerciante },
