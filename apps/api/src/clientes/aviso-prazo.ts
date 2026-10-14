@@ -3,7 +3,7 @@ import type { BaseDados } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
 
 // O aviso quando o prazo legal de um pedido do titular passa (docs/23 §15.15,
-// A1–A4; migração 0094; Diogo, 13/10/2026: Q-P3 «a»). Ex.: a Ana pediu o
+// A1–A4; migração 0096; Diogo, 13/10/2026: Q-P3 «a»). Ex.: a Ana pediu o
 // apagamento a 2/10; o prazo legal era 2/11; a 3/11 o pedido continua aberto
 // e, na volta seguinte, os donos da loja recebem um e-mail, uma vez. A regra
 // (aberto, sem aviso, o dia de hoje no fuso do comerciante depois do prazo em

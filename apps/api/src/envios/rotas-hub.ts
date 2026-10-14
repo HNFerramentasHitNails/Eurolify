@@ -59,7 +59,9 @@ type Ambito =
   | "prices:read"
   | "inventory:read"
   | "fulfilment:read"
-  | "fulfilment:write";
+  | "fulfilment:write"
+  | "returns:read"
+  | "returns:write";
 
 const RECUSA: Record<Ambito, string> = {
   "shipping:read": "o papel não vê os envios",
@@ -70,6 +72,8 @@ const RECUSA: Record<Ambito, string> = {
   "inventory:read": "o papel não vê os armazéns",
   "fulfilment:read": "o papel não vê as expedições",
   "fulfilment:write": "o papel não expede",
+  "returns:read": "o papel não vê as devoluções",
+  "returns:write": "o papel não trata das devoluções",
 };
 
 /**

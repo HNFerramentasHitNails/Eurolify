@@ -67,7 +67,7 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       moloni: new AdaptadorMoloni({
         clientId: "dev-eurolify",
         clientSecret: "segredo-do-developer",
-        empresasPermitidas: [String(moloni.empresa)],
+        empresasPermitidas: moloni.empresas,
         fetch: moloni.fetch,
       }),
     },

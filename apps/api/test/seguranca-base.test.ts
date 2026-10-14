@@ -63,7 +63,7 @@ const FUNCOES_DA_API = [
   // pseudonimização, a régua por contacto e o pedido e a confirmação.
   "cliente_pseudonimizado_sem_confirmacoes",
   "cliente_pseudonimizar",
-  // O aviso do prazo legal do pedido do titular (0094): a tarefa e a
+  // O aviso do prazo legal do pedido do titular (0096): a tarefa e a
   // conferência no envio.
   "clientes_aviso_espera",
   "clientes_aviso_prazo_comerciantes",

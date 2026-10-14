@@ -21,7 +21,7 @@ import {
 import { hubDeTeste } from "./hub-de-teste.js";
 
 // O aviso quando o prazo legal de um pedido do titular passa com o pedido
-// aberto (docs/23 §15.15, A1–A4; migração 0094; RGPD, art. 12.º, n.º 3). Ex.:
+// aberto (docs/23 §15.15, A1–A4; migração 0096; RGPD, art. 12.º, n.º 3). Ex.:
 // a Ana pediu o apagamento há 40 dias; o prazo legal passou há 10; a tarefa
 // marca o pedido e os donos recebem um e-mail, uma vez.
 

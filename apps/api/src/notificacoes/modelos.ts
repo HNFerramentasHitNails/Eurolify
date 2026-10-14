@@ -71,7 +71,7 @@ export interface DadosDoEnvio {
 
 /**
  * O aviso do prazo legal de um pedido do titular que passou com o pedido
- * aberto (docs/23 §15.15, A3; migração 0094). Só os identificadores, o tipo e
+ * aberto (docs/23 §15.15, A3; migração 0096). Só os identificadores, o tipo e
  * os dias; nunca o nome, o e-mail nem o NIF do cliente.
  */
 export interface DadosDoTitular {

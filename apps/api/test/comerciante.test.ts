@@ -180,7 +180,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0091_notificacoes_gatilhos_sem_always",
         "0092_clientes_pedidos_recebidos",
         "0093_envios_etiqueta_devolucao",
-        "0094_clientes_aviso_prazo_passado",
+        "0095_faturacao_conta_emissor",
+        "0096_clientes_aviso_prazo_passado",
       ]);
     });
 

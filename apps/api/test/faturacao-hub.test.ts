@@ -38,7 +38,7 @@ describe.skipIf(URL_BASE === undefined)("Hub: o ecrã Faturação", () => {
       moloni: new AdaptadorMoloni({
         clientId: "dev-eurolify",
         clientSecret: "segredo-do-developer",
-        empresasPermitidas: [String(moloni.empresa)],
+        empresasPermitidas: moloni.empresas,
         redirectUri:
           "https://api.exemplo.test/invoicing-connections/moloni/callback",
         fetch: moloni.fetch,

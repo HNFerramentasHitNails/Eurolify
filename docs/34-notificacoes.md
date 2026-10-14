@@ -266,7 +266,7 @@ fornecedor nem as regras N4 a N11:
   escreve; um teste de `seguranca-base` recusa um gatilho novo que crie
   notificações e fique `ALWAYS`.
 
-## 12.3 O aviso do prazo legal de um pedido do titular (14/10/2026; migração 0094; EO)
+## 12.3 O aviso do prazo legal de um pedido do titular (14/10/2026; migração 0096; EO)
 
 O desenho está no `docs/23` §15.15 (Q-P3). Usa a mesma fila de e-mails, sem
 mudar o fornecedor nem as regras N4 a N11:

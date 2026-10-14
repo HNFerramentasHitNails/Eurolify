@@ -13,6 +13,7 @@ export type IdModulo =
   | "artigos"
   | "decidir"
   | "expedir"
+  | "devolucoes"
   | "envios"
   | "faturacao"
   | "chaves";
@@ -30,6 +31,7 @@ export interface Modulo {
     | "/artigos"
     | "/a-decidir"
     | "/expedir"
+    | "/devolucoes"
     | "/envios"
     | "/faturacao"
     | "/chaves";
@@ -54,6 +56,13 @@ export const MODULOS: readonly Modulo[] = [
   },
   // Expedir (docs/22 §33): o dono, o gestor e o armazém expedem; o apoio vê.
   { id: "expedir", ambitoNecessario: "fulfilment:read", caminho: "/expedir" },
+  // As devoluções e a etiqueta de devolução (docs/36 §22.10): os quatro
+  // papéis vêem.
+  {
+    id: "devolucoes",
+    ambitoNecessario: "returns:read",
+    caminho: "/devolucoes",
+  },
   // As contas de transportadora (docs/22 §29): os quatro papéis vêem.
   { id: "envios", ambitoNecessario: "shipping:read", caminho: "/envios" },
   {

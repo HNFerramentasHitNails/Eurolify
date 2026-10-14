@@ -12,6 +12,7 @@ export type CodigoErroDocumentos =
   | "invoices.immutable"
   | "invoices.other_issuer"
   | "invoices.not_configured"
+  | "invoices.account_in_use"
   | "invoices.retry";
 
 export const ESTADO_DO_CODIGO: Record<CodigoErroDocumentos, number> = {
@@ -26,6 +27,7 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroDocumentos, number> = {
   "invoices.immutable": 409,
   "invoices.other_issuer": 409,
   "invoices.not_configured": 503,
+  "invoices.account_in_use": 409,
   "invoices.retry": 503,
 };
 
@@ -40,6 +42,13 @@ export class ErroDocumentos extends Error {
     this.name = "ErroDocumentos";
   }
 }
+
+/**
+ * A recusa da mesma conta do emissor noutra ligação (docs/29 §19, Q1 «B»):
+ * nunca diz de que comerciante nem de que entidade.
+ */
+export const CONTA_EM_USO =
+  "esta empresa do Moloni já está ligada a outra conta do Eurolify; se é sua, desligue-a lá primeiro, ou fale com o apoio do Eurolify";
 
 /** Os erros da base com o código à frente (`invoices.x: …`). */
 const DA_BASE: CodigoErroDocumentos[] = [
@@ -63,6 +72,17 @@ export function traduzir(erro: unknown): unknown {
     return new ErroDocumentos("invoices.invalid_transition", erro.message);
   }
   const pg = erro as Error & { code?: string; constraint?: string };
+  if (
+    pg.code === "23505" &&
+    pg.constraint === "ligacao_faturacao_uma_por_conta"
+  ) {
+    return new ErroDocumentos(
+      "invoices.account_in_use",
+      CONTA_EM_USO,
+      undefined,
+      { cause: erro },
+    );
+  }
   if (pg.code === "23505" && pg.constraint === "ligacao_faturacao_uma_activa") {
     return new ErroDocumentos(
       "invoices.invalid_field",

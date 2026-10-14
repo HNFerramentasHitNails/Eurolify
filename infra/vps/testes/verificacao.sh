@@ -2,7 +2,7 @@
 # Teste da verificação diária (eurolify-verificacao), só a parte das duas
 # tarefas da API que limpam dados pessoais (docs/23 §15.11; migração 0088):
 # a fila do titular e as sessões de checkout; e a do aviso do prazo legal dos
-# pedidos do titular (docs/23 §15.15; migração 0094). Corre como root num contentor
+# pedidos do titular (docs/23 §15.15; migração 0096). Corre como root num contentor
 # Ubuntu descartável (fluxo verificar), sem docker a sério: um docker de
 # mentira responde às consultas do psql. Nunca correr numa máquina a sério.
 set -Eeuo pipefail
@@ -105,7 +105,7 @@ confere "a linha do erro do psql não sai" sem_texto "$saida" "ana@exemplo.pt"
 verificar texto 0
 confere "uma contagem que não é número avisa" contem "$saida" "a contagem (a fila do titular) não é um número"
 
-# 6. Os avisos do prazo legal dos pedidos do titular (0094): sem atraso, nada;
+# 6. Os avisos do prazo legal dos pedidos do titular (0096): sem atraso, nada;
 # com atraso, a linha com o número e a tarefa.
 verificar 0 0 0
 confere "sem atraso, os avisos do titular não aparecem" sem_texto "$saida" "sem aviso"

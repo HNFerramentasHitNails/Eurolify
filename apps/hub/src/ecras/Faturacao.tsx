@@ -543,7 +543,9 @@ function DialogoLigar({
           ? t.ligarEmpresaNaoTeste
           : f instanceof ErroHub && f.codigo === "invoices.not_configured"
             ? t.ligarNaoConfigurado
-            : mensagemDeErro(f, t, lingua).texto,
+            : f instanceof ErroHub && f.codigo === "invoices.account_in_use"
+              ? t.moloniEmpresaEmUso
+              : mensagemDeErro(f, t, lingua).texto,
       );
       setAEnviar(false);
     }
@@ -706,6 +708,8 @@ export function RegressoMoloni({
               texto = preencher(t.moloniRecusou, { erro: e.detalhe ?? "" });
             } else if (e.codigo === "invoices.issuer_busy") {
               texto = t.moloniOcupado;
+            } else if (e.codigo === "invoices.account_in_use") {
+              texto = t.moloniEmpresaEmUso;
             } else if (
               e.codigo === "invoices.invalid_transition" ||
               e.codigo === "invoices.not_found"

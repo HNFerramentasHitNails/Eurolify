@@ -978,7 +978,7 @@ export interface TabelaPedidoTitularRecebido {
   pedido_titular_id: ColumnType<string | null, never, never>;
   quem: ColumnType<string, never, never>;
   criado_em: ColumnType<Date, never, never>;
-  /** Quando se avisou que o prazo legal passou (uma vez; migração 0094). */
+  /** Quando se avisou que o prazo legal passou (uma vez; migração 0096). */
   aviso_prazo_em: ColumnType<Date | null, never, never>;
 }
 
@@ -1686,7 +1686,7 @@ export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
-// Notificações (migrações 0067 e 0071; docs/34; o aviso do titular, 0094).
+// Notificações (migrações 0067 e 0071; docs/34; o aviso do titular, 0096).
 export const TIPOS_NOTIFICACAO = [
   "refund.deadline_approaching",
   "refund.deadline_passed",
@@ -1910,6 +1910,8 @@ export interface TabelaLigacaoFaturacao {
   isencoes: ColumnType<IsencaoDoEmissor[], string, string>;
   /** Os ids do emissor por omissão (docs/29 §13.2; migração 0069). */
   config: ColumnType<ConfigDaLigacao, string | undefined, string>;
+  /** A conta no emissor, à vista (o `company_id` do Moloni; docs/29 §19; 0095). */
+  conta_emissor: ColumnType<string | null, never, string | null>;
   /** Os tokens que o emissor renova sozinho, cifrados (§13.4). */
   sessao: ColumnType<Buffer | null, never, Buffer | null>;
   sessao_versao_chave: ColumnType<string | null, never, string | null>;

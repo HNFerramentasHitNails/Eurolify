@@ -1025,6 +1025,8 @@ export const en: Textos = {
   moloniRecusou: "Moloni refused: {erro} Ask again.",
   moloniOcupado:
     "There are documents half-way in Moloni; resolve them before changing the account.",
+  moloniEmpresaEmUso:
+    "This Moloni company is already connected to another Eurolify account. If it is yours, disconnect it there first, or contact Eurolify support.",
   moloniVoltar: "Back to Invoicing",
   ossTitulo: "OSS report",
   ossPeriodo: "Period",
@@ -1657,4 +1659,101 @@ export const en: Textos = {
     "To cancel this shipment, void the label first (or ask the carrier, if it is uncertain).",
   etiquetaFicheiroJaNao:
     "The label file no longer exists: it is deleted 30 days after the shipment ends.",
+  // As devoluções (docs/36 §22.10).
+  modulo_devolucoes: "Returns",
+  termos_devolucoes: "returns withdrawal return label refund",
+  devolucoesTitulo: "Returns",
+  devolucaoTitulo: "Return",
+  devolucoesExplicacao:
+    "This shop's returns, newest first. Here you can see each return and request the return label; receiving, inspecting and deciding are still done through the API.",
+  devolucoesFiltroEstado: "Status",
+  devolucoesFiltroTodos: "All",
+  devolucoesVazio: "There are no returns yet.",
+  devolucoesVazioNoFiltro: "There are no returns with this status.",
+  devolucoesContagemUm: "1 return.",
+  devolucoesContagem: "{n} returns.",
+  devolucoesContagemMaximo:
+    "The {n} most recent returns: there may be more. Use the status filter to see the others.",
+  devolucoesColunaDevolucao: "Return",
+  devolucoesColunaEstado: "Status",
+  devolucoesColunaOrigem: "Origin",
+  devolucoesColunaPrazo: "Refund by",
+  devolucaoDe: "Return of {data}",
+  devolucoesVoltar: "Back to returns",
+  devolucaoEstadoAAguardar: "Awaiting the parcel",
+  devolucaoEstadoRecebida: "Received",
+  devolucaoEstadoInspeccionada: "Inspected",
+  devolucaoEstadoDecidida: "Decided",
+  devolucaoEstadoFechada: "Closed",
+  devolucaoEstadoCancelada: "Cancelled",
+  devolucaoOrigemLivreResolucao: "Withdrawal",
+  devolucaoOrigemApoio: "Agreed by support",
+  devolucaoOrigemComercial: "Shop policy",
+  devolucaoPrazoPassado: "deadline passed",
+  devolucaoPrazoUmDia: "1 day left",
+  devolucaoPrazoDias: "{n} days left",
+  devolucaoTransportadora: "Return carrier",
+  devolucaoMotivo: "Reason",
+  devolucaoArtigos: "Items",
+  devolucaoColunaArtigo: "Item",
+  devolucaoColunaPedida: "Requested",
+  devolucaoColunaRecebida: "Received",
+  devolucaoColunaAceite: "Accepted",
+  devolucaoSoLeitura:
+    "Receiving, inspecting and deciding this return are, for now, done through the API.",
+  devolucaoNaoExiste: "This return does not exist, or is not from this shop.",
+  etiquetaDevolucaoTitulo: "Return label",
+  etiquetaDevolucaoNenhuma: "There is no return label yet.",
+  etiquetaDevolucaoSoAAguardar:
+    "A return label can only be requested while the return is awaiting the parcel.",
+  etiquetaDevolucaoIncertaExplicacao:
+    "The carrier did not answer with certainty. Check in its dashboard whether the label exists: if it does, void it there; then void it here. No other label can be requested until then.",
+  etiquetaDevolucaoServico: "Service",
+  etiquetaDevolucaoEm: "In this state since",
+  etiquetaDevolucaoDescarregar: "Download the PDF",
+  etiquetaDevolucaoPedir: "Request the return label",
+  etiquetaDevolucaoPedirOutra: "Request another return label",
+  etiquetaDevolucaoServicoAEscolher: "Account and return service",
+  etiquetaDevolucaoPesoDaCaixa:
+    "Parcel weight: {g} (the items to return and the packaging).",
+  etiquetaDevolucaoCusto:
+    "The label is paid by the merchant's carrier account. This request deducts nothing from the customer.",
+  etiquetaDevolucaoPedirBotao: "Request the label",
+  etiquetaDevolucaoSemPeso:
+    "A variant in this return has no weight: fix the variant's weight in the item before requesting the label.",
+  etiquetaDevolucaoSemServicos:
+    "No ready account has a service for this return (it must collect in the customer's country, not be a pickup-point service, and not ask for the customer's phone or email).",
+  etiquetaDevolucaoEscolherServico: "Choose the account and the service.",
+  etiquetaDevolucaoPedidaAgora:
+    "Return label issued. Download the PDF and send it to the customer.",
+  etiquetaDevolucaoAnular: "Void the label",
+  etiquetaDevolucaoAnularAjuda:
+    "Eurolify does not void the label with the carrier: void it first in the carrier's dashboard (or confirm the uncertain one does not exist there) and then void it here. The PDF is deleted and another can be requested.",
+  etiquetaDevolucaoAnularAPartirDe:
+    "The carrier may still be creating it: it can only be voided from {hora}.",
+  etiquetaDevolucaoMotivoAnular: "Reason",
+  etiquetaDevolucaoConfirmeiNoPainel:
+    "I confirmed it in the carrier's dashboard",
+  etiquetaDevolucaoMotivoEmFalta: "Write the reason (at least 3 characters).",
+  etiquetaDevolucaoConfirmarPainel:
+    "Confirm you handled the label in the carrier's dashboard.",
+  etiquetaDevolucaoAnularBotao: "Void the label",
+  etiquetaDevolucaoAnuladaAgora: "Label voided. You can request another.",
+  etiquetaDevolucaoFicheiroJaNao:
+    "The label PDF no longer exists: it is deleted 30 days after the return ends.",
+  etiquetaDevolucaoJaExiste: "This return already has a label: void it first.",
+  etiquetaDevolucaoIncertaPrimeiro:
+    "The previous label is uncertain: check the carrier's dashboard and void it here before requesting another.",
+  etiquetaDevolucaoNaoAnulaAinda:
+    "This label cannot be voided yet: it is being requested, became uncertain less than 15 minutes ago, or is no longer active.",
+  etiquetaDevolucaoSemTransportadora:
+    "This carrier does not yet issue return labels in Eurolify.",
+  devolucoesColunaEncomenda: "Order",
+  devolucaoDeEncomenda: "Return of {data}, order ending in {id}",
+  etiquetaDevolucaoFicouIncerta:
+    "The carrier did not answer with certainty: the label may exist and be paid for. Check its dashboard before doing anything else.",
+  etiquetaDevolucaoFoiRecusada:
+    "The carrier refused the label. The reason is below; you can request another.",
+  etiquetaDevolucaoSemPermissao:
+    "There is no return label yet, and your role cannot request one.",
 };
