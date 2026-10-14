@@ -1796,4 +1796,5 @@ export const es: Textos = {
   volumesDescarregar: "Descargar la etiqueta de la caja {n}",
   volumesDoEvento: "caja {n}",
   correccaoVolumes: "Bultos",
+  volumesPesoTotal: "Peso de las cajas, juntas",
 };

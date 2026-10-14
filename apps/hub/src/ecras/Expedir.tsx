@@ -738,7 +738,11 @@ function Expedicao({
                 )}
                 {etiqueta.peso_g === null ? null : (
                   <>
-                    <dt>{t.etiquetaPeso}</dt>
+                    <dt>
+                      {etiqueta.volumes == null
+                        ? t.etiquetaPeso
+                        : t.volumesPesoTotal}
+                    </dt>
                     <dd>
                       {preencher(t.etiquetaGramas, { g: etiqueta.peso_g })}
                     </dd>

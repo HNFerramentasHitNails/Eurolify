@@ -1771,6 +1771,7 @@ export const pt = {
   volumesDescarregar: "Descarregar a etiqueta da caixa {n}",
   volumesDoEvento: "caixa {n}",
   correccaoVolumes: "Volumes",
+  volumesPesoTotal: "Peso das caixas, juntas",
 };
 
 export type Textos = typeof pt;

@@ -1776,4 +1776,5 @@ export const en: Textos = {
   volumesDescarregar: "Download the label for box {n}",
   volumesDoEvento: "box {n}",
   correccaoVolumes: "Parcels",
+  volumesPesoTotal: "Weight of all boxes",
 };
