@@ -497,5 +497,62 @@ describe.skipIf(URL_BASE === undefined)(
       ]);
       expect(filas.rows.every((f) => tratadas.has(f.fila))).toBe(true);
     });
+
+    it("outro comerciante fica intacto: o apagamento numa loja não toca no rasto da outra, nem com os ids dela", async () => {
+      // A loja B, com a chave dela, um caso e uma mudança de prazo com motivo.
+      const b = await registarComerciante(base.api, {
+        nome: "Loja B",
+        lingua: "pt",
+        fuso: "Europe/Lisbon",
+      });
+      const chaveB = (
+        await criarChave(base.dono, b, {
+          tipo: "servidor",
+          criadaPor: "operador:teste",
+          nome: "Tudo",
+          ambitos: AMBITOS,
+        })
+      ).segredo;
+      const [cA, chaveA] = [c, chave];
+      let clienteB = "";
+      let encB = "";
+      try {
+        [c, chave] = [b, chaveB];
+        clienteB = await novoCliente("Ana Silva");
+        encB = await novaEncomenda(clienteB);
+        const kB = await casosDeUmaEncomenda(encB);
+        await mudarPrazo("problema", kB.problema);
+      } finally {
+        [c, chave] = [cA, chaveA];
+      }
+      const motivosDeB = async () =>
+        (
+          await sql<{ motivo: string | null }>`
+            select r.motivo from atribuicao_rasto r
+            where r.comerciante_id = ${b}::uuid`.execute(base.dono)
+        ).rows.map((r) => r.motivo);
+      expect(await motivosDeB()).toEqual([MOTIVO]);
+
+      // Na loja A, a limpeza com os ids da loja B não acha nada.
+      const n = await comComerciante(base.dono, c, async (trx) => {
+        await sql`insert into pseudonimizacao_em_curso values (pg_current_xact_id())`.execute(
+          trx,
+        );
+        return (
+          await sql<{ n: number }>`select tarefas_limpar_motivos(
+            array[${clienteB}::uuid], array[${encB}::uuid]) as n`.execute(trx)
+        ).rows[0]?.n;
+      });
+      expect(n).toBe(0);
+      // E um apagamento na loja A também não.
+      const clienteA = await novoCliente("Ana Silva");
+      const encA = await novaEncomenda(clienteA);
+      const kA = await casosDeUmaEncomenda(encA);
+      await mudarPrazo("problema", kA.problema);
+      expect(await pseudonimizar(clienteA)).toMatchObject({
+        motivos_de_prazo_limpos: 1,
+      });
+      expect(await motivosDeB()).toEqual([MOTIVO]);
+    });
   },
 );
