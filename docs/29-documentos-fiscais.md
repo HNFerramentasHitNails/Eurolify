@@ -1028,8 +1028,25 @@ empresa 401965, o passo `autorizar`, quem e quando.
   transacção não volta atrás, e a recusa grava-se nela.
   - Se o registo falhar, o pedido devolve o erro do registo e não a recusa:
     uma recusa sem registo não passa em silêncio.
+- **Finalidade:** o apoio do Eurolify detecta quem experimenta empresas
+  do emissor que não são suas (segurança da plataforma e prevenção de
+  fraude). Não serve para mais nada: não há ecrã nem rota que o leia.
+- **Base (C, para o jurista):** a provável é o interesse legítimo (RGPD,
+  artigo 6.º, n.º 1, alínea f); o considerando 47 diz que o tratamento
+  «estritamente necessário aos objetivos de prevenção e controlo da fraude»
+  é interesse legítimo). Fonte: `eur-lex`,
+  `corpus/dados-e-privacidade/32016R0679-rgpd.md` e `.considerandos.md`,
+  versão de 2016-05-04, obtido em 2026-10-10. Falta a ponderação do
+  interesse legítimo, que é do jurista.
 - **Quanto tempo:** não se apaga até o jurista e o contabilista decidirem
-  quanto tempo se guarda o rasto (`docs/28`, Q4).
+  quanto tempo se guarda o rasto (`docs/28`, Q4). É uma rede temporária
+  com data de fim: **revê-se antes do primeiro comerciante de fora**, com o
+  resto do rasto (AGENTS.md, regras da UE, ponto 5).
+  - Não há via de apagamento. Um pedido de apagamento de uma pessoa deixa o
+    `quem` (`per_…`) nas linhas, como no resto do rasto.
+  - Cada recusa é uma linha, também quando o mesmo pedido se repete: um
+    dono que tente em ciclo faz crescer a tabela. A pergunta do limite vai
+    com a Q4.
   - O `quem` é o identificador da pessoa ou da chave (`per_…`, `key_…`), como
     no resto do rasto.
   - A empresa do emissor é um número. Não verifiquei se, para um empresário

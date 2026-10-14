@@ -315,6 +315,41 @@ async function contaEmUso(
   }
 }
 
+/**
+ * Escreve a conta nesta ligação e fica com ela, se nenhuma outra activa a
+ * tiver (docs/29 §19). Ao contrário da `contaEmUso`, o ponto de salvaguarda
+ * só se desfaz na recusa: com a conta escrita, outro pedido que a queira
+ * espera por esta transacção, e a recusa nunca sai depois sem registo
+ * (revisão do #452, P1-1).
+ */
+async function ficarComConta(
+  trx: Transaction<BaseDados>,
+  id: string,
+  conta: string,
+): Promise<boolean> {
+  await sql`savepoint conta_emissor`.execute(trx);
+  try {
+    await trx
+      .updateTable("ligacao_faturacao")
+      .set({ conta_emissor: conta })
+      .where("id", "=", id)
+      .execute();
+    await sql`release savepoint conta_emissor`.execute(trx);
+    return true;
+  } catch (e) {
+    const pg = e as { code?: string; constraint?: string };
+    if (
+      pg.code === "23505" &&
+      pg.constraint === "ligacao_faturacao_uma_por_conta"
+    ) {
+      await sql`rollback to savepoint conta_emissor`.execute(trx);
+      await sql`release savepoint conta_emissor`.execute(trx);
+      return false;
+    }
+    throw e;
+  }
+}
+
 /** Uma linha no registo das recusas (docs/29 §19.7, 0097). */
 async function acrescentarRecusa(
   trx: Transaction<BaseDados>,
@@ -348,6 +383,10 @@ export async function registarRecusa(
   passo: PassoDaRecusa,
   quem: string,
 ) {
+  if (db.isTransaction) {
+    // Dentro da transacção que recusou, o registo voltava atrás com ela.
+    throw new Error("registarRecusa pede a base, não uma transacção");
+  }
   await noDocumentos(db, c, async (trx) => {
     await marcar(trx, quem);
     const l = await trx
@@ -634,7 +673,11 @@ export async function testarLigacao(
     const agora = await ligacaoParaMudar(trx, id, l.versao);
     // Uma ligação de antes da 0095 ganha aqui a conta; se a mesma conta já
     // está noutra ligação activa, o teste falha (docs/29 §19).
-    if (erro === null && conta !== null && (await contaEmUso(trx, id, conta))) {
+    if (
+      erro === null &&
+      conta !== null &&
+      !(await ficarComConta(trx, id, conta))
+    ) {
       erro = CONTA_EM_USO;
       // A transacção do teste fica: a recusa regista-se nela (§19.7).
       await acrescentarRecusa(trx, c, agora, conta, "teste", quem);
@@ -642,7 +685,6 @@ export async function testarLigacao(
     await trx
       .updateTable("ligacao_faturacao")
       .set({
-        ...(erro === null && conta !== null ? { conta_emissor: conta } : {}),
         estado: erro === null ? "pronta" : "com_erro",
         // Um teste falhado também põe o caso na fila, mas sem e-mail: quem
         // testou está a ver o resultado (docs/29 §18.3).

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  comComerciante,
   criarEntidadeLegal,
   registarComerciante,
 } from "../src/comerciante/repositorio.js";
@@ -209,6 +210,91 @@ describe.skipIf(URL_BASE === undefined)("Hub: o ecrã Faturação", () => {
     ]);
     await sql`update sessao set autenticada_em = now()
       where pessoa_id = ${p["dono"]?.pessoa ?? ""}::uuid`.execute(base.dono);
+  });
+
+  it("pelo Hub, a empresa já ligada noutra conta: a recusa fica registada com a pessoa e o canal; cada comerciante só vê as suas (docs/29 §19.7)", async () => {
+    const entidadeB = await criarEntidadeLegal(base.api, b, {
+      denominacao: "Loja B, Lda",
+      forma_juridica: "sociedade_por_quotas",
+      pais: "PT",
+      numero_fiscal: "509999981",
+      morada_linha: "Rua de Teste, 2",
+      morada_codigo_postal: "1000-002",
+      morada_localidade: "Lisboa",
+    });
+    const ligacaoB = await noDocumentos(base.api, b, (trx) =>
+      criarLigacao(
+        trx,
+        b,
+        {
+          entidade_legal: entidadeB,
+          adaptador: "moloni",
+          serie: "500",
+          taxas: [],
+          isencoes: [],
+        },
+        "teste",
+      ),
+    );
+    // A empresa de teste está ligada à loja A (o teste anterior).
+    expect(
+      await codigo(
+        como(
+          "donoB",
+          "POST",
+          `/hub/invoicing-connections/isx_${ligacaoB}/authorize`,
+          { empresa: String(moloni.empresa) },
+        ),
+      ),
+    ).toEqual([409, "invoices.account_in_use"]);
+    const quemB = `pessoa:per_${p["donoB"]?.pessoa ?? ""}`;
+    const { rows } = await sql<Json>`
+      select ligacao_id::text as ligacao, conta, passo, quem, canal, autorizado_por
+      from recusa_conta_emissor where comerciante_id = ${b}::uuid`.execute(
+      base.dono,
+    );
+    expect(rows).toEqual([
+      {
+        ligacao: ligacaoB,
+        conta: String(moloni.empresa),
+        passo: "autorizar",
+        quem: quemB,
+        canal: "hub",
+        autorizado_por: quemB,
+      },
+    ]);
+    // Pelo papel da API (RLS): a loja A não vê a recusa da B, nem a
+    // escreve em nome dela; e as colunas do contexto não se escrevem.
+    const lidas = (c: string) =>
+      comComerciante(base.api, c, (trx) =>
+        trx.selectFrom("recusa_conta_emissor").select("id").execute(),
+      );
+    expect(await lidas(a)).toHaveLength(0);
+    expect(await lidas(b)).toHaveLength(1);
+    await expect(
+      comComerciante(base.api, a, (trx) =>
+        trx
+          .insertInto("recusa_conta_emissor")
+          .values({
+            comerciante_id: b,
+            ligacao_id: ligacaoB,
+            adaptador: "moloni",
+            conta: "1",
+            passo: "autorizar",
+            quem: "teste",
+          })
+          .execute(),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      comComerciante(base.api, b, (trx) =>
+        sql`insert into recusa_conta_emissor
+          (comerciante_id, ligacao_id, adaptador, conta, passo, quem, canal)
+          values (${b}::uuid, ${ligacaoB}::uuid, 'moloni', '1', 'autorizar', 'teste', 'api')`.execute(
+          trx,
+        ),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it("o relatório OSS pelo Hub: lêem o dono, o gestor e o apoio, com a régua do país por balde; só o dono fecha, com autenticação recente, e fica a pessoa", async () => {

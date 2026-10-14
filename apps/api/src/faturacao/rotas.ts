@@ -361,12 +361,15 @@ export function rotasDosDocumentos(
       } catch (e) {
         if (recusa !== undefined) {
           const chave = chaveDo(pedido);
-          await registarRecusa(
-            base,
-            chave.comercianteId,
-            recusa,
-            "credenciais",
-            quemDe(chave),
+          const r = recusa;
+          await emDocumentos(resposta, () =>
+            registarRecusa(
+              base,
+              chave.comercianteId,
+              r,
+              "credenciais",
+              quemDe(chave),
+            ),
           );
         }
         throw e;

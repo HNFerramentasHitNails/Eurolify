@@ -1732,10 +1732,29 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       { ligacao: daA2, conta: empresa, passo: "credenciais", canal: "api" },
       { ligacao: daB, conta: outra, passo: "autorizacao", canal: "api" },
     ]);
-    // Só se acrescenta.
+    // Só se acrescenta, mesmo para o dono da base; os gatilhos que o
+    // garantem são ALWAYS e o que escreve o contexto não (regra da 0091).
     await expect(
       sql`delete from recusa_conta_emissor`.execute(base.dono),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/audit\.append_only/);
+    await expect(
+      sql`update recusa_conta_emissor set conta = '1'`.execute(base.dono),
+    ).rejects.toThrow(/audit\.append_only/);
+    await expect(
+      sql`truncate recusa_conta_emissor`.execute(base.dono),
+    ).rejects.toThrow(/audit\.append_only/);
+    expect(
+      (
+        await sql<{ nome: string; quando: string }>`
+          select t.tgname as nome, t.tgenabled as quando from pg_trigger t
+          where t.tgrelid = 'recusa_conta_emissor'::regclass and not t.tgisinternal
+          order by 1`.execute(base.dono)
+      ).rows,
+    ).toEqual([
+      { nome: "rasto_completar", quando: "O" },
+      { nome: "recusa_conta_emissor_sem_truncate", quando: "A" },
+      { nome: "recusa_conta_emissor_so_se_acrescenta", quando: "A" },
+    ]);
     // Desligar a primeira liberta a empresa.
     const l = await ligacaoDe(a, daA);
     await ok(
@@ -1801,6 +1820,20 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(await contaDe(daA)).toBeNull();
     expect(await recusasDe([daA, daB])).toEqual([
       { ligacao: daA, conta: empresa, passo: "teste", canal: "api" },
+    ]);
+    // As duas testadas ao mesmo tempo: uma fica com a empresa, a outra falha
+    // e a recusa fica registada, seja qual for a ordem (revisão do #452,
+    // P1-1: a conta escreve-se antes de se gravar o resultado).
+    await antiga(daA);
+    await antiga(daB);
+    const [ra, rb] = await Promise.all([
+      ok(a.adm("POST", `/invoicing-connections/${daA}/test`)),
+      ok(b.adm("POST", `/invoicing-connections/${daB}/test`)),
+    ]);
+    expect([ra["estado"], rb["estado"]].sort()).toEqual(["com_erro", "pronta"]);
+    const perdeu = ra["estado"] === "com_erro" ? daA : daB;
+    expect((await recusasDe([daA, daB])).slice(1)).toEqual([
+      { ligacao: perdeu, conta: empresa, passo: "teste", canal: "api" },
     ]);
   });
 
