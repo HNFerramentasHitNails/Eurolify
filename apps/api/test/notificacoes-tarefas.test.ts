@@ -604,5 +604,60 @@ describe.skipIf(URL_BASE === undefined)(
         ),
       ).toThrow();
     });
+
+    it("a fila pedido_titular: o pedido sem resposta vence 7 dias antes do prazo legal e o aviso vai só ao dono, sem dados do cliente (docs/23 §15.14)", async () => {
+      // Um gestor activo (o do início já saiu num teste anterior): tem
+      // tasks:assign, mas não customers:privacy; não pode receber (revisão do
+      // #455, P2-1). Os pedidos entram direitos na base: o registo pela API
+      // tem os seus testes (clientes-pedidos-recebidos.test.ts).
+      const gestor = await novaPessoa("gestor");
+      const cliente = randomUUID();
+      const pedido = randomUUID();
+      const dentro = randomUUID();
+      await comoDono(async (t) => {
+        await sql`insert into cliente (id, comerciante_id, nome, emails)
+          values (${cliente}, ${a}, 'Ana Cliente', ${[CLIENTE]})`.execute(t);
+        // Chegou há 30 dias: o prazo da tarefa (7 dias antes do legal) já
+        // venceu, em qualquer mês. O de há 20 dias só vence daqui a 2 a 5
+        // dias: não pode aparecer (P2-2).
+        for (const [id, dias] of [
+          [pedido, 30],
+          [dentro, 20],
+        ] as const) {
+          await sql`insert into pedido_titular_recebido (id, comerciante_id, cliente_id,
+              tipo, canal, recebido_em, recebido_dia, quem, criado_em)
+            values (${id}, ${a}, ${cliente}, 'apagamento', 'email',
+              now() - make_interval(days => ${dias}),
+              (now() - make_interval(days => ${dias}))::date,
+              'pessoa:per_teste', now() - make_interval(days => ${dias}))`.execute(
+            t,
+          );
+        }
+      });
+      const activo = await sql<{ n: number }>`
+        select count(*)::int as n from membro
+        where pessoa_id = ${gestor} and ate is null`.execute(base.dono);
+      expect(activo.rows[0]?.n).toBe(1);
+      const r = await correrAvisosDeTarefas(base.api);
+      expect(r.erros).toEqual([]);
+      const l = (await notificacoes()).filter(
+        (n) => n.fila === "pedido_titular",
+      );
+      // Só o de há 30 dias, e só a quem tem customers:privacy: o dono; nem o
+      // gestor activo nem o apoio. Uma notificação só (P3-2).
+      expect(
+        por(l, (n) => `${n.caso}:${String(nomeDe.get(n.pessoa_id))}`),
+      ).toEqual([`${pedido}:dono`]);
+      const correio = new CorreioDeEnsaio();
+      const envio = await correrNotificacoes(base.api, correio);
+      expect(envio.erros).toEqual([]);
+      const m = correio.enviados.find((x) => x.assunto.includes("prq_"));
+      expect(m?.para).toBe(`${pessoas.dono}@exemplo.pt`);
+      expect(m?.assunto).toBe(
+        `Tarefa vencida: pedido de um cliente sobre os seus dados prq_${pedido}`,
+      );
+      expect(`${m?.assunto ?? ""}\n${m?.texto ?? ""}`).not.toContain(CLIENTE);
+      expect(m?.texto).not.toContain("Ana Cliente");
+    });
   },
 );
