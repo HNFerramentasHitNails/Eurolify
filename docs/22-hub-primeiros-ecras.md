@@ -2961,7 +2961,7 @@ comerciante no cabeçalho `Eurolify-Comerciante` e o `eurolify.quem` da pessoa
 
 | Onde | O que mostra | Estados além do normal |
 |---|---|---|
-| **Entrada** (`/`) | Um módulo «Pagamentos» na grelha, para quem tem `payments:read`: dono, gestor e apoio; o armazém não o vê. Com diferenças abertas, o número delas. **No código (§34.7):** o rótulo é «Diferenças de pagamento» e o número ficou por fazer, à espera do OK do Diogo ou do Bruno. | — |
+| **Entrada** (`/`) | Um módulo «Pagamentos» na grelha, para quem tem `payments:read`: dono, gestor e apoio; o armazém não o vê. Com diferenças abertas, o número delas. **No código (§34.7), aceite pelo Diogo a 14/10/2026:** o rótulo é «Diferenças de pagamento» e o número não se mostra. | — |
 | **Diferenças de pagamento** (`/pagamentos/diferencas?comerciante=…`) | Dois separadores: «Por resolver» e «Resolvidas». Cada diferença: o motivo (texto, regra 3), quando chegou, a encomenda (os últimos 4 caracteres à vista), o método, o montante e o estado do pagamento. Mostra também a prova em linguagem comum, como «esperado 29,90 €, recebido 24,90 €» ou «passou de autorizado a cancelado». As resolvidas mostram o texto, quem e quando. Para o dono, em cada aberta, o botão «Resolver». Tabela a partir de 768 px, cartões abaixo (regra 5). | a carregar; erro com «Tentar outra vez»; sem diferenças («Não há diferenças por resolver.»); comerciante errado (como nas outras páginas); sem `payments:resolve` (só leitura, sem botões) |
 | **Resolver** (diálogo) | O resumo da diferença e o campo «O que se fez» (obrigatório, até 2000 caracteres). Num **pagamento incerto**: «O cliente pagou?» com «Sim, foi pago» e «Não, não foi pago», obrigatório, e a frase «Confirme no back-office do prestador antes de decidir. Se disser que foi pago, a encomenda passa a paga e segue para a fatura.» Num **reembolso**: «O estado do reembolso decide-se na devolução. Aqui só fica registado o que se fez.» Confirmar pede a autenticação recente (Q1). | `payments.invalid_transition` (o pagamento já não está incerto: «O pagamento mudou entretanto; feche e abra outra vez.»); `payments.immutable` (já resolvida por outra pessoa: dá-a por feita e relê) |
 | **A decidir** (§28) | Cada linha `fila_pagamento` passa a levar a «Diferenças de pagamento», com a diferença aberta. | — |
@@ -3025,7 +3025,8 @@ se a última foi há mais de 10 minutos)?**
   - os três motivos de reembolso, que antes saíam como código também em «A
     decidir»;
   - os estados do pagamento em palavras.
-- **Dois desvios do desenho, por aprovar (revisão do #458, P2-4):**
+- **Dois desvios do desenho, aceites pelo Diogo a 14/10/2026** (*«sim, aceito
+  os dois desvios»*; revisão do #458, P2-4):
   - **o número no módulo:** a entrada não mostra o número de diferenças
     abertas. Nenhum módulo da entrada mostra números hoje, e isso pedia mais
     uma leitura à API em cada abertura da entrada. O número vê-se em «A
@@ -3053,7 +3054,7 @@ se a última foi há mais de 10 minutos)?**
     resposta perdida só se vêem nas capturas e por leitura;
   - **P2-3:** as resolvidas vêm das mais recentes, só as últimas 200, e o
     ecrã di-lo quando chega a esse número;
-  - **P2-4:** os dois desvios acima, por aprovar;
+  - **P2-4:** os dois desvios acima, aceites;
   - **P3-2, P3-3, P3-4, P3-5, P3-6 e P3-7, corrigidos:** a lista sem cache;
     o comentário trocado no `api.ts`; o `docs/26` em dia; só espaços
     recusado nas duas rotas; «Cancelar» desligado durante o envio e os
