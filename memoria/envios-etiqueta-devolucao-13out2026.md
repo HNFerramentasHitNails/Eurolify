@@ -45,9 +45,27 @@ especificação.
 - Numa conta real da Sendcloud (V11 a V14): os serviços de volta e se o modo
   teste tem algum; se aceita a morada de um ponto como remetente; a
   anulação; o seguimento de uma devolução.
-- **O Hub** (o botão e o PDF na página da devolução) fica para o pedido 2.
+- **O Hub** (o botão e o PDF na página da devolução) fica para o pedido 2
+  (feito a 14/10/2026: ver abaixo).
 
 ## Também nesta data
 
 - O Diogo aprovou o aspecto dos ecrãs dos pontos de recolha (#443) depois de
   ver as capturas: *«aprovo; junta quando ficar verde»*.
+
+## Pedido 2: o Hub (14/10/2026)
+
+- **Descobriu-se ao preparar:** o Hub não tinha nenhum ecrã da pós-venda,
+  por isso o pedido 2 trouxe o módulo «Devoluções» (a lista e a página, só
+  de leitura) e as rotas `/hub/returns…`. O desenho é o `docs/36` §22.10. O
+  Diogo aprovou-o: *«sim, aprovo; avança com o código»*.
+- **Números**, a 14/10/2026, local, contados pelo resumo do `vitest`:
+  - `apps/api/test/envios-hub-devolucoes.test.ts`: 3 verdes;
+  - `envios-devolucao`, `identidade-api`, `posvenda-api` e `envios-hub*`:
+    verdes depois da mudança;
+  - o Hub: 300 verdes (eram 293).
+  - O script das capturas passou sem falhas, depois de pôr os oito
+    módulos nas verificações da entrada.
+- **Ficou por verificar:**
+  - a passagem só com o teclado pela página da devolução;
+  - o PDF verdadeiro de uma conta real.

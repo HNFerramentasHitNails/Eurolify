@@ -159,7 +159,7 @@ const conferirVersao = (actual: number, pedida: number) => {
 };
 
 /** As contas prontas do comerciante e os serviços de cada uma. */
-async function contasProntas(
+export async function contasProntas(
   trx: Transaction<BaseDados>,
   cfg: ConfigEnvios | undefined,
 ) {

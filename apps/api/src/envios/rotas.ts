@@ -81,7 +81,28 @@ export async function emEnvios<T>(
 
 export const IdConta = idCom("cac", "cac_…");
 export const IdExpedicao = idCom("shp", "shp_…");
-const IdDevolucao = idCom("rma", "rma_…");
+export const IdDevolucao = idCom("rma", "rma_…");
+
+/** Pedir a etiqueta de devolução: a conta e o serviço (docs/36 §22). */
+export const CorpoEtiquetaDevolucao = Type.Object(
+  {
+    conta: IdConta,
+    servico: Type.String({ pattern: "^[0-9A-Za-z_.:/-]{1,100}$" }),
+  },
+  { additionalProperties: false },
+);
+
+/** Anular a etiqueta de devolução, com o motivo (docs/36 §22). */
+export const CorpoAnularEtiquetaDevolucao = Type.Object(
+  {
+    motivo: Type.String({ minLength: 3, maxLength: 500 }),
+    // Quem anula diz que a anulou no painel da transportadora (ou que a
+    // incerta não existe lá): o Eurolify não a anula lá (revisão do #447,
+    // P2).
+    anulada_no_painel: Type.Literal(true),
+  },
+  { additionalProperties: false },
+);
 
 /** A etiqueta de uma devolução como a API a mostra (docs/36 §22). */
 export const paraEtiquetaDevolucao = (e: EtiquetaDaDevolucao) => ({
@@ -527,13 +548,7 @@ export function rotasDosEnvios(
         description:
           "Pede a etiqueta de devolução à transportadora (docs/36 §22): numa devolução à espera, com a conta e um serviço de morada que sirva o país do cliente. Vai o nome e a morada de entrega do cliente, a morada de recolha da conta e o peso das linhas mais a embalagem. A etiqueta é paga pela conta do comerciante. Sem resposta, fica «incerta» e não se pede outra até uma pessoa confirmar no painel da transportadora e a anular aqui.",
         params: Devolucao,
-        body: Type.Object(
-          {
-            conta: IdConta,
-            servico: Type.String({ pattern: "^[0-9A-Za-z_.:/-]{1,100}$" }),
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoEtiquetaDevolucao,
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
     },
@@ -627,16 +642,7 @@ export function rotasDosEnvios(
         description:
           "Anula a etiqueta de devolução emitida ou incerta (docs/36 §22): é quem a pede a dizer que a anulou no painel da transportadora, ou que a incerta não existe lá. O Eurolify não a anula na transportadora. O ficheiro apaga-se e pode pedir-se outra.",
         params: Devolucao,
-        body: Type.Object(
-          {
-            motivo: Type.String({ minLength: 3, maxLength: 500 }),
-            // Quem anula diz que a anulou no painel da transportadora (ou
-            // que a incerta não existe lá): o Eurolify não a anula lá
-            // (revisão do #447, P2).
-            anulada_no_painel: Type.Literal(true),
-          },
-          { additionalProperties: false },
-        ),
+        body: CorpoAnularEtiquetaDevolucao,
         response: { 200: Livre, ...RESPOSTA_DE_ERRO },
       },
     },

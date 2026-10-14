@@ -5631,6 +5631,7 @@ try {
       "artigos",
       "a-decidir",
       "expedir",
+      "devolucoes",
       "envios",
       "faturacao",
       "chaves",
@@ -5706,7 +5707,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os sete módulos do dono, com o comerciante no endereço`,
+          `${nome}: os oito módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5788,9 +5789,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 7 &&
+        (await p.locator(".atalho-modulo").count()) === 8 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos sete módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos oito módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5953,10 +5954,11 @@ try {
             "Artigos",
             "A decidir",
             "Expedir",
+            "Devoluções",
             "Envios",
             "Faturação",
           ]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», os envios e a faturação, sem as chaves",
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios e a faturação, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
@@ -6924,6 +6926,255 @@ try {
         fullPage: true,
       });
       await c.close();
+    }
+  }
+
+  // As devoluções e a etiqueta de devolução (docs/36 §22.10): a lista vazia
+  // contra a API verdadeira; a lista cheia, a devolução e a etiqueta com
+  // respostas simuladas (o ensaio não tem uma encomenda paga). Os dados são
+  // fictícios.
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/devolucoes?comerciante=mer_${comerciante}`);
+    await p
+      .getByRole("heading", { name: /Devoluções/ })
+      .first()
+      .waitFor();
+    await p.getByText("Ainda não há devoluções.").waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "devolucoes-vazio-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+  const DEVOLUCAO_SIMULADA = "rma_0199e000-0000-7000-8000-000000000020";
+  const devolucaoNaLista = (i, estado, origem) => ({
+    id:
+      i === 0
+        ? DEVOLUCAO_SIMULADA
+        : `rma_0199e000-0000-7000-8000-0000000000${String(30 + i)}`,
+    encomenda: ENCOMENDA_SIMULADA,
+    origem,
+    estado,
+    reembolsar_ate: origem === "livre_resolucao" ? "2026-10-27" : null,
+    dias_para_reembolsar: origem === "livre_resolucao" ? 13 - i : null,
+    criada_em: `2026-10-${String(13 - i).padStart(2, "0")}T10:2${String(i)}:00.000Z`,
+    versao: 1,
+  });
+  const etiquetaDevolucao = (estado, em = "2026-10-14T08:00:00.000Z") => ({
+    devolucao: DEVOLUCAO_SIMULADA,
+    estado,
+    tentativa: 1,
+    conta: CONTA_SIMULADA,
+    transportadora: "sendcloud",
+    servico: "postnl:return",
+    peso_g: 380,
+    motivo: estado === "incerta" ? "a transportadora não respondeu" : null,
+    seguimento: estado === "emitida" ? "3SRET0001234567" : null,
+    url_seguimento:
+      estado === "emitida"
+        ? "https://tracking.example.test/3SRET0001234567"
+        : null,
+    em,
+    ficheiro: estado === "emitida" ? "pdf" : null,
+  });
+  /** A etiqueta: «nenhuma», «emitida» ou «incerta». */
+  const simularDevolucao = async (contexto, comEtiqueta) => {
+    const json = (corpo, estado = 200) => ({
+      status: estado,
+      contentType: "application/json",
+      headers: { "cache-control": "private, no-store" },
+      body: JSON.stringify(corpo),
+    });
+    await contexto.route(/\/hub\/returns(\?.*)?$/, (r) =>
+      r.fulfill(
+        json({
+          dados: [
+            devolucaoNaLista(0, "a_aguardar", "livre_resolucao"),
+            devolucaoNaLista(1, "recebida", "livre_resolucao"),
+            devolucaoNaLista(2, "decidida", "apoio"),
+            devolucaoNaLista(3, "fechada", "comercial"),
+            devolucaoNaLista(4, "cancelada", "livre_resolucao"),
+          ],
+          limite: 200,
+        }),
+      ),
+    );
+    await contexto.route(`**/hub/returns/${DEVOLUCAO_SIMULADA}`, (r) =>
+      r.fulfill(
+        json({
+          ...devolucaoNaLista(0, "a_aguardar", "livre_resolucao"),
+          armazem: "whs_0199e000-0000-7000-8000-000000000021",
+          pedido: "wdr_0199e000-0000-7000-8000-000000000022",
+          motivo: "A cor não é a da fotografia.",
+          transportadora: comEtiqueta === "emitida" ? "sendcloud" : null,
+          seguimento: comEtiqueta === "emitida" ? "3SRET0001234567" : null,
+          linhas: [
+            {
+              linha: "oli_0199e000-0000-7000-8000-000000000004",
+              sku: "VRN-AZ-1",
+              nome: "Verniz Azul 1",
+              pedida: 1,
+              recebida: null,
+              aceite: null,
+              estado_artigo: null,
+            },
+          ],
+        }),
+      ),
+    );
+    await contexto.route(`**/hub/returns/${DEVOLUCAO_SIMULADA}/label`, (r) =>
+      comEtiqueta === "nenhuma"
+        ? r.fulfill(
+            json(
+              {
+                codigo: "shipping.not_found",
+                mensagens: { pt: "esta devolução ainda não tem etiqueta" },
+              },
+              404,
+            ),
+          )
+        : r.fulfill(
+            json(
+              etiquetaDevolucao(
+                comEtiqueta,
+                comEtiqueta === "incerta"
+                  ? new Date(Date.now() - 5 * 60 * 1000).toISOString()
+                  : undefined,
+              ),
+            ),
+          ),
+    );
+    await contexto.route(
+      `**/hub/returns/${DEVOLUCAO_SIMULADA}/label/services`,
+      (r) =>
+        r.fulfill(
+          json({
+            estado: "a_aguardar",
+            peso_g: 380,
+            opcoes: [
+              {
+                conta: CONTA_SIMULADA,
+                conta_nome: "Sendcloud",
+                transportadora: "sendcloud",
+                servico: "postnl:return",
+                nome: { pt: "PostNL Retour" },
+              },
+              {
+                conta: CONTA_SIMULADA,
+                conta_nome: "Sendcloud",
+                transportadora: "sendcloud",
+                servico: "dhl:return",
+                nome: { pt: "DHL Return" },
+              },
+            ],
+          }),
+        ),
+    );
+  };
+  {
+    // A incerta recente: o aviso, a hora a partir da qual se anula, e sem
+    // «Pedir»; anular sem motivo nem confirmação não manda nada.
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    await simularDevolucao(c, "incerta");
+    const p = await c.newPage();
+    await p.goto(
+      `${ORIGEM}/devolucoes/${DEVOLUCAO_SIMULADA}?comerciante=mer_${comerciante}`,
+    );
+    await p.getByRole("heading", { name: /Devolução de/ }).waitFor();
+    await p.getByText(/não respondeu com certeza/).waitFor();
+    confere(
+      (await p.title()).includes("fotografia") === false,
+      "devolução: o motivo do cliente não vai para o título da janela",
+    );
+    confere(
+      (await p.getByRole("button", { name: "Pedir a etiqueta" }).count()) === 0,
+      "devolução: com a etiqueta incerta, não se pede outra",
+    );
+    confere(
+      (await p.getByText(/só se anula a partir de/).count()) === 1,
+      "devolução: a incerta recente diz a partir de quando se anula",
+    );
+    await p.getByRole("button", { name: "Anular a etiqueta" }).click();
+    await p.getByText("Escreva o motivo (pelo menos 3 caracteres).").waitFor();
+    await p.getByLabel("Motivo", { exact: true }).fill("não existe no painel");
+    await p.getByRole("button", { name: "Anular a etiqueta" }).click();
+    await p
+      .getByText("Confirme que tratou da etiqueta no painel da transportadora.")
+      .waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "devolucao-incerta-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+  for (const tema of ["light", "dark"]) {
+    for (const largura of [375, 768, 1280]) {
+      for (const [nome, caminho, titulo, comEtiqueta] of [
+        [
+          "devolucoes",
+          `/devolucoes?comerciante=mer_${comerciante}`,
+          "Devoluções",
+          "nenhuma",
+        ],
+        [
+          "devolucao-pedir",
+          `/devolucoes/${DEVOLUCAO_SIMULADA}?comerciante=mer_${comerciante}`,
+          "Devolução de",
+          "nenhuma",
+        ],
+        [
+          "devolucao-emitida",
+          `/devolucoes/${DEVOLUCAO_SIMULADA}?comerciante=mer_${comerciante}`,
+          "Devolução de",
+          "emitida",
+        ],
+      ]) {
+        const c = await navegador.newContext({
+          ignoreHTTPSErrors: true,
+          colorScheme: tema,
+          viewport: { width: largura, height: 900 },
+          storageState: sessao,
+        });
+        await simularDevolucao(c, comEtiqueta);
+        const p = await c.newPage();
+        await p.goto(`${ORIGEM}${caminho}`);
+        await p
+          .getByRole("heading", { name: new RegExp(titulo) })
+          .first()
+          .waitFor();
+        await p.waitForLoadState("networkidle");
+        if (nome === "devolucao-pedir") {
+          await p.getByText("PostNL Retour").waitFor();
+        }
+        if (nome === "devolucao-emitida") {
+          await p.getByRole("button", { name: "Descarregar o PDF" }).waitFor();
+        }
+        const largo = await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        );
+        confere(
+          !largo,
+          `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
+        );
+        await p.screenshot({
+          path: join(
+            SAIDA,
+            `${nome}-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+          ),
+          fullPage: true,
+        });
+        await c.close();
+      }
     }
   }
 

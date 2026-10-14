@@ -1531,3 +1531,26 @@ página, não na lista).
 **Testes:** o módulo só aparece com `returns:read`; sem `returns:write` não
 há botão; a lista diz quando chegou às 200; a incerta mostra o aviso e não o
 botão de pedir; as rotas do Hub isolam o comerciante e respeitam o papel.
+
+### 22.11 Em código (pedido 2; 14/10/2026)
+
+Diogo, 14/10/2026: *«sim, aprovo; avança com o código»*.
+
+| O quê | Onde |
+|---|---|
+| as rotas do Hub (`GET /hub/returns` com o limite, `GET /hub/returns/{id}`, `GET …/label/services`, `GET`/`POST …/label`, `GET …/label/file`, `POST …/label/void`), com as mesmas funções e o mesmo âmbito das rotas da chave | `apps/api/src/envios/rotas-hub-devolucoes.ts` |
+| os serviços que servem a volta: a mesma regra de pedir, numa função só (`porQueNaoServe`), para pedir e para a lista | `apps/api/src/envios/devolucoes.ts` |
+| a devolução passa a dar o SKU e o nome de cada linha (também pela chave) | `apps/api/src/posvenda/` |
+| o módulo «Devoluções», a lista com o filtro do estado e cartões no telemóvel, a página da devolução e a etiqueta (pedir, PDF, anular com motivo e a confirmação do painel) | `apps/hub/src/ecras/Devolucoes.tsx`, `apps/hub/src/devolucoes.ts` |
+| os textos em PT, ES e EN; um token por estado da devolução | `apps/hub/src/textos/`, `apps/hub/src/tokens.css` |
+| 3 testes da API pelo Hub; 6 do Hub; as capturas a 375, 768 e 1280 px, claro e escuro, com respostas simuladas | `apps/api/test/envios-hub-devolucoes.test.ts`, `apps/hub/test/devolucoes.test.ts`, `apps/hub/scripts/capturas.mjs` |
+
+**Desvios do desenho:**
+- **A lista dos serviços pede `returns:write`:** só quem pede a etiqueta a
+  vê.
+- **Numa devolução fechada ou cancelada, o ecrã não mostra o prazo do
+  reembolso.**
+- **«Anular» numa incerta recente** diz a partir de que hora se anula, mas
+  não desliga o botão: quem decide é a API.
+
+O aspecto vai ao Diogo com as capturas antes de se juntar.

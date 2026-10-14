@@ -39,6 +39,7 @@ import { rotasDoCheckout } from "./checkout/rotas.js";
 import type { ConfigEnvios } from "./envios/adaptador.js";
 import { rotasDosEnvios } from "./envios/rotas.js";
 import { rotasDosEnviosNoHub } from "./envios/rotas-hub.js";
+import { rotasDasDevolucoesNoHub } from "./envios/rotas-hub-devolucoes.js";
 import { rotasDeExpedirNoHub } from "./envios/rotas-hub-expedir.js";
 import type { ConfigPagamentos } from "./pagamentos/adaptador.js";
 import { rotasDosPagamentos } from "./pagamentos/rotas.js";
@@ -431,6 +432,7 @@ export function criarApp(
       rotasDasTarefasNoHub(rotas, base);
       rotasDosEnviosNoHub(rotas, base, envios);
       rotasDeExpedirNoHub(rotas, base, envios);
+      rotasDasDevolucoesNoHub(rotas, base, envios);
       if (armazenamento !== undefined) {
         rotasDasImagensNoHub(rotas, base, armazenamento);
       }

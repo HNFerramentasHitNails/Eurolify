@@ -1408,6 +1408,8 @@ export async function lerDevolucao(
         "linha_devolucao.aceite",
         "linha_devolucao.estado_artigo",
         "linha_devolucao.decisao_higiene",
+        "linha_encomenda.sku",
+        "linha_encomenda.nome",
         "linha_encomenda.selado_por_higiene",
         // H6: a regra de quando a decisão é obrigatória está na base (0065);
         // decidida, já não está por decidir (revisão do #363, P2-1).
@@ -1435,6 +1437,9 @@ export async function lerDevolucao(
     };
   });
 }
+
+/** O máximo de devoluções da lista (sem o filtro do prazo). */
+export const LIMITE_DA_LISTA_DE_DEVOLUCOES = 200;
 
 export async function listarDevolucoes(
   db: Kysely<BaseDados>,
@@ -1468,7 +1473,10 @@ export async function listarDevolucoes(
       base = base.where("encomenda_id", "=", filtro.encomenda);
     }
     if (filtro.prazoReembolso === undefined) {
-      base = base.orderBy("criada_em", "desc").orderBy("id", "desc").limit(200);
+      base = base
+        .orderBy("criada_em", "desc")
+        .orderBy("id", "desc")
+        .limit(LIMITE_DA_LISTA_DE_DEVOLUCOES);
     } else {
       base = base
         .where("pedido_livre_resolucao_id", "is not", null)

@@ -1651,6 +1651,98 @@ export const pt = {
     "Para cancelar esta expedição, anule primeiro a etiqueta (ou consulte a transportadora, se estiver incerta).",
   etiquetaFicheiroJaNao:
     "O ficheiro da etiqueta já não existe: apaga-se 30 dias depois de a expedição acabar.",
+  // As devoluções (docs/36 §22.10).
+  modulo_devolucoes: "Devoluções",
+  termos_devolucoes:
+    "devoluções livre resolução etiqueta de devolução reembolso recolha",
+  devolucoesTitulo: "Devoluções",
+  devolucaoTitulo: "Devolução",
+  devolucoesExplicacao:
+    "As devoluções desta loja, das mais recentes. Aqui vê-se cada devolução e pede-se a etiqueta de devolução; a recepção, a inspecção e a decisão ainda se fazem pela API.",
+  devolucoesFiltroEstado: "Estado",
+  devolucoesFiltroTodos: "Todos",
+  devolucoesVazio: "Ainda não há devoluções.",
+  devolucoesVazioNoFiltro: "Não há devoluções neste estado.",
+  devolucoesContagemUm: "1 devolução.",
+  devolucoesContagem: "{n} devoluções.",
+  devolucoesContagemMaximo:
+    "As {n} devoluções mais recentes: pode haver mais. Use o filtro do estado para ver as outras.",
+  devolucoesColunaDevolucao: "Devolução",
+  devolucoesColunaEstado: "Estado",
+  devolucoesColunaOrigem: "Origem",
+  devolucoesColunaPrazo: "Reembolsar até",
+  devolucaoDe: "Devolução de {data}",
+  devolucoesVoltar: "Voltar às devoluções",
+  devolucaoEstadoAAguardar: "À espera da encomenda",
+  devolucaoEstadoRecebida: "Recebida",
+  devolucaoEstadoInspeccionada: "Inspeccionada",
+  devolucaoEstadoDecidida: "Decidida",
+  devolucaoEstadoFechada: "Fechada",
+  devolucaoEstadoCancelada: "Cancelada",
+  devolucaoOrigemLivreResolucao: "Livre resolução",
+  devolucaoOrigemApoio: "Combinada pelo apoio",
+  devolucaoOrigemComercial: "Política da loja",
+  devolucaoPrazoPassado: "prazo passado",
+  devolucaoPrazoUmDia: "falta 1 dia",
+  devolucaoPrazoDias: "faltam {n} dias",
+  devolucaoTransportadora: "Transportadora da volta",
+  devolucaoMotivo: "Motivo",
+  devolucaoArtigos: "Artigos",
+  devolucaoColunaArtigo: "Artigo",
+  devolucaoColunaPedida: "Pedida",
+  devolucaoColunaRecebida: "Recebida",
+  devolucaoColunaAceite: "Aceite",
+  devolucaoSoLeitura:
+    "A recepção, a inspecção e a decisão desta devolução fazem-se, por agora, pela API.",
+  devolucaoNaoExiste: "Esta devolução não existe, ou não é desta loja.",
+  etiquetaDevolucaoTitulo: "Etiqueta de devolução",
+  etiquetaDevolucaoNenhuma: "Ainda não há etiqueta de devolução.",
+  etiquetaDevolucaoSoAAguardar:
+    "A etiqueta de devolução só se pede com a devolução à espera da encomenda.",
+  etiquetaDevolucaoIncertaExplicacao:
+    "A transportadora não respondeu com certeza. Confirme no painel dela se a etiqueta existe: se existir, anule-a lá; depois anule-a aqui. Não se pede outra até lá.",
+  etiquetaDevolucaoServico: "Serviço",
+  etiquetaDevolucaoEm: "Pedida em",
+  etiquetaDevolucaoDescarregar: "Descarregar o PDF",
+  etiquetaDevolucaoPedir: "Pedir a etiqueta de devolução",
+  etiquetaDevolucaoPedirOutra: "Pedir outra etiqueta de devolução",
+  etiquetaDevolucaoServicoAEscolher: "Conta e serviço da volta",
+  etiquetaDevolucaoPesoDaCaixa:
+    "Peso da caixa: {g} (os artigos a devolver e a embalagem).",
+  etiquetaDevolucaoCusto:
+    "A etiqueta é paga pela conta do comerciante na transportadora. Não se desconta nada ao cliente.",
+  etiquetaDevolucaoPedirBotao: "Pedir a etiqueta",
+  etiquetaDevolucaoSemPeso:
+    "Uma variante desta devolução não tem peso: corrija o peso da variante no artigo antes de pedir a etiqueta.",
+  etiquetaDevolucaoSemServicos:
+    "Nenhuma conta pronta tem um serviço que sirva esta devolução (tem de recolher no país do cliente, não ser de pontos de recolha nem pedir o telefone ou o e-mail do cliente).",
+  etiquetaDevolucaoEscolherServico: "Escolha a conta e o serviço.",
+  etiquetaDevolucaoPedidaAgora:
+    "Etiqueta de devolução emitida. Descarregue o PDF e mande-o ao cliente.",
+  etiquetaDevolucaoAnular: "Anular a etiqueta",
+  etiquetaDevolucaoAnularAjuda:
+    "O Eurolify não anula a etiqueta na transportadora: anule-a primeiro no painel dela (ou confirme que a incerta não existe lá) e depois anule-a aqui. O PDF apaga-se e pode pedir-se outra.",
+  etiquetaDevolucaoAnularAPartirDe:
+    "A transportadora pode ainda estar a criá-la: só se anula a partir de {hora}.",
+  etiquetaDevolucaoMotivoAnular: "Motivo",
+  etiquetaDevolucaoConfirmeiNoPainel: "Confirmei no painel da transportadora",
+  etiquetaDevolucaoMotivoEmFalta: "Escreva o motivo (pelo menos 3 caracteres).",
+  etiquetaDevolucaoConfirmarPainel:
+    "Confirme que tratou da etiqueta no painel da transportadora.",
+  etiquetaDevolucaoAnularBotao: "Anular a etiqueta",
+  etiquetaDevolucaoAnuladaAgora: "Etiqueta anulada. Pode pedir outra.",
+  etiquetaDevolucaoFicheiroJaNao:
+    "O PDF da etiqueta já não existe: apaga-se 30 dias depois de a devolução acabar.",
+  etiquetaDevolucaoJaExiste:
+    "Esta devolução já tem uma etiqueta: anule-a primeiro.",
+  etiquetaDevolucaoIncertaPrimeiro:
+    "A etiqueta anterior ficou incerta: confirme no painel da transportadora e anule-a aqui antes de pedir outra.",
+  etiquetaDevolucaoNaoAnulaAinda:
+    "Esta etiqueta ainda não se pode anular: está a ser pedida, ficou incerta há menos de 15 minutos, ou já não está viva.",
+  etiquetaDevolucaoRecusadaPeloServidor:
+    "O servidor recusou o pedido: confira se a devolução ainda está à espera, o serviço, o peso e a morada do cliente na encomenda.",
+  etiquetaDevolucaoSemTransportadora:
+    "Esta transportadora ainda não faz etiquetas de devolução no Eurolify.",
 };
 
 export type Textos = typeof pt;

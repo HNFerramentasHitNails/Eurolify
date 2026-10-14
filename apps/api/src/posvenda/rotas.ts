@@ -44,7 +44,59 @@ import {
 // «aprovado» e «avança»). O reembolso pelo prestador (`/execute`,
 // `/reconcile`) é da parte 2 (docs/30 §13; DP).
 
-async function emPosVenda<T>(resposta: FastifyReply, fn: () => Promise<T>) {
+/** Uma devolução na lista (as rotas da chave e do Hub, docs/36 §22.10). */
+export function paraDevolucaoNaLista(
+  d: Awaited<ReturnType<typeof listarDevolucoes>>[number],
+) {
+  return {
+    id: `rma_${d.id}`,
+    encomenda: `ord_${d.encomenda_id}`,
+    origem: d.origem,
+    estado: d.estado,
+    reembolsar_ate: d.reembolsar_ate,
+    dias_para_reembolsar: d.dias_para_reembolsar,
+    criada_em: d.criada_em.toISOString(),
+    versao: d.versao,
+  };
+}
+
+/** Uma devolução inteira (as rotas da chave e do Hub, docs/36 §22.10). */
+export function paraDevolucao(d: Awaited<ReturnType<typeof lerDevolucao>>) {
+  return {
+    id: `rma_${d.id}`,
+    encomenda: `ord_${d.encomenda_id}`,
+    armazem: `whs_${d.armazem_id}`,
+    origem: d.origem,
+    pedido: comPrefixo("wdr", d.pedido_livre_resolucao_id),
+    motivo: d.motivo,
+    transportadora: d.transportadora,
+    seguimento: d.seguimento,
+    estado: d.estado,
+    criada_por: d.criada_por,
+    criada_em: iso(d.criada_em),
+    reembolsar_ate: d.reembolsar_ate,
+    dias_para_reembolsar: d.dias_para_reembolsar,
+    versao: d.versao,
+    linhas: d.linhas.map((l) => ({
+      linha: `oli_${l.linha_encomenda_id}`,
+      sku: l.sku,
+      nome: l.nome,
+      pedida: l.pedida,
+      recebida: l.recebida,
+      aceite: l.aceite,
+      estado_artigo: l.estado_artigo,
+      // H6 (docs/30 §15).
+      selado_por_higiene: l.selado_por_higiene,
+      higiene_a_decidir: l.higiene_a_decidir,
+      decisao_higiene: l.decisao_higiene,
+    })),
+  };
+}
+
+export async function emPosVenda<T>(
+  resposta: FastifyReply,
+  fn: () => Promise<T>,
+) {
   try {
     return await fn();
   } catch (erro) {
@@ -482,16 +534,7 @@ export function rotasDaPosVenda(
               ? {}
               : { prazoReembolso: pedido.query.prazo_reembolso }),
           })
-        ).map((d) => ({
-          id: `rma_${d.id}`,
-          encomenda: `ord_${d.encomenda_id}`,
-          origem: d.origem,
-          estado: d.estado,
-          reembolsar_ate: d.reembolsar_ate,
-          dias_para_reembolsar: d.dias_para_reembolsar,
-          criada_em: d.criada_em.toISOString(),
-          versao: d.versao,
-        })),
+        ).map(paraDevolucaoNaLista),
       })),
   );
 
@@ -553,33 +596,7 @@ export function rotasDaPosVenda(
           chaveDo(pedido).comercianteId,
           semPrefixo(pedido.params.id),
         );
-        return {
-          id: `rma_${d.id}`,
-          encomenda: `ord_${d.encomenda_id}`,
-          armazem: `whs_${d.armazem_id}`,
-          origem: d.origem,
-          pedido: comPrefixo("wdr", d.pedido_livre_resolucao_id),
-          motivo: d.motivo,
-          transportadora: d.transportadora,
-          seguimento: d.seguimento,
-          estado: d.estado,
-          criada_por: d.criada_por,
-          criada_em: iso(d.criada_em),
-          reembolsar_ate: d.reembolsar_ate,
-          dias_para_reembolsar: d.dias_para_reembolsar,
-          versao: d.versao,
-          linhas: d.linhas.map((l) => ({
-            linha: `oli_${l.linha_encomenda_id}`,
-            pedida: l.pedida,
-            recebida: l.recebida,
-            aceite: l.aceite,
-            estado_artigo: l.estado_artigo,
-            // H6 (docs/30 §15).
-            selado_por_higiene: l.selado_por_higiene,
-            higiene_a_decidir: l.higiene_a_decidir,
-            decisao_higiene: l.decisao_higiene,
-          })),
-        };
+        return paraDevolucao(d);
       }),
   );
 

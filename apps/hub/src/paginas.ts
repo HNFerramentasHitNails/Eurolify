@@ -233,6 +233,20 @@ export const PAGINAS = [
     exemplo: "/expedir/ord_0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62",
   },
   {
+    nome: "devolucoes",
+    caminho: "/devolucoes",
+    sessao: true,
+    titulo: "devolucoesTitulo",
+    exemplo: "/devolucoes",
+  },
+  {
+    nome: "devolucao",
+    caminho: /^\/devolucoes\/(rma_[^/]+)$/,
+    sessao: true,
+    titulo: "devolucaoTitulo",
+    exemplo: "/devolucoes/rma_0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70",
+  },
+  {
     nome: "chaves",
     caminho: "/chaves",
     sessao: true,
