@@ -319,6 +319,80 @@ export interface ServicosDaExpedicao {
   opcoes: OpcaoDeServico[];
 }
 
+/** O estado de uma devolução (docs/30 §3; a API decide as mudanças). */
+export type EstadoDevolucao =
+  | "a_aguardar"
+  | "recebida"
+  | "inspeccionada"
+  | "decidida"
+  | "fechada"
+  | "cancelada";
+
+/** Uma devolução na lista do Hub (docs/36 §22.10): sem o motivo do cliente. */
+export interface DevolucaoNaLista {
+  id: string;
+  encomenda: string;
+  origem: "livre_resolucao" | "apoio" | "comercial";
+  estado: EstadoDevolucao;
+  /** O fim do prazo do reembolso (AAAA-MM-DD), na livre resolução. */
+  reembolsar_ate: string | null;
+  dias_para_reembolsar: number | null;
+  criada_em: string;
+  versao: number;
+}
+
+/** Uma linha devolvida: o pedido, o recebido e o aceite. */
+export interface LinhaDevolvida {
+  linha: string;
+  sku: string;
+  nome: string;
+  pedida: number;
+  recebida: number | null;
+  aceite: number | null;
+  estado_artigo: string | null;
+}
+
+/** Uma devolução inteira (docs/36 §22.10). */
+export interface Devolucao extends DevolucaoNaLista {
+  armazem: string;
+  pedido: string | null;
+  /** O que o cliente ou o apoio escreveu: só na página da devolução. */
+  motivo: string | null;
+  transportadora: string | null;
+  seguimento: string | null;
+  linhas: LinhaDevolvida[];
+}
+
+/** A etiqueta de devolução (docs/36 §22). */
+export interface EtiquetaDevolucao {
+  devolucao: string;
+  estado: "a_pedir" | "emitida" | "incerta" | "recusada" | "anulada";
+  tentativa: number;
+  conta: string;
+  transportadora: string;
+  servico: string;
+  peso_g: number;
+  motivo: string | null;
+  seguimento: string | null;
+  url_seguimento: string | null;
+  em: string;
+  ficheiro: "pdf" | null;
+}
+
+/** Os serviços que servem a etiqueta de uma devolução (o servidor escolhe). */
+export interface ServicosDaDevolucao {
+  estado: EstadoDevolucao;
+  /** null: uma variante não tem peso. */
+  peso_g: number | null;
+  opcoes: {
+    conta: string;
+    conta_nome: string;
+    transportadora: string;
+    servico: string;
+    nome: Record<string, string>;
+  }[];
+}
+
 /** Uma correcção do peso ou do serviço, com o motivo (docs/36 §19). */
 export interface CorrecaoExpedicao {
   campo: "peso" | "servico";
@@ -1293,6 +1367,53 @@ export const api = {
   ficheiroEtiqueta: (comerciante: string, id: string) =>
     pedirBytes(
       `/hub/shipments/${encodeURIComponent(id)}/label/file`,
+      comerciante,
+    ),
+  // As devoluções e a etiqueta de devolução (docs/36 §22.10).
+  devolucoes: (comerciante: string, estado: EstadoDevolucao | null) =>
+    pedir<{ dados: DevolucaoNaLista[]; limite: number }>(
+      "GET",
+      estado === null
+        ? "/hub/returns"
+        : `/hub/returns?${new URLSearchParams({ estado }).toString()}`,
+      { comerciante },
+    ),
+  devolucao: (comerciante: string, id: string) =>
+    pedir<Devolucao>("GET", `/hub/returns/${encodeURIComponent(id)}`, {
+      comerciante,
+    }),
+  servicosDaDevolucao: (comerciante: string, id: string) =>
+    pedir<ServicosDaDevolucao>(
+      "GET",
+      `/hub/returns/${encodeURIComponent(id)}/label/services`,
+      { comerciante },
+    ),
+  etiquetaDevolucao: (comerciante: string, id: string) =>
+    pedir<EtiquetaDevolucao>(
+      "GET",
+      `/hub/returns/${encodeURIComponent(id)}/label`,
+      { comerciante },
+    ),
+  pedirEtiquetaDevolucao: (
+    comerciante: string,
+    id: string,
+    corpo: { conta: string; servico: string },
+  ) =>
+    pedir<EtiquetaDevolucao>(
+      "POST",
+      `/hub/returns/${encodeURIComponent(id)}/label`,
+      { comerciante, corpo },
+    ),
+  anularEtiquetaDevolucao: (comerciante: string, id: string, motivo: string) =>
+    pedir<EtiquetaDevolucao>(
+      "POST",
+      `/hub/returns/${encodeURIComponent(id)}/label/void`,
+      { comerciante, corpo: { motivo, anulada_no_painel: true } },
+    ),
+  /** O PDF da etiqueta de devolução, em bytes, para descarregar. */
+  ficheiroEtiquetaDevolucao: (comerciante: string, id: string) =>
+    pedirBytes(
+      `/hub/returns/${encodeURIComponent(id)}/label/file`,
       comerciante,
     ),
   sair: () => pedir<{ ok: true }>("POST", "/hub/session/end"),

@@ -39,25 +39,27 @@ function comerciante(
 const ids = (l: readonly { id: string }[]) => l.map((m) => m.id);
 
 describe("os módulos de cada papel", () => {
-  it("o dono vê a equipa, os artigos, «A decidir», «Expedir», os envios, a faturação e as chaves, por esta ordem", () => {
+  it("o dono vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios, a faturação e as chaves, por esta ordem", () => {
     expect(ids(modulosDe(comerciante("a", "dono")))).toEqual([
       "equipa",
       "artigos",
       "decidir",
       "expedir",
+      "devolucoes",
       "envios",
       "faturacao",
       "chaves",
     ]);
   });
 
-  it("o gestor e o apoio vêem «Expedir», os envios e a faturação, não as chaves; o armazém vê «Expedir» e os envios, não a faturação (docs/22 §29.3, §30.3, §33.1)", () => {
+  it("o gestor e o apoio vêem «Expedir», as devoluções, os envios e a faturação, não as chaves; o armazém vê «Expedir», as devoluções e os envios, não a faturação (docs/22 §29.3, §30.3, §33.1; docs/36 §22.10)", () => {
     for (const papel of ["gestor", "apoio"] as const) {
       expect(ids(modulosDe(comerciante("a", papel))), papel).toEqual([
         "equipa",
         "artigos",
         "decidir",
         "expedir",
+        "devolucoes",
         "envios",
         "faturacao",
       ]);
@@ -67,6 +69,7 @@ describe("os módulos de cada papel", () => {
       "artigos",
       "decidir",
       "expedir",
+      "devolucoes",
       "envios",
     ]);
   });
@@ -94,10 +97,16 @@ describe("os módulos de cada papel", () => {
   it("«A decidir» basta ler uma fila (docs/22 §28.3); sem nenhuma, não aparece", () => {
     expect(
       ids(modulosDe(comerciante("a", "armazem", ["returns:read"]))),
-    ).toEqual(["equipa", "decidir"]);
+    ).toEqual(["equipa", "decidir", "devolucoes"]);
     expect(
       ids(modulosDe(comerciante("a", "armazem", ["catalog:read"]))),
     ).toEqual(["equipa", "artigos"]);
+  });
+
+  it("as devoluções pedem returns:read (docs/36 §22.10)", () => {
+    expect(
+      ids(modulosDe(comerciante("a", "apoio", ["fulfilment:read"]))),
+    ).toEqual(["equipa", "expedir"]);
   });
 
   it("sem catalog:read, nada de artigos; a equipa basta ser membro", () => {
@@ -119,6 +128,7 @@ describe("os módulos de cada papel", () => {
         "/artigos",
         "/a-decidir",
         "/expedir",
+        "/devolucoes",
         "/envios",
         "/faturacao",
         "/chaves",

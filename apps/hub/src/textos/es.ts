@@ -1676,4 +1676,103 @@ export const es: Textos = {
     "Para cancelar este envío, anule primero la etiqueta (o consulte al transportista, si está incierta).",
   etiquetaFicheiroJaNao:
     "El archivo de la etiqueta ya no existe: se borra 30 días después de terminar el envío.",
+  // As devoluções (docs/36 §22.10).
+  modulo_devolucoes: "Devoluciones",
+  termos_devolucoes:
+    "devoluciones desistimiento etiqueta de devolución reembolso",
+  devolucoesTitulo: "Devoluciones",
+  devolucaoTitulo: "Devolución",
+  devolucoesExplicacao:
+    "Las devoluciones de esta tienda, de las más recientes. Aquí se ve cada devolución y se pide la etiqueta de devolución; la recepción, la inspección y la decisión aún se hacen por la API.",
+  devolucoesFiltroEstado: "Estado",
+  devolucoesFiltroTodos: "Todos",
+  devolucoesVazio: "Aún no hay devoluciones.",
+  devolucoesVazioNoFiltro: "No hay devoluciones en este estado.",
+  devolucoesContagemUm: "1 devolución.",
+  devolucoesContagem: "{n} devoluciones.",
+  devolucoesContagemMaximo:
+    "Las {n} devoluciones más recientes: puede haber más. Use el filtro de estado para ver las demás.",
+  devolucoesColunaDevolucao: "Devolución",
+  devolucoesColunaEstado: "Estado",
+  devolucoesColunaOrigem: "Origen",
+  devolucoesColunaPrazo: "Reembolsar antes de",
+  devolucaoDe: "Devolución del {data}",
+  devolucoesVoltar: "Volver a las devoluciones",
+  devolucaoEstadoAAguardar: "Esperando el paquete",
+  devolucaoEstadoRecebida: "Recibida",
+  devolucaoEstadoInspeccionada: "Inspeccionada",
+  devolucaoEstadoDecidida: "Decidida",
+  devolucaoEstadoFechada: "Cerrada",
+  devolucaoEstadoCancelada: "Cancelada",
+  devolucaoOrigemLivreResolucao: "Desistimiento",
+  devolucaoOrigemApoio: "Acordada por soporte",
+  devolucaoOrigemComercial: "Política de la tienda",
+  devolucaoPrazoPassado: "plazo vencido",
+  devolucaoPrazoUmDia: "falta 1 día",
+  devolucaoPrazoDias: "faltan {n} días",
+  devolucaoTransportadora: "Transportista de la devolución",
+  devolucaoMotivo: "Motivo",
+  devolucaoArtigos: "Artículos",
+  devolucaoColunaArtigo: "Artículo",
+  devolucaoColunaPedida: "Solicitada",
+  devolucaoColunaRecebida: "Recibida",
+  devolucaoColunaAceite: "Aceptada",
+  devolucaoSoLeitura:
+    "La recepción, la inspección y la decisión de esta devolución se hacen, por ahora, por la API.",
+  devolucaoNaoExiste: "Esta devolución no existe, o no es de esta tienda.",
+  etiquetaDevolucaoTitulo: "Etiqueta de devolución",
+  etiquetaDevolucaoNenhuma: "Aún no hay etiqueta de devolución.",
+  etiquetaDevolucaoSoAAguardar:
+    "La etiqueta de devolución solo se pide con la devolución esperando el paquete.",
+  etiquetaDevolucaoIncertaExplicacao:
+    "El transportista no respondió con certeza. Confirme en su panel si la etiqueta existe: si existe, anúlela allí; después anúlela aquí. No se pide otra hasta entonces.",
+  etiquetaDevolucaoServico: "Servicio",
+  etiquetaDevolucaoEm: "En este estado desde",
+  etiquetaDevolucaoDescarregar: "Descargar el PDF",
+  etiquetaDevolucaoPedir: "Pedir la etiqueta de devolución",
+  etiquetaDevolucaoPedirOutra: "Pedir otra etiqueta de devolución",
+  etiquetaDevolucaoServicoAEscolher: "Cuenta y servicio de la devolución",
+  etiquetaDevolucaoPesoDaCaixa:
+    "Peso de la caja: {g} (los artículos a devolver y el embalaje).",
+  etiquetaDevolucaoCusto:
+    "La etiqueta la paga la cuenta del comerciante en el transportista. Esta solicitud no descuenta nada al cliente.",
+  etiquetaDevolucaoPedirBotao: "Pedir la etiqueta",
+  etiquetaDevolucaoSemPeso:
+    "Una variante de esta devolución no tiene peso: corrija el peso de la variante en el artículo antes de pedir la etiqueta.",
+  etiquetaDevolucaoSemServicos:
+    "Ninguna cuenta lista tiene un servicio que sirva para esta devolución (tiene que recoger en el país del cliente, no ser de puntos de recogida ni pedir el teléfono o el correo del cliente).",
+  etiquetaDevolucaoEscolherServico: "Elija la cuenta y el servicio.",
+  etiquetaDevolucaoPedidaAgora:
+    "Etiqueta de devolución emitida. Descargue el PDF y envíelo al cliente.",
+  etiquetaDevolucaoAnular: "Anular la etiqueta",
+  etiquetaDevolucaoAnularAjuda:
+    "Eurolify no anula la etiqueta en el transportista: anúlela primero en su panel (o confirme que la incierta no existe allí) y después anúlela aquí. El PDF se borra y puede pedirse otra.",
+  etiquetaDevolucaoAnularAPartirDe:
+    "El transportista puede estar aún creándola: solo se anula a partir de las {hora}.",
+  etiquetaDevolucaoMotivoAnular: "Motivo",
+  etiquetaDevolucaoConfirmeiNoPainel:
+    "Lo he confirmado en el panel del transportista",
+  etiquetaDevolucaoMotivoEmFalta: "Escriba el motivo (al menos 3 caracteres).",
+  etiquetaDevolucaoConfirmarPainel:
+    "Confirme que ha gestionado la etiqueta en el panel del transportista.",
+  etiquetaDevolucaoAnularBotao: "Anular la etiqueta",
+  etiquetaDevolucaoAnuladaAgora: "Etiqueta anulada. Puede pedir otra.",
+  etiquetaDevolucaoFicheiroJaNao:
+    "El PDF de la etiqueta ya no existe: se borra 30 días después de terminar la devolución.",
+  etiquetaDevolucaoJaExiste:
+    "Esta devolución ya tiene una etiqueta: anúlela primero.",
+  etiquetaDevolucaoIncertaPrimeiro:
+    "La etiqueta anterior quedó incierta: confirme en el panel del transportista y anúlela aquí antes de pedir otra.",
+  etiquetaDevolucaoNaoAnulaAinda:
+    "Esta etiqueta aún no se puede anular: se está pidiendo, quedó incierta hace menos de 15 minutos, o ya no está viva.",
+  etiquetaDevolucaoSemTransportadora:
+    "Este transportista aún no hace etiquetas de devolución en Eurolify.",
+  devolucoesColunaEncomenda: "Pedido",
+  devolucaoDeEncomenda: "Devolución del {data}, pedido terminado en {id}",
+  etiquetaDevolucaoFicouIncerta:
+    "El transportista no respondió con certeza: la etiqueta puede existir y estar pagada. Confírmelo en su panel antes de hacer otra cosa.",
+  etiquetaDevolucaoFoiRecusada:
+    "El transportista rechazó la etiqueta. El motivo está abajo; puede pedir otra.",
+  etiquetaDevolucaoSemPermissao:
+    "Aún no hay etiqueta de devolución, y su función no permite pedirla.",
 };
