@@ -1422,6 +1422,9 @@ a 3/11 o mês passou e o Eurolify não o sabe.
 | a nona fila `pedido_titular` no «A decidir» (prazo 7 dias antes do fim do legal: a meia-noite local de `prazo_legal - 6`, nunca antes de entrar), na API, no Hub e no nome do e-mail; prorrogar com o caso já avisado de vencido limpa o aviso, com a linha `prazo_mudado` no rasto (como mudar o prazo, 0066) | 0092; `src/tarefas/filas.ts`; `apps/hub/src/tarefas.ts`, textos |
 | testes, que falham sem a regra (uma prorrogação, o mesmo titular, o tipo e o dia do pedido executado, o mesmo comerciante, o aviso depois de prorrogar, o prazo da tarefa, o não se apagar) | `test/clientes-pedidos-recebidos.test.ts` |
 
+Os textos novos (o nome da fila e os dois motivos no Hub, o nome da fila no
+e-mail, em pt, es e en) foram aprovados pelo Diogo a 13/10/2026 (*«A»*).
+
 Não feito nesta parte: o segundo aviso (T5, §15.15); a exportação do titular
 ainda não junta os pedidos recebidos.
 
