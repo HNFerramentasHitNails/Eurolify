@@ -294,6 +294,8 @@ describe.skipIf(URL_BASE === undefined)(
         "documento_rasto",
         "evento_conta",
         "historico_preco",
+        // As recusas da empresa do emissor (0097; docs/29 §19.7).
+        "recusa_conta_emissor",
         "transicao_encomenda",
         "transicao_estado",
         "transicao_pagamento",

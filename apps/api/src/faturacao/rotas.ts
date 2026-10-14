@@ -9,11 +9,17 @@ import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
 import { chaveDo, sessaoDo } from "../identidade/autenticacao.js";
 import { erroConta } from "../identidade/sessoes.js";
 import type { ConfigFaturacao } from "./adaptador.js";
-import { ErroDocumentos, ESTADO_DO_CODIGO, traduzir } from "./erros.js";
+import {
+  ContaEmUso,
+  ErroDocumentos,
+  ESTADO_DO_CODIGO,
+  traduzir,
+} from "./erros.js";
 import {
   corrigir,
   criarLigacao,
   definirCredenciais,
+  registarRecusa,
   definirEmissor,
   libertar,
   lerDocumento,
@@ -329,20 +335,46 @@ export function rotasDosDocumentos(
         response: { 204: Type.Null(), ...RESPOSTA_DE_ERRO },
       },
     },
-    (pedido, resposta) =>
-      escrever(base, pedido, resposta, 204, async (trx, chave) =>
-        emDocumentos(resposta, async () => {
-          await definirCredenciais(
-            trx,
-            chave.comercianteId,
-            semPrefixo(pedido.params.id),
-            pedido.body.credenciais,
-            cfg,
-            quemDe(chave),
+    async (pedido, resposta) => {
+      // A recusa da empresa noutra ligação regista-se depois de a
+      // transacção da escrita voltar atrás (docs/29 §19.7).
+      let recusa: ContaEmUso | undefined;
+      try {
+        return await escrever(base, pedido, resposta, 204, async (trx, chave) =>
+          emDocumentos(resposta, async () => {
+            try {
+              await definirCredenciais(
+                trx,
+                chave.comercianteId,
+                semPrefixo(pedido.params.id),
+                pedido.body.credenciais,
+                cfg,
+                quemDe(chave),
+              );
+            } catch (e) {
+              if (e instanceof ContaEmUso) recusa = e;
+              throw e;
+            }
+            return null;
+          }),
+        );
+      } catch (e) {
+        if (recusa !== undefined) {
+          const chave = chaveDo(pedido);
+          const r = recusa;
+          await emDocumentos(resposta, () =>
+            registarRecusa(
+              base,
+              chave.comercianteId,
+              r,
+              "credenciais",
+              quemDe(chave),
+            ),
           );
-          return null;
-        }),
-      ),
+        }
+        throw e;
+      }
+    },
   );
 
   rotas.post(

@@ -50,6 +50,20 @@ export class ErroDocumentos extends Error {
 export const CONTA_EM_USO =
   "esta empresa do Moloni já está ligada a outra conta do Eurolify; se é sua, desligue-a lá primeiro, ou fale com o apoio do Eurolify";
 
+/**
+ * A recusa com o que o registo precisa (docs/29 §19.7): a ligação de quem
+ * pediu e a conta pedida. Nada disto vai na resposta, que é a da Q1 «B».
+ */
+export class ContaEmUso extends ErroDocumentos {
+  constructor(
+    readonly ligacaoId: string,
+    readonly conta: string,
+    options?: ErrorOptions,
+  ) {
+    super("invoices.account_in_use", CONTA_EM_USO, undefined, options);
+  }
+}
+
 /** Os erros da base com o código à frente (`invoices.x: …`). */
 const DA_BASE: CodigoErroDocumentos[] = [
   "invoices.not_found",

@@ -1702,6 +1702,59 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       sql`update ligacao_faturacao set conta_emissor = ${empresa}
         where id = ${daB.slice(4)}::uuid`.execute(base.dono),
     ).rejects.toThrow(/ligacao_faturacao_uma_por_conta/);
+    // A empresa livre ao pedir e ligada por outro antes do regresso do
+    // Moloni: a recusa sai ao voltar (revisão do #449, P2-1).
+    const outra = moloni.credenciais().company_id;
+    const pedidoB = await ok(
+      b.adm("POST", `/invoicing-connections/${daB}/authorize`, {
+        empresa: outra,
+      }),
+    );
+    await ok(
+      a.adm("PUT", `/invoicing-connections/${daA2}/credentials`, {
+        credenciais: moloni.credenciais(outra),
+      }),
+      204,
+    );
+    expect(
+      await codigo(
+        b.adm("POST", `/invoicing-connections/${daB}/authorize/complete`, {
+          codigo: moloni.codigoAutorizacao(),
+          estado: pedidoB["estado"],
+        }),
+      ),
+    ).toEqual([409, "invoices.account_in_use"]);
+    // Cada recusa fica registada, com a ligação de quem pediu, a empresa
+    // pedida e o passo, e nunca a outra ligação (docs/29 §19.7).
+    expect(await recusasDe([daB, daA2])).toEqual([
+      { ligacao: daB, conta: empresa, passo: "autorizar", canal: "api" },
+      { ligacao: daB, conta: empresa, passo: "credenciais", canal: "api" },
+      { ligacao: daA2, conta: empresa, passo: "credenciais", canal: "api" },
+      { ligacao: daB, conta: outra, passo: "autorizacao", canal: "api" },
+    ]);
+    // Só se acrescenta, mesmo para o dono da base; os gatilhos que o
+    // garantem são ALWAYS e o que escreve o contexto não (regra da 0091).
+    await expect(
+      sql`delete from recusa_conta_emissor`.execute(base.dono),
+    ).rejects.toThrow(/audit\.append_only/);
+    await expect(
+      sql`update recusa_conta_emissor set conta = '1'`.execute(base.dono),
+    ).rejects.toThrow(/audit\.append_only/);
+    await expect(
+      sql`truncate recusa_conta_emissor`.execute(base.dono),
+    ).rejects.toThrow(/audit\.append_only/);
+    expect(
+      (
+        await sql<{ nome: string; quando: string }>`
+          select t.tgname as nome, t.tgenabled as quando from pg_trigger t
+          where t.tgrelid = 'recusa_conta_emissor'::regclass and not t.tgisinternal
+          order by 1`.execute(base.dono)
+      ).rows,
+    ).toEqual([
+      { nome: "rasto_completar", quando: "O" },
+      { nome: "recusa_conta_emissor_sem_truncate", quando: "A" },
+      { nome: "recusa_conta_emissor_so_se_acrescenta", quando: "A" },
+    ]);
     // Desligar a primeira liberta a empresa.
     const l = await ligacaoDe(a, daA);
     await ok(
@@ -1765,7 +1818,39 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(r["estado"]).toBe("com_erro");
     expect(String(r["erro"])).toContain("fale com o apoio do Eurolify");
     expect(await contaDe(daA)).toBeNull();
+    expect(await recusasDe([daA, daB])).toEqual([
+      { ligacao: daA, conta: empresa, passo: "teste", canal: "api" },
+    ]);
+    // As duas testadas ao mesmo tempo: uma fica com a empresa, a outra falha
+    // e a recusa fica registada, seja qual for a ordem (revisão do #452,
+    // P1-1: a conta escreve-se antes de se gravar o resultado).
+    await antiga(daA);
+    await antiga(daB);
+    const [ra, rb] = await Promise.all([
+      ok(a.adm("POST", `/invoicing-connections/${daA}/test`)),
+      ok(b.adm("POST", `/invoicing-connections/${daB}/test`)),
+    ]);
+    expect([ra["estado"], rb["estado"]].sort()).toEqual(["com_erro", "pronta"]);
+    const perdeu = ra["estado"] === "com_erro" ? daA : daB;
+    expect((await recusasDe([daA, daB])).slice(1)).toEqual([
+      { ligacao: perdeu, conta: empresa, passo: "teste", canal: "api" },
+    ]);
   });
+
+  /** As recusas registadas destas ligações, pela ordem (docs/29 §19.7). */
+  const recusasDe = async (ligacoes: string[]) =>
+    (
+      await sql<{
+        ligacao: string;
+        conta: string;
+        passo: string;
+        canal: string;
+      }>`
+        select 'isx_' || ligacao_id as ligacao, conta, passo, canal
+        from recusa_conta_emissor
+        where ligacao_id = any(${ligacoes.map((l) => l.slice(4))}::uuid[])
+        order by em`.execute(base.dono)
+    ).rows;
 
   const ligacaoDe = async (s: Cenario, id: string) =>
     (
