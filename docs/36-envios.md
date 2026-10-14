@@ -1553,4 +1553,25 @@ Diogo, 14/10/2026: *«sim, aprovo; avança com o código»*.
 - **«Anular» numa incerta recente** diz a partir de que hora se anula, mas
   não desliga o botão: quem decide é a API.
 
+**Da revisão do agente (Sonnet 5.5):** a revisão ficou incompleta, porque a
+cópia de trabalho mudou de ramo a meio e ela leu do disco. Foi publicada no
+pedido tal como veio.
+- **Corrigido:**
+  - P2-1 e P2-2: o «não existe» e o «recusado» ficam com a mensagem da API,
+    que diz a causa (a conta, o peso, o serviço, as tentativas); em espanhol
+    sai a mensagem genérica;
+  - P2-3: a lista mostra o fim do número da encomenda, e a ligação diz-o;
+  - P2-4: testes de um estado inválido no filtro, e de ler e anular a
+    etiqueta de outro comerciante;
+  - P3-2: só a última leitura da etiqueta conta;
+  - P3-3: outro filtro mostra «a carregar»;
+  - P3-4: a caixa de erro da etiqueta tem «Tentar outra vez».
+- **Ficou como estava:**
+  - P2-4: o 403 de um papel sem `returns:read` ou `returns:write` não se
+    testa, porque hoje os quatro papéis têm os dois;
+  - P3-1: ler a etiqueta pode marcar uma que ficou a meio como incerta, como
+    no pedido 1;
+  - P3-5: a Sendcloud só dá PDF;
+  - P3-6: uma conta sem adaptador parte a lista, como na expedição.
+
 O aspecto vai ao Diogo com as capturas antes de se juntar.

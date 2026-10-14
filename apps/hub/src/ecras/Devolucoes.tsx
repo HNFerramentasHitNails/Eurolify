@@ -22,6 +22,7 @@ import {
   erroDaDevolucao,
   ESTADOS_DEVOLUCAO,
   estadoDoFiltro,
+  idCurto,
   TEXTO_DA_ORIGEM,
   TEXTO_DO_ESTADO_DA_DEVOLUCAO,
 } from "../devolucoes";
@@ -227,6 +228,7 @@ export function Devolucoes({
                   <thead>
                     <tr>
                       <th scope="col">{t.devolucoesColunaDevolucao}</th>
+                      <th scope="col">{t.devolucoesColunaEncomenda}</th>
                       <th scope="col">{t.devolucoesColunaEstado}</th>
                       <th scope="col">{t.devolucoesColunaOrigem}</th>
                       <th scope="col">{t.devolucoesColunaPrazo}</th>
@@ -238,11 +240,20 @@ export function Devolucoes({
                         <td data-rotulo={t.devolucoesColunaDevolucao}>
                           <LigacaoInterna
                             href={enderecoDe(c, `/devolucoes/${d.id}`)}
+                            // Duas no mesmo minuto não se confundem: a
+                            // encomenda vai no nome da ligação (revisão, P2-3).
+                            aria-label={preencher(t.devolucaoDeEncomenda, {
+                              data: hora(d.criada_em),
+                              id: idCurto(d.encomenda),
+                            })}
                           >
                             {preencher(t.devolucaoDe, {
                               data: hora(d.criada_em),
                             })}
                           </LigacaoInterna>
+                        </td>
+                        <td data-rotulo={t.devolucoesColunaEncomenda}>
+                          <code translate="no">…{idCurto(d.encomenda)}</code>
                         </td>
                         <td data-rotulo={t.devolucoesColunaEstado}>
                           <EstadoDaDevolucao estado={d.estado} />
@@ -439,7 +450,10 @@ function EtiquetaDaDevolucao({
     if (falha !== null || sucesso !== null) caixa.current?.focus();
   }, [falha, sucesso]);
 
+  const ultimo = useRef(0);
   const ler = useCallback(async () => {
+    // Só a última leitura conta (revisão, P3-2).
+    const este = ++ultimo.current;
     try {
       let e: EtiquetaDevolucao | null;
       try {
@@ -449,11 +463,13 @@ function EtiquetaDaDevolucao({
         if (x instanceof ErroHub && x.codigo === "shipping.not_found") e = null;
         else throw x;
       }
+      if (este !== ultimo.current) return;
       setEtiqueta(e);
       setAgora(Date.now());
       const a = accoesDaEtiqueta(d.estado, e, escreve, Date.now());
       if (a.pedir) {
         const s = await api.servicosDaDevolucao(comerciante, d.id);
+        if (este !== ultimo.current) return;
         setServicos(s);
         const [unica] = s.opcoes;
         if (s.opcoes.length === 1 && unica !== undefined) {
@@ -463,6 +479,7 @@ function EtiquetaDaDevolucao({
         setServicos(null);
       }
     } catch (x) {
+      if (este !== ultimo.current) return;
       if (semSessao(x)) {
         navegar("/entrar", { substituir: true });
         return;
@@ -583,7 +600,9 @@ function EtiquetaDaDevolucao({
         )}
       </h2>
       <div ref={caixa} tabIndex={-1}>
-        {erro === null ? null : <CaixaDeErro erro={erro} />}
+        {erro === null ? null : (
+          <CaixaDeErro erro={erro} aoTentar={() => void ler()} />
+        )}
         {sucesso === null ? null : (
           <p className="sucesso" role="status">
             {t[sucesso]}

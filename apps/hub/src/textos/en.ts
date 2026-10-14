@@ -1744,8 +1744,8 @@ export const en: Textos = {
     "The previous label is uncertain: check the carrier's dashboard and void it here before requesting another.",
   etiquetaDevolucaoNaoAnulaAinda:
     "This label cannot be voided yet: it is being requested, became uncertain less than 15 minutes ago, or is no longer active.",
-  etiquetaDevolucaoRecusadaPeloServidor:
-    "The server refused the request: check that the return is still awaiting the parcel, the service, the weight and the customer's address on the order.",
   etiquetaDevolucaoSemTransportadora:
     "This carrier does not yet issue return labels in Eurolify.",
+  devolucoesColunaEncomenda: "Order",
+  devolucaoDeEncomenda: "Return of {data}, order ending in {id}",
 };

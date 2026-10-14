@@ -238,6 +238,33 @@ describe.skipIf(URL_BASE === undefined)("Hub: as devoluções", () => {
     expect(
       (await como("donoB", "GET", `/hub/returns/${rma}/label/file`)).statusCode,
     ).toBe(404);
+    // Com a etiqueta pedida pelo dono, o outro não a lê nem a anula.
+    await ok(
+      como("armazem", "POST", `/hub/returns/${rma}/label`, {
+        conta: s.conta,
+        servico: "EXPRESSO_48",
+      }),
+    );
+    expect(
+      (await como("donoB", "GET", `/hub/returns/${rma}/label`)).statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await como("donoB", "POST", `/hub/returns/${rma}/label/void`, {
+          motivo: "não é minha",
+          anulada_no_painel: true,
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect(
+      (await ok(como("armazem", "GET", `/hub/returns/${rma}/label`)))["estado"],
+    ).toBe("emitida");
+  });
+
+  it("um estado que não existe no filtro é recusado", async () => {
+    expect(
+      await codigo(como("armazem", "GET", "/hub/returns?estado=perdida")),
+    ).toEqual([400, "request.invalid"]);
   });
 
   it("sem sessão, nada", async () => {

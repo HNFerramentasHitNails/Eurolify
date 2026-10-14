@@ -122,6 +122,12 @@ describe("o ecrã das devoluções", () => {
       "etiquetaDevolucaoNaoAnulaAinda",
     );
     expect(chave("returns.not_found")).toBe("devolucaoNaoExiste");
+    // Os de causas diferentes ficam com a mensagem da API (a conta que não
+    // existe, o peso, o serviço…).
+    for (const c of ["shipping.not_found", "shipping.invalid_field"]) {
+      const e = erro(c);
+      expect(erroDaDevolucao(e), c).toBe(e);
+    }
     // Os outros, como em «Expedir».
     expect(chave("shipping.account_not_ready")).toBe("etiquetaContaNaoPronta");
   });

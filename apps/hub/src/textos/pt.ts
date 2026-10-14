@@ -1739,10 +1739,10 @@ export const pt = {
     "A etiqueta anterior ficou incerta: confirme no painel da transportadora e anule-a aqui antes de pedir outra.",
   etiquetaDevolucaoNaoAnulaAinda:
     "Esta etiqueta ainda não se pode anular: está a ser pedida, ficou incerta há menos de 15 minutos, ou já não está viva.",
-  etiquetaDevolucaoRecusadaPeloServidor:
-    "O servidor recusou o pedido: confira se a devolução ainda está à espera, o serviço, o peso e a morada do cliente na encomenda.",
   etiquetaDevolucaoSemTransportadora:
     "Esta transportadora ainda não faz etiquetas de devolução no Eurolify.",
+  devolucoesColunaEncomenda: "Encomenda",
+  devolucaoDeEncomenda: "Devolução de {data}, encomenda terminada em {id}",
 };
 
 export type Textos = typeof pt;

@@ -1763,8 +1763,8 @@ export const es: Textos = {
     "La etiqueta anterior quedó incierta: confirme en el panel del transportista y anúlela aquí antes de pedir otra.",
   etiquetaDevolucaoNaoAnulaAinda:
     "Esta etiqueta aún no se puede anular: se está pidiendo, quedó incierta hace menos de 15 minutos, o ya no está viva.",
-  etiquetaDevolucaoRecusadaPeloServidor:
-    "El servidor rechazó la solicitud: compruebe si la devolución sigue esperando, el servicio, el peso y la dirección del cliente en el pedido.",
   etiquetaDevolucaoSemTransportadora:
     "Este transportista aún no hace etiquetas de devolución en Eurolify.",
+  devolucoesColunaEncomenda: "Pedido",
+  devolucaoDeEncomenda: "Devolución del {data}, pedido terminado en {id}",
 };

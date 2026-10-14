@@ -40,6 +40,11 @@ export const TEXTO_DA_ORIGEM: Record<DevolucaoNaLista["origem"], keyof Textos> =
     comercial: "devolucaoOrigemComercial",
   };
 
+/** O fim do identificador, para distinguir as encomendas à vista. */
+export function idCurto(id: string): string {
+  return id.slice(-8);
+}
+
 /** O filtro do endereço, ou null se não for um estado. */
 export function estadoDoFiltro(valor: string | null): EstadoDevolucao | null {
   return ESTADOS_DEVOLUCAO.find((e) => e === valor) ?? null;
@@ -99,17 +104,26 @@ export function accoesDaEtiqueta(
 /** Os erros deste ecrã que têm um texto próprio (os outros, como em Expedir). */
 const TEXTO_DO_CODIGO_DA_DEVOLUCAO: Record<string, keyof Textos> = {
   "returns.not_found": "devolucaoNaoExiste",
-  "shipping.not_found": "devolucaoNaoExiste",
   "shipping.label_exists": "etiquetaDevolucaoJaExiste",
   "shipping.label_uncertain": "etiquetaDevolucaoIncertaPrimeiro",
   "shipping.void_not_allowed": "etiquetaDevolucaoNaoAnulaAinda",
-  "shipping.invalid_field": "etiquetaDevolucaoRecusadaPeloServidor",
   "shipping.carrier_unavailable": "etiquetaDevolucaoSemTransportadora",
 };
+
+/**
+ * Os códigos que a API usa para causas diferentes (a conta que não existe,
+ * a devolução sem etiqueta; o peso, o serviço, as tentativas, a morada): a
+ * mensagem da API diz qual, por isso fica a dela (revisão, P2-1 e P2-2).
+ */
+const COM_A_MENSAGEM_DA_API = new Set([
+  "shipping.not_found",
+  "shipping.invalid_field",
+]);
 
 /** Um erro do servidor neste ecrã, no texto dele. */
 export function erroDaDevolucao(e: unknown): unknown {
   if (!(e instanceof ErroHub) || e.codigo === undefined) return e;
+  if (COM_A_MENSAGEM_DA_API.has(e.codigo)) return e;
   const chave =
     TEXTO_DO_CODIGO_DA_DEVOLUCAO[e.codigo] ?? TEXTO_DO_CODIGO[e.codigo];
   return chave === undefined ? e : new ErroDoEcra(chave);
