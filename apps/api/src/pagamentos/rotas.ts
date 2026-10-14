@@ -888,7 +888,7 @@ export function rotasDosPagamentos(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "Pelo Hub (docs/22 §34): a fila de diferenças, como GET /payment-issues, com o resumo do pagamento de cada uma (encomenda, método, montante, moeda e estado). Com `payments:read`.",
+          "Pelo Hub (docs/22 §34): a fila de diferenças, como GET /payment-issues, com o resumo do pagamento de cada uma (encomenda, método, montante, moeda, estado, prestador, referência e data; nunca as instruções). Com `payments:read`.",
         querystring: Type.Object(
           { estado: Type.Optional(umDe(["aberta", "resolvida"] as const)) },
           { additionalProperties: false },
@@ -925,6 +925,15 @@ export function rotasDosPagamentos(
                     montante: d.montante === null ? null : Number(d.montante),
                     moeda: d.moeda,
                     estado: d.pagamento_estado,
+                    // Para conferir na conta do prestador (Q1 A, 14/10/2026):
+                    // a referência do prestador, ou a nossa (a que lhe
+                    // enviámos) se ele ainda não deu uma; sem `instrucoes`.
+                    prestador: d.prestador,
+                    referencia: d.referencia_prestador ?? d.referencia,
+                    criado_em:
+                      d.pagamento_criado_em === null
+                        ? null
+                        : d.pagamento_criado_em.toISOString(),
                   },
             aviso: d.aviso_id === null ? null : `pwh_${d.aviso_id}`,
             motivo: d.motivo,

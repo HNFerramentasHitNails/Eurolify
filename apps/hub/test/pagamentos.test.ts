@@ -7,8 +7,11 @@ import type { DiferencaPagamento } from "../src/api";
 import {
   casoDoDialogo,
   enderecoDiferencas,
+  naoFicaPaga,
+  pagamentoAConferir,
   provaEmTexto,
   separadorDe,
+  sugestaoDaResolucao,
 } from "../src/pagamentos";
 import { LINGUAS, TEXTOS } from "../src/textos";
 
@@ -27,6 +30,9 @@ function diferenca(
     montante: 29.9,
     moeda: "EUR",
     estado: "capturado",
+    prestador: "eupago",
+    referencia: "123 456 789",
+    criado_em: "2026-10-13T15:30:00Z",
   },
 ): DiferencaPagamento {
   return {
@@ -119,17 +125,117 @@ describe("o diálogo de resolver", () => {
             montante: 10,
             moeda: "EUR",
             estado: "incerto",
+            prestador: "eupago",
+            referencia: "123 456 789",
+            criado_em: "2026-10-13T15:30:00Z",
           },
         ),
       ),
     ).toBe("incerto");
     // Já decidido por outro lado: não volta a perguntar.
     expect(casoDoDialogo(diferenca("incerto", {}))).toBe("normal");
-    expect(casoDoDialogo(diferenca("reembolso_incerto", {}))).toBe("reembolso");
+    // Os três motivos de reembolso: o reembolso decide-se na devolução (Q3 A).
+    for (const m of [
+      "reembolso_incerto",
+      "reembolso_por_confirmar",
+      "reembolso_desconhecido",
+    ]) {
+      expect(casoDoDialogo(diferenca(m, {})), m).toBe("reembolso");
+    }
     expect(casoDoDialogo(diferenca("montante_diferente", {}))).toBe("normal");
     expect(casoDoDialogo(diferenca("aviso_sem_pagamento", {}, null))).toBe(
       "normal",
     );
+  });
+});
+
+const incerto = (): DiferencaPagamento =>
+  diferenca(
+    "incerto",
+    {},
+    {
+      id: "pay_1",
+      encomenda: null,
+      metodo: "multibanco",
+      montante: 42.5,
+      moeda: "EUR",
+      estado: "incerto",
+      prestador: "eupago",
+      referencia: "123 456 789",
+      criado_em: "2026-10-13T15:30:00Z",
+    },
+  );
+
+describe("o pagamento incerto: o que se confere e o texto sugerido (Q1 A)", () => {
+  it("põe à vista o montante, a referência e a data", () => {
+    const v = pagamentoAConferir(incerto(), "pt-PT");
+    expect(v?.prestador).toBe("EuPago");
+    expect(v?.montante).toMatch(/^42,50\s€$/);
+    expect(v?.referencia).toBe("123 456 789");
+    expect(v?.data).toContain("2026");
+  });
+
+  it("sugere o texto de «foi pago» com o prestador, o montante e a referência", () => {
+    expect(sugestaoDaResolucao(t, incerto(), "capturado", "pt-PT")).toMatch(
+      /^Vi na conta da EuPago o pagamento de 42,50\s€ com a referência 123 456 789\.$/,
+    );
+  });
+
+  it("sugere o texto de «não foi pago»", () => {
+    expect(sugestaoDaResolucao(t, incerto(), "falhado", "pt-PT")).toMatch(
+      /^Vi na conta da EuPago que o pagamento de 42,50\s€ com a referência 123 456 789 não entrou\.$/,
+    );
+  });
+
+  it("sem montante ou referência não sugere nada (nada se inventa)", () => {
+    const d = incerto();
+    if (d.pagamento !== null) d.pagamento.referencia = null;
+    expect(sugestaoDaResolucao(t, d, "capturado", "pt-PT")).toBe("");
+    expect(pagamentoAConferir(d, "pt-PT")).toBeNull();
+    expect(
+      sugestaoDaResolucao(
+        t,
+        diferenca("incerto", {}, null),
+        "falhado",
+        "pt-PT",
+      ),
+    ).toBe("");
+  });
+
+  it("as sugestões existem nas três línguas, sem chaves por preencher", () => {
+    for (const lingua of LINGUAS) {
+      const x = sugestaoDaResolucao(
+        TEXTOS[lingua],
+        incerto(),
+        "capturado",
+        "pt-PT",
+      );
+      expect(x, lingua).toContain("123 456 789");
+      expect(x, lingua).not.toMatch(/\{\w+\}/);
+    }
+  });
+});
+
+describe("montante ou moeda diferentes: a encomenda não fica paga (Q2 A)", () => {
+  it("só nestes dois motivos", () => {
+    expect(naoFicaPaga(diferenca("montante_diferente", {}))).toBe(true);
+    expect(naoFicaPaga(diferenca("moeda_diferente", {}))).toBe(true);
+    for (const m of MOTIVOS_DIFERENCA) {
+      if (m === "montante_diferente" || m === "moeda_diferente") continue;
+      expect(naoFicaPaga(diferenca(m, {})), m).toBe(false);
+    }
+  });
+
+  it("o texto diz as saídas, nas três línguas", () => {
+    expect(t.diferencaNaoFicaPaga).toBe(
+      "A encomenda não fica paga. Pode devolver ao cliente o que pagou, na conta do prestador, e pedir-lhe um pagamento novo, ou cancelar a encomenda. Escreva aqui o que fez.",
+    );
+    for (const lingua of LINGUAS) {
+      expect(
+        TEXTOS[lingua].diferencaNaoFicaPaga.length,
+        lingua,
+      ).toBeGreaterThan(40);
+    }
   });
 });
 

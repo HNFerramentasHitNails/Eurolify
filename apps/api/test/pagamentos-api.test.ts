@@ -947,9 +947,16 @@ describe.skipIf(URL_BASE === undefined)("API dos pagamentos", () => {
             montante: expect.any(Number) as unknown,
             moeda: "EUR",
             estado: "incerto",
+            // Para conferir na conta do prestador (Q1 A, 14/10/2026).
+            prestador: "eupago",
+            referencia: expect.any(String) as unknown,
+            criado_em: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) as unknown,
           },
         });
         expect(JSON.stringify(r)).not.toContain("corpo");
+        // Nunca as instruções de pagamento (a referência de Multibanco, o
+        // telefone): só o resumo.
+        expect(JSON.stringify(r)).not.toContain("instrucoes");
       }
       // A lista não fica em nenhuma cache (revisão do #458, P3-2).
       expect(

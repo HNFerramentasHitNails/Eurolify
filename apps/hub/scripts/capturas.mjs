@@ -7214,6 +7214,9 @@ try {
     montante,
     moeda: "EUR",
     estado,
+    prestador: "eupago",
+    referencia: "123 456 789",
+    criado_em: "2026-10-13T15:30:00.000Z",
   });
   const diferencaSimulada = (i, motivo, prova, pagamento, resolvida) => ({
     id: `pdi_0199e000-0000-7000-8000-0000000003${String(10 + i)}`,

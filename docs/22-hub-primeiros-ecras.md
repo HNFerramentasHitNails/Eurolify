@@ -3063,3 +3063,45 @@ se a última foi há mais de 10 minutos)?**
     `payments.immutable` lido sempre como «já resolvida») e P3-9 (uma chave
     com `payments:resolve` resolve pela rota antiga; é anterior).
 
+
+**Acrescentos de 14/10/2026 (Diogo: Q1 A, Q2 A, Q3 A, no desenho fechado no
+#463).** Mantêm a autenticação recente e os dois desvios acima.
+
+- **Q1 A, pagamento incerto.** O diálogo de resolver põe à vista o montante, a
+  referência e a data do pagamento. Ao escolher «Sim, foi pago» o campo da
+  resolução vem com a sugestão «Vi na conta da {prestador} o pagamento de
+  {montante} com a referência {referência}.» (para «Não, não foi pago»:
+  «… que o pagamento de … não entrou.»). Continua obrigatório e editável; o
+  que se grava é o que a pessoa deixar, e uma sugestão nunca substitui um
+  texto que ela já escreveu. Sem montante ou referência, não se sugere nada.
+  - **API:** `GET /hub/payment-issues` junta ao resumo do pagamento
+    `prestador`, `referencia` (a do prestador ou, se ele ainda não deu uma, a
+    nossa, a que lhe enviámos) e `criado_em`. Nunca as `instrucoes`.
+  - **Hub:** `pagamentoAConferir` e `sugestaoDaResolucao` em `pagamentos.ts`;
+    os textos `diferencaPagamentoAConferir`, `diferencaSugestaoPago` e
+    `diferencaSugestaoNaoPago` (pt, es, en).
+  - **Por verificar:** que a referência que o prestador mostra na conta é a
+    do prestador (Multibanco) ou a nossa (`identifier`); não verifiquei na
+    conta da Eupago.
+- **Q2 A, montante ou moeda diferentes.** No caso (coluna «O que se viu») e no
+  diálogo, a frase «A encomenda não fica paga. Pode devolver ao cliente o que
+  pagou, na conta do prestador, e pedir-lhe um pagamento novo, ou cancelar a
+  encomenda. Escreva aqui o que fez.», só nestes dois motivos
+  (`naoFicaPaga`, `diferencaNaoFicaPaga`).
+- **Q3 A, o reembolso uma vez só em «A decidir».** A migração
+  `0106_pagamentos_fila_sem_reembolsos.sql` tira da fila `pagamento`
+  (`pagamentos_casos_a_decidir()`) as diferenças `reembolso_incerto`: o
+  reembolso incerto decide-se na fila `reembolso`, e quem o reconcilia fecha a
+  diferença no mesmo passo. No ecrã das diferenças continuam a ver-se, com o
+  aviso do reembolso. Uma atribuição já aberta de um caso que sai da fila fica
+  guardada, com o rasto, sem efeito nem aviso de vencido (como a de qualquer
+  caso resolvido).
+  - **Desvio a confirmar com o Diogo:** só o `reembolso_incerto` saiu.
+    `reembolso_por_confirmar` (reembolso em `a_confirmar`) e
+    `reembolso_desconhecido` (o prestador avisou de um reembolso que não
+    pedimos, sem linha de `reembolso`) **não têm** um reembolso `incerto` ou
+    `falhado` que os leve para a fila `reembolso` (0066): sair da fila deixava
+    um reembolso por conferir fora de todas as filas. Para os tirar também,
+    acrescenta-se um motivo à lista da 0106 e muda-se o teste.
+  - **Testes:** `apps/api/test/tarefas-pagamentos-sem-reembolsos.test.ts` e
+    `apps/hub/test/pagamentos.test.ts`.

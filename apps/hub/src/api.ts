@@ -355,6 +355,10 @@ export interface DiferencaPagamento {
     montante: number | null;
     moeda: string | null;
     estado: string | null;
+    /** Para conferir na conta do prestador (Q1 A, 14/10/2026); sem instruções. */
+    prestador: string | null;
+    referencia: string | null;
+    criado_em: string | null;
   } | null;
   aviso: string | null;
   motivo: string;

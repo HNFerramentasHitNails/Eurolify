@@ -20,8 +20,11 @@ import {
   emDinheiro,
   enderecoDiferencas,
   estadoDoPagamento,
+  naoFicaPaga,
+  pagamentoAConferir,
   provaEmTexto,
   separadorDe,
+  sugestaoDaResolucao,
   TEXTO_DO_ERRO_DA_DIFERENCA,
 } from "../pagamentos";
 import { comRecente } from "../passkeys";
@@ -259,6 +262,14 @@ export function DiferencasPagamento({
                     </td>
                     <td data-rotulo={t.diferencasColunaProva}>
                       {provaEmTexto(t, d, tag)}
+                      {separador === "aberta" && naoFicaPaga(d) ? (
+                        <>
+                          <br />
+                          <span className="secundario">
+                            {t.diferencaNaoFicaPaga}
+                          </span>
+                        </>
+                      ) : null}
                     </td>
                     <td
                       data-rotulo={
@@ -347,11 +358,28 @@ function DialogoResolver({
   const { t, lingua, navegar } = useHub();
   const caso = casoDoDialogo(d);
   const [resolucao, setResolucao] = useState("");
+  // O último texto sugerido: só se troca enquanto a pessoa não lhe mexeu.
+  const [sugerido, setSugerido] = useState("");
   const [pago, setPago] = useState<"capturado" | "falhado" | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aEnviar, setAEnviar] = useState(false);
   const idTexto = useId();
   const tag = TAG_LINGUA[lingua];
+  const aConferir = caso === "incerto" ? pagamentoAConferir(d, tag) : null;
+
+  /**
+   * Escolher «foi pago» ou «não foi pago» sugere o texto da resolução (Q1 A,
+   * 14/10/2026); a pessoa edita-o e o que se grava é o que ela deixar. Não
+   * se mexe num texto que a pessoa já escreveu ou alterou.
+   */
+  const escolher = (valor: "capturado" | "falhado") => {
+    setPago(valor);
+    const novo = sugestaoDaResolucao(t, d, valor, tag);
+    if (novo !== "" && (resolucao.trim() === "" || resolucao === sugerido)) {
+      setResolucao(novo);
+      setSugerido(novo);
+    }
+  };
 
   /** Se as resolvidas já a trazem, ficou feita. */
   const jaResolvida = async () => {
@@ -432,6 +460,12 @@ function DialogoResolver({
           <br />
           {provaEmTexto(t, d, tag)}
         </p>
+        {naoFicaPaga(d) ? (
+          <p className="aviso">{t.diferencaNaoFicaPaga}</p>
+        ) : null}
+        {aConferir === null ? null : (
+          <p>{preencher(t.diferencaPagamentoAConferir, aConferir)}</p>
+        )}
         {caso === "reembolso" ? (
           <p className="aviso">{t.diferencaReembolsoAviso}</p>
         ) : null}
@@ -446,7 +480,7 @@ function DialogoResolver({
                 aria-required="true"
                 checked={pago === "capturado"}
                 onChange={() => {
-                  setPago("capturado");
+                  escolher("capturado");
                 }}
               />{" "}
               {t.diferencaPagouSim}
@@ -458,7 +492,7 @@ function DialogoResolver({
                 aria-required="true"
                 checked={pago === "falhado"}
                 onChange={() => {
-                  setPago("falhado");
+                  escolher("falhado");
                 }}
               />{" "}
               {t.diferencaPagouNao}

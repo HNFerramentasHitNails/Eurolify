@@ -43,6 +43,67 @@ export function casoDoDialogo(d: DiferencaPagamento): CasoDoDialogo {
   return "normal";
 }
 
+/**
+ * Montante ou moeda diferentes (Q2 A, 14/10/2026): a encomenda não fica paga.
+ * O ecrã diz-o e dá as duas saídas (devolver e pedir de novo, ou cancelar).
+ */
+export function naoFicaPaga(d: DiferencaPagamento): boolean {
+  return d.motivo === "montante_diferente" || d.motivo === "moeda_diferente";
+}
+
+/** Os nomes dos prestadores (marcas, iguais em todas as línguas). */
+const NOMES_DE_PRESTADOR: Record<string, string> = { eupago: "EuPago" };
+
+/**
+ * O que a pessoa confere na conta do prestador num pagamento incerto
+ * (Q1 A, 14/10/2026): o prestador, o montante, a referência e a data do
+ * pagamento. null se a API não os der (nada se inventa).
+ */
+export function pagamentoAConferir(
+  d: DiferencaPagamento,
+  tag: string,
+): {
+  prestador: string;
+  montante: string;
+  referencia: string;
+  data: string;
+} | null {
+  const p = d.pagamento;
+  if (p === null || p.montante === null || p.referencia === null) return null;
+  return {
+    prestador: NOMES_DE_PRESTADOR[p.prestador ?? ""] ?? p.prestador ?? "",
+    montante: emDinheiro(p.montante, p.moeda, tag),
+    referencia: p.referencia,
+    data:
+      p.criado_em === null
+        ? ""
+        : new Intl.DateTimeFormat(tag, {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(p.criado_em)),
+  };
+}
+
+/**
+ * O texto sugerido para a resolução de um pagamento incerto, conforme a
+ * pessoa escolhe «Sim, foi pago» ou «Não, não foi pago». É só uma sugestão,
+ * que a pessoa edita; o que se grava é o que ela deixar. Vazio se faltarem os
+ * dados do pagamento.
+ */
+export function sugestaoDaResolucao(
+  t: Textos,
+  d: DiferencaPagamento,
+  pago: "capturado" | "falhado",
+  tag: string,
+): string {
+  const v = pagamentoAConferir(d, tag);
+  if (v === null || v.prestador === "") return "";
+  return preencher(
+    pago === "capturado" ? t.diferencaSugestaoPago : t.diferencaSugestaoNaoPago,
+    v,
+  );
+}
+
 /** Um montante em euros (a API dá-o em unidades, não em cêntimos). */
 export function emDinheiro(
   valor: number,

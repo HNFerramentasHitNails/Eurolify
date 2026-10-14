@@ -1830,6 +1830,14 @@ export const es: Textos = {
     "Confirme en el back-office del proveedor antes de decidir. Si dice que se pagó, el pedido pasa a pagado y sigue a la factura.",
   diferencaPagouSim: "Sí, se pagó",
   diferencaPagouNao: "No, no se pagó",
+  diferencaPagamentoAConferir:
+    "Pago por comprobar: {montante}, referencia {referencia}, del {data}.",
+  diferencaSugestaoPago:
+    "He visto en la cuenta de {prestador} el pago de {montante} con la referencia {referencia}.",
+  diferencaSugestaoNaoPago:
+    "He visto en la cuenta de {prestador} que el pago de {montante} con la referencia {referencia} no ha entrado.",
+  diferencaNaoFicaPaga:
+    "El pedido no queda pagado. Puede devolver al cliente lo que pagó, en la cuenta del prestador, y pedirle un pago nuevo, o cancelar el pedido. Escriba aquí lo que hizo.",
   diferencaReembolsoAviso:
     "El estado del reembolso se decide por la integración (conciliar el reembolso), y un reembolso incierto sigue en la cola «Reembolso» de «Por decidir». Aquí solo queda registrado qué se hizo.",
   diferencaConfirmar: "Resolver",
