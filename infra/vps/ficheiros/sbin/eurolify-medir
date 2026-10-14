@@ -139,6 +139,25 @@ if docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>
 else
   echo "ENVIOS_CHAVE na API no ar: não (os envios estão desligados)"
 fi
+# A troca da chave (docs/36 §25.7): se a anterior está no contentor, e
+# quantas contas há em cada versão (só números e versões, nunca uma chave).
+if docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null |
+  grep -qE '^ENVIOS_CHAVE_ANTERIOR=.'; then
+  echo "ENVIOS_CHAVE_ANTERIOR na API no ar: sim (troca da chave a meio)"
+else
+  echo "ENVIOS_CHAVE_ANTERIOR na API no ar: não"
+fi
+# O nome da base vem do ensaio.conf, que esta medição só lê mais abaixo.
+base_envios="$(sed -n 's/^BASE_NOME=//p' /etc/eurolify/ensaio.conf 2>/dev/null | tr -d '"' | head -n 1)"
+[[ "$base_envios" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || base_envios=eurolify
+versoes="$(docker exec eurolify-postgres psql -U postgres -d "$base_envios" -qAtc \
+  "select coalesce(string_agg(v || ': ' || n, ', ' order by v), 'nenhuma') from (select chave_versao as v, count(*) as n from public.conta_transportadora where chave_versao is not null group by chave_versao) x" 2>/dev/null)" ||
+  versoes="(a base não respondeu)"
+echo "Contas de transportadora por versão da chave: $versoes"
+# As cópias que a troca deixa têm a chave antiga: apagam-se à mão depois de
+# guardar a nova fora da máquina (LEIA-ME). Só os nomes e os dias.
+copias="$(find /etc/eurolify -maxdepth 1 -name 'api-envios.env.*' -type f -printf '%f (%TY-%Tm-%Td)\n' 2>/dev/null | sort | paste -sd, -)"
+echo "Cópias da chave dos envios por apagar: ${copias:-nenhuma}"
 # Os avisos pelo nginx do Hub, a partir da própria máquina e sem assinatura:
 # o POST da Sendcloud chega à API (401 em application/problem+json); o GET
 # leva 403 do nginx (limit_except) e o resto de /webhooks/ 404 do nginx, em
