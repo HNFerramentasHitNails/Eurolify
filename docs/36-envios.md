@@ -1761,5 +1761,35 @@ Hub (os volumes em «Expedir»), com capturas.
   - os 30 dias e o apagamento do titular apagam por expedição (todos os
     volumes), sem teste próprio.
 
-**Por fazer:** o pedido 2 (o Hub: «Volumes» em «Expedir»), com capturas.
+**Pedido 2 (Hub):** no §23.10.
+
+### 23.10 O Hub (pedido 2; 14/10/2026)
+
+| O quê | Onde |
+|---|---|
+| em «Expedir», antes da etiqueta, o botão «Volumes»: o peso de cada caixa (2 a 15), «Acrescentar uma caixa», «Tirar a última caixa», com motivo; «Voltar a uma caixa»; diz quantas caixas leva o serviço da etiqueta (ou que só leva uma) | `apps/hub/src/ecras/Expedir.tsx`, `apps/hub/src/expedir.ts` |
+| com a etiqueta emitida, uma linha por caixa: o peso, o número de seguimento e «Descarregar a etiqueta da caixa N»; sem o botão de um PDF só | idem |
+| as correcções mostram os volumes; os eventos dizem de que caixa são | idem |
+| os textos em PT, ES e EN | `apps/hub/src/textos/` |
+| os testes das regras do formulário e as capturas a 375, 768 e 1280 px, claro e escuro, com respostas simuladas | `apps/hub/test/expedir.test.ts`, `apps/hub/scripts/capturas.mjs` |
+
+O Diogo aprovou o aspecto depois de ver as capturas (14/10/2026,
+*«aprovado»*). Desde as capturas, com várias caixas o peso diz «Peso das
+caixas, juntas».
+
+**Revisão do agente** (Sonnet, só leitura, 14/10/2026; publicada no pedido):
+sem P0 nem P1. Os cinco P2 e os sete P3 corrigidos:
+
+| Achado | O que se fez |
+|---|---|
+| P2-1 «Corrigir o peso» com volumes, que a API recusa | com volumes, o botão sai; o formulário «Volumes» avisa de que o peso corrigido sai |
+| P2-2 o máximo de caixas podia ser o de outro serviço | lê-se o do serviço da etiqueta (o escolhido, senão o vendido), procurado por conta e serviço; fora da lista, não se mostra |
+| P2-3 a recusa dos volumes mostrava o texto da etiqueta | texto próprio: o serviço não serve estas caixas |
+| P2-4 «Guardar» quando já se sabe que a API recusa | desactivado com mais caixas do que o serviço leva; «Acrescentar» pára no máximo |
+| P2-5 o foco perdia-se | os botões ficam desactivados em vez de sair; a caixa nova recebe o foco |
+| P3-1, P3-2, P3-3, P3-4, P3-5, P3-7 | `aria-describedby` nos campos inválidos; «Boxes»/«Cajas»; quem não pode mudar o serviço é mandado pedir ao dono ou ao gestor; o seguimento único sai com várias caixas; cada caixa descarrega no formato dela; só conta a última resposta ao abrir |
+| P3-6 a lista das correcções com um valor inesperado | com volumes que não são uma lista, a linha sai vazia, nunca «undefined» |
+
+As capturas foram tiradas outra vez depois das correcções (24 verificações
+da secção dos volumes passaram).
 

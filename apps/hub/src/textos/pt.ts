@@ -1751,6 +1751,33 @@ export const pt = {
     "A transportadora recusou a etiqueta. O motivo está abaixo; pode pedir outra.",
   etiquetaDevolucaoSemPermissao:
     "Ainda não há etiqueta de devolução, e o seu papel não a pede.",
+  // Vários volumes numa expedição (docs/36 §23).
+  volumesBotao: "Volumes",
+  volumesTitulo: "Volumes (várias caixas)",
+  volumesAjuda:
+    "Quando a encomenda não cabe numa caixa: o peso de cada caixa, em gramas (2 a 15 caixas). Sai uma etiqueta e um número de seguimento por caixa, e a expedição só fica entregue quando chegarem todas.",
+  volumesMaximoDoServico: "O serviço desta etiqueta leva até {n} caixas.",
+  volumesServicoDeUmaCaixa:
+    "O serviço desta etiqueta só leva uma caixa: mude primeiro o serviço para um que leve várias.",
+  volumesLegenda: "Peso de cada caixa",
+  volumesPesoDoVolume: "Caixa {n}, em gramas",
+  volumesAcrescentar: "Acrescentar uma caixa",
+  volumesTirar: "Tirar a última caixa",
+  volumesInvalidos: "Escreva o peso de cada caixa, em gramas (2 a 15 caixas).",
+  volumesMudadosAgora: "Os volumes ficaram guardados.",
+  voltarAUmaCaixa: "Voltar a uma caixa",
+  volumesContagem: "{n} caixas",
+  volumesLinha: "Caixa {n}: {g}",
+  volumesDescarregar: "Descarregar a etiqueta da caixa {n}",
+  volumesDoEvento: "caixa {n}",
+  correccaoVolumes: "Volumes",
+  volumesPesoTotal: "Peso das caixas, juntas",
+  volumesServicoDeUmaCaixaPeca:
+    "O serviço desta etiqueta só leva uma caixa: peça ao dono ou ao gestor que mude o serviço.",
+  volumesTiraPesoCorrigido:
+    "Ao guardar os volumes, o peso corrigido à mão sai: o peso passa a ser o de cada caixa.",
+  volumesRecusados:
+    "O serviço da etiqueta não serve estas caixas (quantas são, ou o peso de uma delas): mude o serviço ou as caixas.",
 };
 
 export type Textos = typeof pt;

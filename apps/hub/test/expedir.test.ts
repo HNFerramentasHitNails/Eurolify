@@ -9,6 +9,8 @@ import {
   motivoServe,
   nomeDoMetodo,
   pesoDoTexto,
+  maxVolumesDaEtiqueta,
+  volumesDoTexto,
   quantidadesPorOmissao,
   TEXTO_DO_CODIGO,
   totalPorExpedir,
@@ -188,5 +190,42 @@ describe("corrigir o peso e mudar o serviço (docs/36 §19)", () => {
         new ErroHub(403, "shipping.ai_not_allowed", {}, undefined, undefined),
       ),
     ).toEqual(new ErroDoEcra("iaNaoMudaServico"));
+  });
+});
+
+describe("os volumes (docs/36 §23)", () => {
+  it("2 a 15 caixas, cada uma com um peso válido em gramas", () => {
+    expect(volumesDoTexto(["1200", " 2800 "])).toEqual([1200, 2800]);
+    expect(volumesDoTexto(["1200"])).toBeNull();
+    expect(volumesDoTexto(["1200", ""])).toBeNull();
+    expect(volumesDoTexto(["1200", "0"])).toBeNull();
+    expect(volumesDoTexto(["1,2", "2800"])).toBeNull();
+    expect(volumesDoTexto(Array.from({ length: 16 }, () => "100"))).toBeNull();
+    expect(
+      volumesDoTexto(Array.from({ length: 15 }, () => "100")),
+    ).toHaveLength(15);
+  });
+
+  it("o máximo é o do serviço da etiqueta: o escolhido, senão o vendido; fora da lista, não se sabe", () => {
+    const a = { conta: "c1", servico: "A" };
+    const b = { conta: "c1", servico: "B" };
+    const opcoes = [{ ...a }, { ...b, max_volumes: 3 }];
+    // O escolhido manda sobre o vendido.
+    expect(maxVolumesDaEtiqueta({ escolhido: b, vendido: a, opcoes })).toBe(3);
+    // Sem escolhido, o vendido; sem max_volumes, uma caixa.
+    expect(maxVolumesDaEtiqueta({ escolhido: null, vendido: a, opcoes })).toBe(
+      1,
+    );
+    // A mesma conta com outro serviço não conta.
+    expect(
+      maxVolumesDaEtiqueta({
+        escolhido: { conta: "c1", servico: "C" },
+        vendido: a,
+        opcoes,
+      }),
+    ).toBeNull();
+    expect(
+      maxVolumesDaEtiqueta({ escolhido: null, vendido: null, opcoes }),
+    ).toBeNull();
   });
 });
