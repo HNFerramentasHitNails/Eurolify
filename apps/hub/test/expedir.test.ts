@@ -9,6 +9,8 @@ import {
   motivoServe,
   nomeDoMetodo,
   pesoDoTexto,
+  maxVolumesDaEtiqueta,
+  volumesDoTexto,
   quantidadesPorOmissao,
   TEXTO_DO_CODIGO,
   totalPorExpedir,
@@ -188,5 +190,36 @@ describe("corrigir o peso e mudar o serviço (docs/36 §19)", () => {
         new ErroHub(403, "shipping.ai_not_allowed", {}, undefined, undefined),
       ),
     ).toEqual(new ErroDoEcra("iaNaoMudaServico"));
+  });
+});
+
+describe("os volumes (docs/36 §23)", () => {
+  it("2 a 15 caixas, cada uma com um peso válido em gramas", () => {
+    expect(volumesDoTexto(["1200", " 2800 "])).toEqual([1200, 2800]);
+    expect(volumesDoTexto(["1200"])).toBeNull();
+    expect(volumesDoTexto(["1200", ""])).toBeNull();
+    expect(volumesDoTexto(["1200", "0"])).toBeNull();
+    expect(volumesDoTexto(["1,2", "2800"])).toBeNull();
+    expect(volumesDoTexto(Array.from({ length: 16 }, () => "100"))).toBeNull();
+    expect(
+      volumesDoTexto(Array.from({ length: 15 }, () => "100")),
+    ).toHaveLength(15);
+  });
+
+  it("o máximo é o do serviço da etiqueta: o escolhido, senão o vendido; sem nenhum, não se sabe", () => {
+    const o = (
+      escolhido: boolean,
+      vendido: boolean,
+      max?: number,
+    ): { escolhido: boolean; vendido: boolean; max_volumes?: number } => ({
+      escolhido,
+      vendido,
+      ...(max === undefined ? {} : { max_volumes: max }),
+    });
+    expect(
+      maxVolumesDaEtiqueta({ opcoes: [o(false, true), o(true, false, 3)] }),
+    ).toBe(3);
+    expect(maxVolumesDaEtiqueta({ opcoes: [o(false, true)] })).toBe(1);
+    expect(maxVolumesDaEtiqueta({ opcoes: [o(false, false, 5)] })).toBeNull();
   });
 });

@@ -1761,5 +1761,17 @@ Hub (os volumes em «Expedir»), com capturas.
   - os 30 dias e o apagamento do titular apagam por expedição (todos os
     volumes), sem teste próprio.
 
-**Por fazer:** o pedido 2 (o Hub: «Volumes» em «Expedir»), com capturas.
+**Pedido 2 (Hub):** no §23.10.
+
+### 23.10 O Hub (pedido 2; 14/10/2026)
+
+| O quê | Onde |
+|---|---|
+| em «Expedir», antes da etiqueta, o botão «Volumes»: o peso de cada caixa (2 a 15), «Acrescentar uma caixa», «Tirar a última caixa», com motivo; «Voltar a uma caixa»; diz quantas caixas leva o serviço da etiqueta (ou que só leva uma) | `apps/hub/src/ecras/Expedir.tsx`, `apps/hub/src/expedir.ts` |
+| com a etiqueta emitida, uma linha por caixa: o peso, o número de seguimento e «Descarregar a etiqueta da caixa N»; sem o botão de um PDF só | idem |
+| as correcções mostram os volumes; os eventos dizem de que caixa são | idem |
+| os textos em PT, ES e EN | `apps/hub/src/textos/` |
+| os testes das regras do formulário e as capturas a 375, 768 e 1280 px, claro e escuro, com respostas simuladas | `apps/hub/test/expedir.test.ts`, `apps/hub/scripts/capturas.mjs` |
+
+O aspecto vai ao Diogo com as capturas antes de se juntar.
 
