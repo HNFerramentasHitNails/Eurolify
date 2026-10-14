@@ -3009,8 +3009,9 @@ encomenda); a diferença fecha-se com o texto do que se fez. A base não muda.
 `reembolso_por_confirmar` e `reembolso_desconhecido` deixam de entrar na fila
 `pagamento` de «A decidir» (`pagamentos_casos_a_decidir` passa a filtrar o
 motivo, numa migração). No ecrã das diferenças continuam a ver-se, com a
-frase «Trata-se no reembolso rfd_…» quando a prova o diz; sem o botão
-«Resolver» (resolvem-se pela pós-venda, `docs/30`).
+frase «Trata-se no reembolso rfd_…» quando a prova o diz. O botão
+«Resolver» fica: decidir o reembolso não fecha a diferença sozinho (o sistema
+nunca a fecha, `docs/26` §3.6), e sem ele ficava aberta para sempre.
 
 **Desenho fechado** com as três respostas (Diogo, 14/10/2026). O aspecto vai
 ao Diogo com as capturas antes de se juntar, como o de §28.
