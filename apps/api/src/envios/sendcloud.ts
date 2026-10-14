@@ -214,16 +214,20 @@ async function etiquetaDoEnvio(
   if (vs.length === 0 || vs.some((v) => v === null)) {
     throw new ErroDeRede("a resposta da Sendcloud não traz o volume");
   }
-  // Uma caixa anulada ou falhada: o envio inteiro não tem etiqueta (com
-  // várias, o núcleo nunca fica com só uma parte; docs/36 §23.5).
-  if (
-    vs.some(
-      (v) =>
-        v !== null &&
-        (v.codigo.includes("CANCEL") || v.codigo.includes("FAILED")),
-    )
-  ) {
-    return "sem_etiqueta";
+  // Sem etiqueta só quando todas as caixas foram anuladas ou falharam. Uma
+  // parte viva (e paga) e outra não: não se sabe, fica incerta e decide uma
+  // pessoa; nunca se pede outra sozinha (docs/36 §23.5; revisão do #453,
+  // P1-2).
+  const sem = vs.filter(
+    (v) =>
+      v !== null &&
+      (v.codigo.includes("CANCEL") || v.codigo.includes("FAILED")),
+  ).length;
+  if (sem === vs.length) return "sem_etiqueta";
+  if (sem > 0) {
+    throw new ErroDeRede(
+      `${String(sem)} de ${String(vs.length)} caixas sem etiqueta na Sendcloud`,
+    );
   }
   const etiquetas: EtiquetaDoVolume[] = [];
   for (const v of vs) {
@@ -350,7 +354,8 @@ export function servicoDe(
     aceitaOnu: [],
     ...(ponto ? { ponto: true } : {}),
     // Vários volumes só com `multicollo` (docs/36 §23); na dúvida, um.
-    ...(objecto(o["functionalities"])?.["multicollo"] === true
+    // Num ponto de recolha, uma caixa (docs/36 §23.4).
+    ...(objecto(o["functionalities"])?.["multicollo"] === true && !ponto
       ? { maxVolumes: MAX_VOLUMES }
       : {}),
   };
@@ -448,8 +453,14 @@ export function adaptadorSendcloud(
           if (ja === undefined) {
             porCodigo.set(s.codigo, s);
           } else {
+            // Vários volumes só se todos os países os aceitarem (revisão do
+            // #453, P2-4).
+            const maxVolumes = Math.min(ja.maxVolumes ?? 1, s.maxVolumes ?? 1);
+            const semMax: ServicoTransportadora = { ...ja };
+            delete semMax.maxVolumes;
             porCodigo.set(s.codigo, {
-              ...ja,
+              ...semMax,
+              ...(maxVolumes > 1 ? { maxVolumes } : {}),
               paises: [...new Set([...ja.paises, destino])],
               pesoMaxG:
                 ja.pesoMaxG === null || s.pesoMaxG === null

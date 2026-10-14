@@ -49,6 +49,8 @@ export function sendcloudFalsa() {
       auth: string | null;
     }[],
     numero: 0,
+    /** A caixa (1, 2, …) que aparece falhada num envio com várias (§23). */
+    caixaFalhada: null as number | null,
   };
   const autorizado = (auth: string | null) =>
     auth === `Basic ${Buffer.from(`${PUBLICA}:${SECRETA}`).toString("base64")}`;
@@ -71,7 +73,8 @@ export function sendcloudFalsa() {
       return {
         id: e.volume + i * 100_000,
         status: {
-          code: e.estado,
+          code:
+            estado.caixaFalhada === i + 1 ? "ANNOUNCEMENT_FAILED" : e.estado,
           message: e.estado,
         },
         tracking_number: seguimento,

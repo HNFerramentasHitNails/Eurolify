@@ -622,6 +622,20 @@ export async function anularEtiqueta(
   }
   await noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, "etiqueta anulada");
+    // Só a etiqueta que se anulou na transportadora: se entretanto outra
+    // foi pedida (outra tentativa), nada se apaga (revisão do #453, P2-3).
+    const agora = await trx
+      .selectFrom("expedicao")
+      .select(["etiqueta", "etiqueta_tentativa"])
+      .where("id", "=", id)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    if (
+      agora.etiqueta !== "emitida" ||
+      agora.etiqueta_tentativa !== x.etiqueta_tentativa
+    ) {
+      return;
+    }
     // Anula-se o envio inteiro: os volumes vão todos (docs/36 §23).
     await trx
       .deleteFrom("etiqueta_ficheiro")
@@ -762,16 +776,24 @@ export async function aplicarEventos(
 ): Promise<number> {
   return noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, `seguimento (${origem})`);
-    const quantos =
-      volume === undefined
-        ? 1
-        : ((
-            await trx
-              .selectFrom("expedicao")
-              .select("volumes_g")
-              .where("id", "=", id)
-              .executeTakeFirstOrThrow()
-          ).volumes_g?.length ?? 1);
+    // A expedição bloqueada primeiro: dois seguimentos ao mesmo tempo (a
+    // volta e uma consulta) esperam um pelo outro, e o segundo conta os
+    // volumes entregues do primeiro (revisão do #453, P1-1).
+    const { volumes_g } = await trx
+      .selectFrom("expedicao")
+      .select("volumes_g")
+      .where("id", "=", id)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    // Numa expedição com volumes, cada evento diz de que volume é: um
+    // «entregue» sem volume entregaria a expedição inteira (P2-1).
+    if (volumes_g !== null && volume === undefined && eventos.length > 0) {
+      throw new ErroEnvios(
+        "shipping.invalid_field",
+        "a expedição tem vários volumes: os eventos de seguimento têm de dizer de que volume são",
+      );
+    }
+    const quantos = volume === undefined ? 1 : (volumes_g?.length ?? 1);
     const doVolume =
       volume === undefined
         ? ""
@@ -820,7 +842,7 @@ export async function aplicarEventos(
           id_externo:
             volume === undefined
               ? e.idExterno
-              : `v${String(volume)}:${e.idExterno}`.slice(0, 200),
+              : `v${String(volume)}:${e.idExterno.slice(0, 195)}`,
           estado_transportadora: e.estadoTransportadora.slice(0, 100),
           estado_normalizado: e.estadoNormalizado,
           em: e.em,
@@ -877,20 +899,13 @@ export async function aplicarEventos(
             break;
           case "entregue":
             if (x.estado === "criada") await passar("expedida");
-            // Com vários volumes, só entregue com todos entregues (L13):
-            // a livre resolução conta do último (docs/36 §23.2).
+            // Com vários volumes, decide-se depois dos eventos, pelo estado
+            // de todos os volumes (L13; docs/36 §23.2).
             if (
               volume !== undefined &&
               (x.estado === "criada" || x.estado === "expedida")
             ) {
-              const entregues = await trx
-                .selectFrom("evento_seguimento")
-                .select(sql<number>`count(distinct volume)::int`.as("n"))
-                .where("expedicao_id", "=", id)
-                .where("estado_normalizado", "=", "entregue")
-                .where("volume", "is not", null)
-                .executeTakeFirstOrThrow();
-              if (entregues.n < quantos) break;
+              break;
             }
             if (x.estado === "criada" || x.estado === "expedida") {
               await passar(
@@ -954,6 +969,48 @@ export async function aplicarEventos(
         break;
       }
     }
+    // Com vários volumes, a expedição fica entregue quando todos os volumes
+    // têm um «entregue», com eventos novos ou já gravados: uma consulta que
+    // não traz nada de novo também acaba uma expedição que ficou para trás
+    // (revisão do #453, P1-1). A livre resolução conta do último (L13).
+    if (volume !== undefined) {
+      const x = await trx
+        .selectFrom("expedicao")
+        .select("estado")
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      if (x.estado === "criada" || x.estado === "expedida") {
+        const entregues = await trx
+          .selectFrom("evento_seguimento")
+          .select([
+            sql<number>`count(distinct volume)::int`.as("n"),
+            sql<Date | null>`max(em)`.as("ultimo"),
+          ])
+          .where("expedicao_id", "=", id)
+          .where("estado_normalizado", "=", "entregue")
+          .where("volume", "is not", null)
+          .executeTakeFirstOrThrow();
+        if (entregues.n >= quantos) {
+          await sql`savepoint seguimento`.execute(trx);
+          try {
+            if (x.estado === "criada") await passar("expedida");
+            await passar(
+              "entregue",
+              `transportadora: os ${String(quantos)} volumes entregues, o último a ${entregues.ultimo === null ? "?" : new Date(entregues.ultimo).toISOString()}`.slice(
+                0,
+                500,
+              ),
+            );
+            await sql`release savepoint seguimento`.execute(trx);
+          } catch (erro) {
+            await sql`rollback to savepoint seguimento`.execute(trx);
+            problemas.push(
+              `Todos os volumes da expedição shp_${id} foram entregues, mas a expedição não mudou: ${codigoDe(erro)}. Tratar à mão.`,
+            );
+          }
+        }
+      }
+    }
     if (problemas.length > 0) {
       const { encomenda_id } = await trx
         .selectFrom("expedicao")
@@ -992,15 +1049,30 @@ export async function consultarSeguimento(
       "a expedição não tem etiqueta emitida",
     );
   }
-  // Com vários volumes (docs/36 §23), o seguimento de cada um.
-  const volumes = await noEnvios(db, c, (trx) =>
-    trx
+  // Com vários volumes (docs/36 §23), o seguimento de cada um; decide-se
+  // pelos volumes da expedição, e os números têm de bater certo com eles
+  // (revisão do #453, P2-1).
+  const { volumes_g, volumes } = await noEnvios(db, c, async (trx) => ({
+    volumes_g: (
+      await trx
+        .selectFrom("expedicao")
+        .select("volumes_g")
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow()
+    ).volumes_g,
+    volumes: await trx
       .selectFrom("volume_seguimento")
       .select(["volume", "seguimento"])
       .where("expedicao_id", "=", id)
       .orderBy("volume")
       .execute(),
-  );
+  }));
+  if (volumes_g !== null && volumes.length !== volumes_g.length) {
+    throw new ErroEnvios(
+      "shipping.invalid_field",
+      `a expedição tem ${String(volumes_g.length)} volumes e ${String(volumes.length)} números de seguimento: tratar à mão`,
+    );
+  }
   const consultar = async (seguimento: string) => {
     try {
       return await comTempo(
@@ -1014,7 +1086,7 @@ export async function consultarSeguimento(
       );
     }
   };
-  if (volumes.length === 0) {
+  if (volumes_g === null) {
     return aplicarEventos(
       db,
       c,

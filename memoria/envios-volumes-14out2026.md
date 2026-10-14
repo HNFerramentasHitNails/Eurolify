@@ -28,6 +28,9 @@ especificação (§11, V1).
   - os testes dos envios e os de contrato (16 ficheiros): 165 verdes.
 - **Prova pela falha:** sem «entregue só com todos» e sem «menos
   etiquetas fica incerta», falham 2 de 5.
+- Depois da revisão do agente (Sonnet 5.5, #453, sem P0; dois P1
+  corrigidos): `test/envios-volumes.test.ts` com 7 verdes; os dos envios,
+  de contrato, da pós-venda e das notificações (20 ficheiros): 228 verdes.
 
 ## O que ficou por verificar
 

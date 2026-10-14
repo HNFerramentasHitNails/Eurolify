@@ -1725,12 +1725,41 @@ Hub (os volumes em «Expedir»), com capturas.
 **Desvios do desenho:**
 - **Com volumes, o peso corrigido sai** (o peso é o de cada volume), e
   corrigir o peso é recusado enquanto houver volumes.
-- **O aviso de «para levantar» (§20)** não conta os volumes: avisa por
-  evento, como antes.
+- **O aviso de «para levantar» (§20)** é por volume (revisão, P2-2), mas o
+  texto do e-mail não diz qual: leva o número de seguimento dele.
 - **O volume 1 fica também na expedição** (o seguimento e o ficheiro de
   sempre), para o que já lia a expedição não mudar.
 - **Em modo teste a Sendcloud só tem `sendcloud:letter`:** os vários
   volumes só se usam em modo real (V15).
+
+**Da revisão do agente (Sonnet 5.5, publicada no #453):** sem P0.
+- **Corrigido:**
+  - P1-1: dois seguimentos ao mesmo tempo (um por volume) podiam deixar a
+    expedição «expedida» para sempre; agora a expedição bloqueia-se antes de
+    contar, e «entregue com todos» decide-se depois dos eventos, também numa
+    consulta sem nada de novo;
+  - P1-2: uma caixa anulada e outra viva na Sendcloud ficava «recusada» (e
+    deixava pedir outra e pagar duas); agora fica incerta;
+  - P2-1: um evento sem volume numa expedição com volumes é recusado, e a
+    consulta confere que os números de seguimento batem com os volumes;
+  - P2-2: o aviso de «tentativa falhada» e «para levantar» (§20) passa a ser
+    por volume (a referência, o «voltou a andar» e o número de seguimento);
+  - P2-3: anular só apaga se a etiqueta ainda for a mesma tentativa;
+  - P2-4: na Sendcloud, vários volumes só se todos os países os aceitarem;
+  - P2-5: o teste do isolamento lê um ficheiro que existe; testes da
+    concorrência, do evento sem volume e do aviso por volume;
+  - P3-1: num ponto de recolha vai uma caixa só;
+  - P3-2: a exportação do titular leva o volume dos eventos e o seguimento
+    de cada caixa;
+  - P3-5: o prefixo do volume cabe no limite do identificador.
+- **Ficou como estava:**
+  - P3-3: a base não confere que as linhas dos volumes batem com
+    `volumes_g` (só `registar` as escreve, e a consulta confere);
+  - P3-4: os volumes pedem `fulfilment:write`, como o peso (desenho §23.3),
+    e não `shipping:write` como o serviço;
+  - P3-6: a ordem das caixas na resposta da Sendcloud (V15, V16);
+  - os 30 dias e o apagamento do titular apagam por expedição (todos os
+    volumes), sem teste próprio.
 
 **Por fazer:** o pedido 2 (o Hub: «Volumes» em «Expedir»), com capturas.
 

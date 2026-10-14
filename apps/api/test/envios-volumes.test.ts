@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { aplicarEventos } from "../src/envios/etiquetas.js";
 import { chavePagamentos } from "../src/pagamentos/cifra.js";
 import {
   criarBaseDeTeste,
@@ -42,6 +43,8 @@ describe.skipIf(URL_BASE === undefined)("Envios: vários volumes", () => {
     });
     s = await apoio.cenario();
     outro = await apoio.cenario();
+    // Quem expede recebe o aviso de «tentativa falhada» (docs/36 §20).
+    await h.pessoaCom(s.c, "armazem");
   }, 180_000);
 
   afterAll(async () => {
@@ -308,21 +311,99 @@ describe.skipIf(URL_BASE === undefined)("Envios: vários volumes", () => {
     );
   });
 
-  it("isolamento: os volumes de outro comerciante não se mudam nem se lêem", async () => {
+  it("isolamento: os volumes e os ficheiros de outro comerciante não se mudam nem se lêem", async () => {
+    const { expedicao } = await comDoisVolumes();
+    // O dono lê o volume 2; o outro comerciante não.
+    expect(
+      (await s.adm("GET", `/shipments/${expedicao}/label/file?volume=2`))
+        .statusCode,
+    ).toBe(200);
+    expect(
+      (await outro.adm("GET", `/shipments/${expedicao}/label/file?volume=2`))
+        .statusCode,
+    ).toBe(404);
     const a = await expedicaoPaga(s, s.metodoCtt, 2);
-    const versao = await versaoDe(a.expedicao);
     expect(
       await codigo(
         outro.adm("PUT", `/shipments/${a.expedicao}/volumes`, {
-          versao,
+          versao: await versaoDe(a.expedicao),
           volumes_g: [1000, 1000],
           motivo: "não é meu",
         }),
       ),
     ).toEqual([404, "shipping.not_found"]);
-    expect(
-      (await outro.adm("GET", `/shipments/${a.expedicao}/label/file?volume=2`))
-        .statusCode,
-    ).toBe(404);
+  });
+
+  it("dois seguimentos ao mesmo tempo, um por volume, acabam entregue; um evento sem volume numa expedição com volumes é recusado (#453, P1-1 e P2-1)", async () => {
+    const { expedicao } = await comDoisVolumes();
+    const id = expedicao.replace(/^shp_/, "");
+    const entregue = (n: string) => [
+      evento(n, "entregue", "2026-11-15T10:00:00Z"),
+    ];
+    await Promise.all([
+      aplicarEventos(base.api, s.c, id, entregue("c1"), "consulta", "teste", 1),
+      aplicarEventos(base.api, s.c, id, entregue("c2"), "consulta", "teste", 2),
+    ]);
+    const x = await ok(s.adm("GET", `/shipments/${expedicao}/label`));
+    expect(x["estado_expedicao"]).toBe("entregue");
+    // Sem volume: recusado, nada se grava.
+    const outra = await comDoisVolumes();
+    await expect(
+      aplicarEventos(
+        base.api,
+        s.c,
+        outra.expedicao.replace(/^shp_/, ""),
+        entregue("c3"),
+        "aviso",
+        "teste",
+      ),
+    ).rejects.toMatchObject({ codigo: "shipping.invalid_field" });
+    const y = await ok(s.adm("GET", `/shipments/${outra.expedicao}/label`));
+    expect(y["estado_expedicao"]).toBe("criada");
+  });
+
+  it("o aviso de «tentativa falhada» é por volume: o volume 2 parado avisa mesmo com o volume 1 a andar depois (#453, P2-2)", async () => {
+    const { expedicao, e } = await comDoisVolumes();
+    const id = expedicao.replace(/^shp_/, "");
+    await aplicarEventos(
+      base.api,
+      s.c,
+      id,
+      [evento("d1", "em_transito", "2026-11-15T12:00:00Z")],
+      "consulta",
+      "teste",
+      1,
+    );
+    await aplicarEventos(
+      base.api,
+      s.c,
+      id,
+      [
+        {
+          idExterno: "d2",
+          estadoTransportadora: "AUSENTE",
+          estadoNormalizado: "tentativa_falhada",
+          em: new Date("2026-11-15T10:00:00Z"),
+        },
+      ],
+      "consulta",
+      "teste",
+      2,
+    );
+    const avisos = await base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${s.c}, true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{ dados: Json }>`select dados from notificacao
+          where tipo = 'shipment.needs_attention'
+            and dados->>'expedicao' = ${id}`.execute(trx)
+      ).rows.map((r) => r.dados);
+    });
+    expect(avisos.length).toBeGreaterThan(0);
+    expect(avisos[0]).toMatchObject({
+      volume: 2,
+      seguimento: (e["volumes"] as Json[])[1]?.["seguimento"],
+    });
   });
 });

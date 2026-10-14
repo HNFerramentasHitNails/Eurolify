@@ -527,10 +527,17 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     // A consulta pela referência traz as duas.
     const c = await a.consultarEtiqueta(CRED, "exp-v");
     expect(c?.volumes).toHaveLength(2);
-    // Uma caixa anulada: o envio todo fica sem etiqueta.
+    // Todas as caixas anuladas: o envio fica sem etiqueta.
     const e = f.estado.envios[0];
     if (e === undefined) throw new Error("sem envio");
     e.estado = "CANCELLED";
     expect(await a.consultarEtiqueta(CRED, "exp-v")).toBeNull();
+    // Uma caixa anulada e outra viva: não se sabe, fica incerta (#453,
+    // P1-2) — nunca «sem etiqueta», que deixaria pedir outra e pagar duas.
+    e.estado = "READY_TO_SEND";
+    f.estado.caixaFalhada = 2;
+    await expect(a.consultarEtiqueta(CRED, "exp-v")).rejects.toBeInstanceOf(
+      ErroDeRede,
+    );
   });
 });

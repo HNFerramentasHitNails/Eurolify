@@ -47,6 +47,10 @@ export function porQueNaoServeACaixa(
       ? "não entrega em pontos de recolha, e a encomenda é para um ponto"
       : "entrega em pontos de recolha, e a encomenda é para uma morada";
   }
+  // Num ponto de recolha, uma caixa (docs/36 §23.4; revisão do #453, P3-1).
+  if (caixa.ponto && caixa.volumes > 1) {
+    return "numa entrega num ponto de recolha vai uma caixa só";
+  }
   // O máximo do serviço é por volume (docs/36 §23).
   if (caixa.volumes > (s.maxVolumes ?? 1)) {
     return `não leva ${String(caixa.volumes)} volumes num envio (no máximo ${String(s.maxVolumes ?? 1)})`;

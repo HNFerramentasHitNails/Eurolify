@@ -119,3 +119,91 @@ GRANT SELECT, INSERT, DELETE ON volume_seguimento TO eurolify_api;
 ALTER TABLE evento_seguimento
   ADD COLUMN volume smallint CHECK (volume IS NULL OR volume BETWEEN 1 AND 15);
 GRANT INSERT (volume) ON evento_seguimento TO eurolify_api;
+
+-- ------------------- O aviso de «tentativa falhada» e «para levantar» (§20)
+
+-- Por volume (revisão do #453, P2-2): um volume parado avisa mesmo que outro
+-- ande; a referência leva o volume (dois volumes parados, dois avisos); o
+-- número de seguimento é o do volume. Sem volume, como na 0087.
+CREATE OR REPLACE FUNCTION evento_seguimento_aviso() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+  x public.expedicao;
+  lingua text;
+  loja text;
+  fuso text;
+  seguimento text;
+BEGIN
+  IF NEW.estado_normalizado NOT IN ('tentativa_falhada', 'disponivel_para_levantar') THEN
+    RETURN NULL;
+  END IF;
+  SELECT * INTO x FROM public.expedicao e
+  WHERE e.id = NEW.expedicao_id AND e.comerciante_id = NEW.comerciante_id;
+  IF x.id IS NULL
+     OR x.estado IN ('entregue', 'devolvida_ao_remetente', 'perdida', 'cancelada') THEN
+    RETURN NULL;
+  END IF;
+  -- Um evento mais antigo que chega depois de este volume voltar a andar
+  -- (recolhido, em trânsito ou entregue mais tarde) já não pede nada.
+  IF EXISTS (SELECT 1 FROM public.evento_seguimento v
+             WHERE v.comerciante_id = NEW.comerciante_id AND v.expedicao_id = NEW.expedicao_id
+               AND v.volume IS NOT DISTINCT FROM NEW.volume
+               AND v.estado_normalizado IN ('recolhida', 'em_transito', 'entregue')
+               AND v.em > NEW.em) THEN
+    RETURN NULL;
+  END IF;
+  seguimento := x.seguimento;
+  IF NEW.volume IS NOT NULL THEN
+    SELECT s.seguimento INTO seguimento FROM public.volume_seguimento s
+    WHERE s.comerciante_id = NEW.comerciante_id AND s.expedicao_id = NEW.expedicao_id
+      AND s.volume = NEW.volume;
+  END IF;
+  SELECT CASE WHEN c.lingua IN ('pt', 'es', 'en') THEN c.lingua ELSE 'en' END, c.nome, c.fuso
+    INTO lingua, loja, fuso FROM public.comerciante c WHERE c.id = NEW.comerciante_id;
+  INSERT INTO public.notificacao (comerciante_id, tipo, referencia, pessoa_id, lingua, dados)
+  SELECT NEW.comerciante_id, 'shipment.needs_attention',
+    CASE WHEN NEW.volume IS NULL
+      THEN public.envios_aviso_referencia(NEW.expedicao_id, NEW.estado_normalizado)
+      ELSE md5('shipment.needs_attention:' || NEW.expedicao_id::text || ':'
+        || NEW.estado_normalizado || ':' || NEW.volume::text)::uuid END,
+    m.pessoa_id,
+    lingua,
+    jsonb_build_object('loja', loja, 'expedicao', NEW.expedicao_id,
+      'estado', NEW.estado_normalizado, 'transportadora', x.transportadora,
+      'seguimento', coalesce(seguimento, x.seguimento),
+      'em', to_char(NEW.em AT TIME ZONE fuso, 'YYYY-MM-DD HH24:MI'), 'fuso', fuso)
+      || CASE WHEN NEW.volume IS NULL THEN '{}'::jsonb
+           ELSE jsonb_build_object('volume', NEW.volume) END
+  FROM public.membro m
+  WHERE m.comerciante_id = NEW.comerciante_id
+    AND public.envios_aviso_pode_receber(NEW.comerciante_id, m.pessoa_id)
+  ON CONFLICT (tipo, referencia, pessoa_id) DO NOTHING;
+  RETURN NULL;
+END
+$$;
+REVOKE EXECUTE ON FUNCTION evento_seguimento_aviso() FROM PUBLIC;
+
+-- O mesmo teste do envio (0087), só com os eventos do volume do aviso.
+CREATE FUNCTION envios_aviso_espera(p_expedicao uuid, p_estado text, p_volume smallint)
+  RETURNS text
+  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT CASE
+    WHEN NOT EXISTS (
+      SELECT 1 FROM public.expedicao e
+      WHERE e.comerciante_id = public.comerciante_actual() AND e.id = p_expedicao
+        AND e.estado NOT IN ('entregue', 'devolvida_ao_remetente', 'perdida', 'cancelada'))
+      THEN 'expedicao_ja_acabou'
+    WHEN EXISTS (
+      SELECT 1 FROM public.evento_seguimento v
+      WHERE v.comerciante_id = public.comerciante_actual() AND v.expedicao_id = p_expedicao
+        AND v.volume = p_volume
+        AND v.estado_normalizado IN ('recolhida', 'em_transito', 'entregue')
+        AND v.em > (SELECT max(u.em) FROM public.evento_seguimento u
+                    WHERE u.comerciante_id = public.comerciante_actual()
+                      AND u.expedicao_id = p_expedicao AND u.volume = p_volume
+                      AND u.estado_normalizado = p_estado))
+      THEN 'encomenda_voltou_a_andar'
+  END
+$$;
+REVOKE EXECUTE ON FUNCTION envios_aviso_espera(uuid, text, smallint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION envios_aviso_espera(uuid, text, smallint) TO eurolify_api;
