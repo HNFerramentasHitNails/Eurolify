@@ -354,3 +354,47 @@ aplicação destes artigos (**M**), decidida pelo Diogo (Q7).
   curtos (ex.: um código postal). Para um valor de poucas hipóteses, mesmo com
   a chave secreta, um resumo igual diz que o valor não mudou. Fica para a
   revisão de segurança.
+
+## 7. Cópias, reposições e gatilhos `ALWAYS` (13/10/2026; #444)
+
+**Decisão do Diogo (13/10/2026: *«sim, aprovo a proposta»*):** a cópia e a
+reposição são sempre **completas**: `pg_dump -Fc` e `pg_restore` sem
+`--data-only`, como em `infra/vps/ficheiros/sbin/eurolify-copia` e
+`eurolify-reposicao` (ADR-0027). Os 161 gatilhos `ALWAYS` que existiam a
+13/10/2026 ficam como estão.
+
+**Porquê:** numa cópia completa, os dados vêm antes dos gatilhos, que só se
+criam no fim (secção *post-data* do `pg_dump`). Nenhum gatilho corre na
+reposição, nem os `ALWAYS`, e cada tabela fica igual à copiada, linha a
+linha (contagem e resumo do conteúdo; sequências, permissões e estado dos
+gatilhos não foram comparados).
+- **Medido a 13/10/2026** no PostgreSQL 18 local: uma tabela com um
+  `ALWAYS` `BEFORE` que mudava a data e um `ALWAYS` `AFTER` que escrevia
+  noutra tabela. Depois da reposição, a data ficou a original e a outra
+  tabela ficou com 1 linha, não 2.
+- **O teste `apps/api/test/copia-reposicao.test.ts`** faz o mesmo a uma base
+  com as migrações todas. Antes da reposição põe dados que passam por
+  gatilhos `ALWAYS` (a chave, a linha do tempo do catálogo). Depois confere,
+  tabela a tabela, o número de linhas e um resumo do conteúdo, e que os
+  gatilhos vêm depois dos dados na cópia.
+- **O mesmo teste mostra o caso contrário:** repõe os dados com o esquema já
+  criado e em modo `replica`, como numa replicação lógica. A reposição falha
+  no gatilho `ALWAYS` da linha do tempo do catálogo
+  (`catalog.change_without_who`).
+- **Não corrido na VPS:** o teste usa as opções dos scripts, mas a reposição
+  na VPS não foi corrida nesta sessão.
+
+**O que muda isto:** uma reposição só de dados (`--data-only`), feita sobre
+um esquema que já tem os gatilhos, corre-os todos, não só os `ALWAYS`. Uma
+replicação lógica, que aplica as linhas em modo `replica`, corre os `ALWAYS`.
+Usar uma delas pede antes uma revisão dos gatilhos. A contagem de
+13/10/2026 está no #444:
+- 95 guardas, que ficam;
+- 31 `BEFORE` que mudam a própria linha (datas, estado, versão; um deles
+  escreve nos saldos de stock);
+- 35 `AFTER` que escrevem noutra tabela (eventos, rasto, linha do tempo,
+  tarefas, o documento fiscal da encomenda).
+
+A regra da 0017 e da 0053 («um gatilho que escreve não fica `ALWAYS`»)
+continua a valer para os gatilhos novos. Os 66 que já existem não se mudam
+por ela.

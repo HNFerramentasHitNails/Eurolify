@@ -848,10 +848,14 @@ export const es: Textos = {
   fila_problema: "Incidencia en un pedido",
   fila_reembolso: "Reembolso",
   fila_ligacao_faturacao: "Conexión de facturación con error",
+  fila_pedido_titular: "Solicitud sobre datos personales",
   motivoTarefa_renovacao_recusada:
     "el software de facturación rechazó renovar el acceso",
   motivoTarefa_teste_falhou: "la prueba de la conexión falló",
   motivoTarefa_com_erro: "conexión con error",
+  motivoTarefa_por_responder:
+    "sin responder; el plazo legal es de un mes desde que llegó",
+  motivoTarefa_prorrogado: "plazo prorrogado; se informó al cliente",
   decidirAbrirFaturacao: "Abrir Facturación",
   faturacaoRetidasNenhuma: "Ninguna factura retenida por ahora.",
   faturacaoRetidasUma: "1 factura retenida a la espera de la conexión.",

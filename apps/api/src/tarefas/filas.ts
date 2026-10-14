@@ -47,4 +47,11 @@ export const FILAS: Record<FilaTarefa, Fila> = {
     ler: "invoices:read",
     decidir: "invoices:accounts",
   },
+  // O pedido do titular recebido, enquanto aberto (docs/23 §15.14, T4;
+  // migração 0092): só o dono.
+  pedido_titular: {
+    prefixo: "prq",
+    ler: "customers:privacy",
+    decidir: "customers:privacy",
+  },
 };
