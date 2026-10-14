@@ -69,6 +69,7 @@ const FUNCOES_DA_API = [
   "clientes_do_grupo",
   "clientes_dono_a_escrever",
   "clientes_pseudonimizacao_em_curso",
+  "clientes_titular_casos_a_decidir",
   "codigos_gerar",
   "comerciante_actual",
   "consentimento_confirmar",
@@ -164,6 +165,11 @@ const FUNCOES_DA_API = [
   "passkey_para_entrar",
   "passkey_retirar",
   "passkeys_listar",
+  // O pedido do titular recebido e o prazo (0092): registar, prorrogar,
+  // fechar e os casos da fila.
+  "pedido_recebido_fechar",
+  "pedido_recebido_prorrogar",
+  "pedido_recebido_registar",
   // O registo da exportação, com o tipo fixo (revisão do #314, P2-2); o
   // registo à escolha (pedido_titular_registar) fica só para o dono.
   "pedido_titular_exportar",

@@ -45,6 +45,7 @@
 | *nova* `problema` | problema sem mercadoria de volta | `aberto` | `refunds:write` (dono e gestor) | 2 dias |
 | *nova* `reembolso` | reembolso | `incerto` ou `falhado` | `refunds:write` (dono e gestor) | 1 dia (e nunca depois do prazo legal, se vier de uma livre resolução) |
 | *depois* `ligacao_faturacao` (`docs/29` §18, EK; migração 0084) | ligação ao software de faturação | activa e `com_erro` | `invoices:accounts` (só o dono) | 1 dia |
+| *depois* `pedido_titular` (`docs/23` §15.14, EO; migração 0092) | pedido do titular recebido (`pedido_titular_recebido`, `prq_`) | `aberto` | `customers:privacy` (só o dono) | 7 dias antes do prazo legal (um mês desde que chegou, ou o prorrogado), nunca antes de entrar |
 
 **Fora desta peça** (`docs/13` §10, «Ficam de fora»; a camada E saiu como
 módulo pelo ADR-0043): tarefas livres sobre qualquer registo, recorrência,

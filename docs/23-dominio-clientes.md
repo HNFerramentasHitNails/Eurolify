@@ -583,13 +583,11 @@ a fatia 7.
 | 7 testes no titular e 1 no checkout (uma encomenda real); 13 mutações antes da revisão e 12 nas correcções, todas apanhadas | `test/clientes-titular.test.ts`; `test/checkout-api.test.ts` |
 
 **Fica por fazer, e onde:**
-- **os dados pessoais que o checkout e as encomendas guardam** (o contacto,
-  a entrega, a cópia do perfil): são desses domínios; a pseudonimização de
-  um cliente não lhes toca (a exportação lê as encomendas). Têm de se juntar
-  ao apagamento com a regra deles (o que a lei obriga a guardar de uma
-  encomenda) — fatia 9 e fatia 10;
-- **o prazo de resposta** (um mês, prorrogável) e **os prazos de guarda**
-  fora de Portugal: **não verifiquei** — **C** (R9);
+- **os dados pessoais que o checkout e as encomendas guardam**: feito na
+  §15.10, parte 1 (migração 0072) e parte 2 (0077);
+- **o prazo de resposta**: verificado no RGPD (art. 12.º, n.º 3, **W**);
+  controlá-lo é a §15.14 (desenho). **Os prazos de guarda** fora de
+  Portugal: **não verifiquei** — **C** (R9);
 - **a verificação da identidade** é um texto que a pessoa escreve; o
   Eurolify não a prova;
 - **a rectificação** faz-se pelas rotas que já existem (`PATCH`), com a
@@ -608,8 +606,7 @@ a fatia 7.
   lê o nome, o NIF e a morada (decidido a 13/10/2026, EM; §15.12);
 - **levantar a limitação** é um `DELETE` com corpo; uma variante `POST` para
   clientes que descartam o corpo de um `DELETE` fica para depois (P3-7);
-- **a exportação** ainda não junta o que os outros domínios guardarem
-  depois (expedições, devoluções, documentos).
+- **a exportação** dos outros domínios: feita na §15.10, parte 3.
 
 ## 13. Parte 3 — VIES com prova e isenção manual (desenho de 09/10/2026)
 
@@ -1378,3 +1375,102 @@ entrega, mas `perfil_copia: null` e `guardado_por_obrigacao_fiscal: true`.
   relatório OSS** (`invoices:read`, `tax:read`): são os documentos fiscais
   que se entregam e se declaram (Diogo, 13/10/2026, «A»).
 - **Fonte:** a mesma da §15.12 (RGPD, art. 25.º, n.º 2); **C**, jurista.
+
+### 15.14 O prazo de resposta a um pedido do titular (desenho de 13/10/2026)
+
+**O que diz a lei** (RGPD, art. 12.º, n.os 3 e 4 — `eur-lex`
+`corpus/dados-e-privacidade/32016R0679-rgpd.md`, versão consolidada
+02016R0679-20160504, obtido_em 2026-10-12): o responsável responde a um
+pedido apresentado nos termos dos artigos 15.º a 20.º (acesso,
+rectificação, apagamento, limitação, notificação, portabilidade) «sem demora
+injustificada e no prazo de um mês a contar da data de receção do pedido»
+(**W**). Para a oposição (art. 21.º) a lista também a aceita, mas o prazo do
+n.º 3 é para os artigos 15.º a 20.º: a oposição segue o mesmo mês por
+proposta nossa (**C**, jurista). O prazo «pode ser
+prorrogado até dois meses» por complexidade ou número de pedidos, e o
+titular é informado da prorrogação e dos motivos dentro do primeiro mês
+(**W** quanto à obrigação; **C** quanto à conta do prazo máximo, um mês mais
+dois ou dois no total: a versão portuguesa diz «até dois meses» e não
+verifiquei as outras línguas — jurista). Se não se der seguimento, informa-se
+o titular, no mesmo mês, das razões e da possibilidade de reclamar à
+autoridade de controlo (n.º 4, **W**).
+
+**O que o Eurolify faz hoje** (lido a 13/10/2026): o `pedido_titular` (0049)
+regista o pedido **quando é executado** (`em`), com a verificação e o
+resultado. Não sabe quando chegou: o prazo de um mês não se vê nem se
+avisa. Ex.: a Ana escreve a 2/10 a pedir o apagamento; ninguém o regista;
+a 3/11 o mês passou e o Eurolify não o sabe.
+
+**Proposta:**
+
+| # | O quê | Proposta | Porquê |
+|---|---|---|---|
+| T1 | **Registar a chegada** | `POST /customers/{id}/privacy-requests/received`: o tipo (`acesso`, `apagamento`, `limitacao`, `rectificacao`, `portabilidade`, `oposicao`, `outro`), `recebido_em` (a data em que chegou, por omissão agora; nunca no futuro) e o canal (`email`, `telefone`, `carta`, `presencial`, `loja`, `outro`; sem texto livre). Âmbito `customers:privacy` (só o dono) | a lei conta do dia em que chegou, não do dia em que se trata; sem texto livre não entram dados novos da pessoa |
+| T2 | **O prazo** | `prazo_legal = recebido_em + 1 mês` (no calendário), guardado; a prorrogação é uma acção com motivo — lista fechada, os dois do art. 12.º, n.º 3 («a complexidade do pedido e o número de pedidos»): `complexidade` ou `numero_de_pedidos`, sem texto livre — que muda o prazo até ao limite que o jurista confirmar (**C**) e regista o dia, dentro do primeiro mês, em que o titular foi informado | a regra num sítio (a base), lida pela lista e pelo aviso |
+| T3 | **Fechar** | o pedido recebido fecha quando: (a) se executa o pedido correspondente (`pedido_titular`, ligado ao recebido); (b) se marca **respondido** fora do Eurolify (rectificação, oposição, acesso respondido por e-mail), com a data; (c) se marca **recusado**, com a data em que se informou o titular das razões (n.º 4) | três fins, todos com data: a prova de que se respondeu dentro do mês |
+| T4 | **A lista «A decidir»** | fila nova `pedido_titular` (`docs/33`): está na lista enquanto aberto; quem decide `customers:privacy` (o dono); prazo da tarefa por omissão **7 dias antes do prazo legal** (proposta, **não é lei**), nunca depois dele | a peça 21 já dá dono, prazo e aviso ao vencer |
+| T5 | **O aviso** | o da peça 21 (`task.overdue`) ao vencer o prazo da tarefa, e um segundo, uma vez, se o **prazo legal** passar com o pedido aberto | o primeiro dá tempo para responder; o segundo diz que se falhou a lei |
+| T6 | **Sem identidade ainda** | o registo pede uma ficha (`cus_…`). Um pedido de quem ainda não se identificou fica fora do Eurolify até se saber a ficha (decidido, Q-P2) | nunca decidir identidade pelo nome (regra fiscal 6) |
+| T7 | **Dados** | o registo guarda só o tipo, as datas, o canal, quem registou e o estado; a pseudonimização não lhe toca (é a prova de que se respondeu) | minimização (art. 5.º, n.º 1, c)) e prova (art. 5.º, n.º 2) |
+
+**Em código, parte 1** (13/10/2026; T1–T4, T6 e T7):
+
+| O quê | Onde |
+|---|---|
+| a tabela `pedido_titular_recebido` (`prq_`): o dia em que chegou no fuso do comerciante (`recebido_dia`, fixado ao registar), o `prazo_legal` gerado na base (`+ interval '1 month'`: 31/01 → 28/02, ou 29/02 num ano bissexto), a prorrogação uma vez, com o motivo da lista fechada (`complexidade`, `numero_de_pedidos`) e o dia em que o titular foi informado, que tem de ser dentro do primeiro mês (registá-lo depois do mês é só registo), até `recebido_dia + 2 meses` (**C**); os três fins com o dia; não se apaga; só numa ficha activa | migração 0092 |
+| as rotas `POST`/`GET /customers/{id}/privacy-requests/received`, `POST /privacy-requests/received/{id}/extend` e `/close` (`customers:privacy`, só o dono); prorrogar e fechar só por uma pessoa ou a chave dela; o pedido executado tem de ser do mesmo comerciante (chave estrangeira composta) e do mesmo titular (também nas fichas fundidas), do dia da chegada ou depois e do tipo que responde: `acesso` e `portabilidade` pela exportação, `apagamento` pelo apagamento, `limitacao` pela limitação ou pelo fim dela; a rectificação, a oposição e «outro» fecham só como respondidos ou recusados | `src/clientes/rotas.ts`, `repositorio.ts` |
+| a nona fila `pedido_titular` no «A decidir» (prazo 7 dias antes do fim do legal: a meia-noite local de `prazo_legal - 6`, nunca antes de entrar), na API, no Hub e no nome do e-mail; prorrogar com o caso já avisado de vencido limpa o aviso, com a linha `prazo_mudado` no rasto (como mudar o prazo, 0066) | 0092; `src/tarefas/filas.ts`; `apps/hub/src/tarefas.ts`, textos |
+| testes, que falham sem a regra (uma prorrogação, o mesmo titular, o tipo e o dia do pedido executado, o mesmo comerciante, o aviso depois de prorrogar, o prazo da tarefa, o não se apagar) | `test/clientes-pedidos-recebidos.test.ts` |
+
+Os textos novos (o nome da fila e os dois motivos no Hub, o nome da fila no
+e-mail, em pt, es e en) foram aprovados pelo Diogo a 13/10/2026 (*«A»*).
+
+Não feito nesta parte: o segundo aviso (T5, §15.15); a exportação do titular
+ainda não junta os pedidos recebidos.
+
+**Fica de fora:** o pedido pela Loja (o login dos clientes, Q5 da CX); o
+envio da resposta ao titular (o comerciante responde pelo seu canal); a
+contagem de dias úteis ou feriados (o RGPD conta em meses).
+
+**Perguntas para o Diogo ou o Bruno.**
+- **Q-P1, decidida:** aprovado pelo Diogo a 13/10/2026 (*«A»*; `docs/06`
+  EO), com a fila nova na lista «A decidir» e o prazo da tarefa 7 dias antes
+  do prazo legal.
+- **Q-P2, decidida:** um pedido de quem ainda não tem ficha fica fora do
+  Eurolify até se saber quem é; o registo pede sempre uma ficha (Diogo,
+  13/10/2026, *«A»*).
+
+### 15.15 O aviso quando o prazo legal de um pedido passa (desenho de 13/10/2026)
+
+A parte 2 da §15.14 (T5, segundo aviso). A parte 1 dá o aviso da peça 21
+(`task.overdue`) quando vence o prazo da tarefa, 7 dias antes do prazo legal.
+Este é o segundo: **o prazo legal passou e o pedido continua aberto** — a
+lei já não foi cumprida (RGPD, art. 12.º, n.º 3, **W**; a mesma fonte da
+§15.14).
+
+| # | O quê | Proposta | Porquê |
+|---|---|---|---|
+| A1 | **Quando** | uma vez por pedido, no primeiro dia (no fuso do comerciante) depois do prazo legal — o prorrogado, se houver — com o pedido ainda `aberto`. Prorrogar depois não volta a avisar | o padrão do `refund.deadline_passed` (0067): uma vez, pelo efeito na base |
+| A2 | **Quem recebe** | quem tem `customers:privacy` (hoje só o dono), lido no envio, como o aviso da ligação com erro (0084) | só o dono responde aos pedidos (§15.14, T1) |
+| A3 | **O que leva** | a loja, o identificador do pedido (`prq_…`) e da ficha (`cus_…`), o tipo e as datas (chegou, prazo); **nunca** o nome, o e-mail nem o NIF do cliente | minimização: o e-mail passa pelo servidor de correio só com isto |
+| A4 | **Quem o cria** | uma tarefa de hora a hora em `clientes/`, como a do prazo do reembolso (`posvenda/prazo.ts`, `tarefa:prazos`), com uma função na base que devolve os pedidos com o prazo passado e sem aviso; marca o pedido e a base põe a notificação | uma tarefa a mais na mesma volta; e entra na verificação diária (§15.11) pelo efeito: pedidos com o prazo passado há mais de um dia sem aviso |
+
+**O texto proposto** (o Diogo ou o Bruno aprovam):
+
+- **pt** — assunto: «Pedido de dados pessoais: o prazo legal passou
+  ({prazo})». Corpo: «Olá, / Na loja «{loja}», o pedido {prq} (ficha {cus})
+  — {tipo} — chegou a {recebido} e ainda não tem resposta. O prazo legal para
+  responder era {prazo} (RGPD, art. 12.º, n.º 3). / Responda ao cliente e
+  feche o pedido: POST /privacy-requests/received/{prq}/close. / Este aviso vai
+  para os donos da loja. Não leva dados do cliente. / Eurolify»
+- **es** — «Solicitud de datos personales: el plazo legal ha vencido
+  ({prazo})» e o mesmo corpo em espanhol.
+- **en** — «Personal data request: the legal deadline has passed
+  ({prazo})» e o mesmo corpo em inglês.
+
+**Fica de fora:** um aviso antes do prazo legal além do da peça 21 (que já
+vence 7 dias antes); o aviso ao cliente (o comerciante responde pelo seu
+canal).
+
+**Decidido:** Q-P3, aprovado pelo Diogo a 13/10/2026 (*«a»*), o aviso e o
+texto; programa-se a seguir à parte 1.

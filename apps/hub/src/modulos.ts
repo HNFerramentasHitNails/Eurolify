@@ -47,6 +47,8 @@ export const MODULOS: readonly Modulo[] = [
       "customers:read",
       "returns:read",
       "refunds:read",
+      // O pedido do titular recebido (docs/23 §15.14): só o dono.
+      "customers:privacy",
     ],
     caminho: "/a-decidir",
   },
