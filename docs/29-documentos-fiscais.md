@@ -1056,3 +1056,94 @@ empresa 401965, o passo `autorizar`, quem e quando.
   apoio lê-o na base. Não há limite de ritmo, porque a decisão foi registar.
   Um aviso automático, por exemplo ao fim de N recusas, fica para quando
   houver comerciantes de fora.
+
+## 20. A limpeza dos pedidos de autorização (desenho, 14/10/2026)
+
+Pedido do Diogo, 14/10/2026 (*«sim, avança com o desenho»*). Fecha o P3-4 da
+revisão do #407 (§17): «a tabela não tem retenção». **Por aprovar**, com a
+pergunta Q1 (§20.4).
+
+### 20.1 O caso
+
+Cada vez que o dono carrega em «Ligar ao Moloni», fica uma linha em
+`autorizacao_faturacao` (0081). A linha tem:
+
+- a ligação;
+- a empresa pedida;
+- o resumo do valor dado ao dono (`state`);
+- quem pediu (`per_…` ou `key_…`);
+- quando foi criada, quando expira e quando foi usada.
+
+Uma autorização só vale 10 minutos e uma vez. Depois disso a linha já não serve
+para ligar nada, mas fica para sempre: o gatilho da 0081 recusa o `DELETE`.
+
+Ex.: a «Loja Exemplo» pede a autorização às 10:00 de 14/10/2026 e conclui às
+10:02. A linha deixa de servir às 10:10 e, sem limpeza, ainda lá está em 2036.
+
+### 20.2 Para que serve a linha depois de gasta
+
+| Para quê | Já está noutro sítio? |
+|---|---|
+| Saber quem ligou a conta do emissor | Sim: `ligacao_faturacao.credenciais_por` e `credenciais_em` (0050) |
+| Saber quem tentou uma empresa já ligada noutra conta | Sim: `recusa_conta_emissor` (0097, §19.7), que não se apaga |
+| Investigar um abuso (P2-1 do §17: alguém que conclui com o código de outro) | Em parte: a linha diz quem pediu e para que empresa. É a razão de não apagar logo |
+| Os documentos fiscais | Não dependem dela: nenhuma tabela aponta para `autorizacao_faturacao` (procurado com `grep -rn autorizacao_faturacao apps/api/migracoes`) |
+
+### 20.3 O desenho
+
+- **Uma função da base, `faturacao_autorizacoes_apagar()`:**
+  - `SECURITY DEFINER`, como a `contas_aplicar_prazos()` (0026);
+  - apaga as linhas cujo fim já passou há mais do que o prazo da Q1. O fim é
+    `usada_em` se a linha foi usada, senão `expira_em`;
+  - apaga em lotes de até 50 000, como a 0026, e devolve quantas apagou.
+- **O gatilho da 0081** continua a recusar o `DELETE` a toda a gente, menos a
+  esta função. A função marca a transacção com uma variável local, que o
+  gatilho lê. A API não tem `DELETE` na tabela, nem passa a ter.
+- **Quem a chama:**
+  - a limpeza diária da VPS (`eurolify-limpeza`, 05:00 UTC), com o papel
+    `eurolify_limpeza`, que só recebe o `EXECUTE` desta função;
+  - a função escreve no registo da máquina quantas linhas apagou, como as
+    outras limpezas.
+  - A alteração ao script entra por pedido revisto e é o GitHub que a aplica
+    (ADR-0028).
+- **A verificação diária** (`eurolify-verificacao`, 07:00) ganha uma linha:
+  - `faturacao_autorizacoes_em_atraso()` conta as linhas com o prazo passado
+    há mais de um dia;
+  - se houver alguma, a limpeza não está a correr, e a verificação avisa.
+- **Sem rasto:** apagar é a regra de guarda, não uma alteração de alguém. A
+  contagem fica no registo da máquina.
+
+### 20.4 Pergunta para o Diogo ou o Bruno
+
+**Q1. Quanto tempo se guarda um pedido de autorização depois de gasto ou
+expirado?**
+
+- **a) 30 dias** ⭐: chega para investigar uma ligação estranha no mês em que
+  aconteceu. O que tem de ficar mais tempo já fica noutro sítio (§20.2).
+- **b) 90 dias:** o mesmo prazo das credenciais de uma pessoa que sai da
+  equipa (`docs/17`, CD).
+- **c) 1 dia:** só o tempo de a limpeza correr.
+
+Não verifiquei nenhum prazo legal para este registo. É uma escolha de
+minimização (RGPD, artigo 5.º, n.º 1, alínea e), «limitação da
+conservação»: só «durante o período necessário para as finalidades»), não
+uma regra com prazo fixo. Fonte: `eur-lex`,
+`corpus/dados-e-privacidade/32016R0679-rgpd.md`, artigo 5.º, versão de
+2016-05-04, obtido em 2026-10-10.
+
+### 20.5 Testes (no código)
+
+- uma linha usada ou expirada há mais do que o prazo é apagada; uma dentro do
+  prazo e uma ainda válida ficam;
+- o `DELETE` directo, pela API ou pelo dono da base, continua recusado;
+- o papel da limpeza só tem o `EXECUTE`;
+- a contagem do atraso conta só o que passou o prazo há mais de um dia;
+- um pedido de autorização a decorrer não é tocado.
+
+### 20.6 O que fica por verificar
+
+- A linha a mais no script da limpeza e na verificação corre na VPS do
+  ensaio. O `verificacao.sh` testa-a no Ubuntu do fluxo `verificar`.
+- O jurista confirma, com a Q4 do `docs/28`, que este prazo curto não choca
+  com nenhuma obrigação de prova (**C**).
+
