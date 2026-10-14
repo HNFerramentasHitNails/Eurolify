@@ -27,7 +27,7 @@ import {
   type PedidoRascunho,
   type ResultadoNoEmissor,
 } from "./adaptador.js";
-import { ErroDocumentos, traduzir } from "./erros.js";
+import { CONTA_EM_USO, ErroDocumentos, traduzir } from "./erros.js";
 
 // Os documentos fiscais (docs/29; migração 0050; issue #310; Diogo,
 // 10/10/2026: «sim, aprovo; avança com o código da fatia 10»).
@@ -280,6 +280,40 @@ export async function mudarLigacao(
   });
 }
 
+/**
+ * Se a conta do emissor já está noutra ligação activa, de qualquer
+ * comerciante (docs/29 §19). O RLS esconde as ligações dos outros, por isso
+ * pergunta-se ao índice: escreve-se a conta nesta ligação dentro de um ponto
+ * de salvaguarda e desfaz-se sempre.
+ */
+async function contaEmUso(
+  trx: Transaction<BaseDados>,
+  id: string,
+  conta: string,
+): Promise<boolean> {
+  await sql`savepoint conta_emissor`.execute(trx);
+  try {
+    await trx
+      .updateTable("ligacao_faturacao")
+      .set({ conta_emissor: conta })
+      .where("id", "=", id)
+      .execute();
+    return false;
+  } catch (e) {
+    const pg = e as { code?: string; constraint?: string };
+    if (
+      pg.code === "23505" &&
+      pg.constraint === "ligacao_faturacao_uma_por_conta"
+    ) {
+      return true;
+    }
+    throw e;
+  } finally {
+    await sql`rollback to savepoint conta_emissor`.execute(trx);
+    await sql`release savepoint conta_emissor`.execute(trx);
+  }
+}
+
 export async function definirCredenciais(
   trx: Transaction<BaseDados>,
   c: string,
@@ -291,9 +325,13 @@ export async function definirCredenciais(
   const chave = exigirChave(cfg);
   return noDocumentos(trx, c, async () => {
     const l = await ligacaoParaMudar(trx, id, null);
+    // A conta que as credenciais abrem fica à vista; a mesma noutra ligação
+    // activa é recusada pelo índice (docs/29 §19).
+    const conta = adaptadorDe(cfg, l.adaptador).contaDe?.(credenciais) ?? null;
     await trx
       .updateTable("ligacao_faturacao")
       .set({
+        conta_emissor: conta,
         credenciais: cifrar(
           JSON.stringify(credenciais),
           id,
@@ -502,6 +540,10 @@ export async function testarLigacao(
       "a ligação não tem credenciais",
     );
   }
+  const conta =
+    credenciais === null
+      ? null
+      : (adaptadorDe(cfg, l.adaptador).contaDe?.(credenciais) ?? null);
   if (erro === null && credenciais !== null) {
     try {
       await adaptadorDe(cfg, l.adaptador).testar(credenciais);
@@ -515,9 +557,15 @@ export async function testarLigacao(
     // O resultado é das credenciais e dos mapas lidos: se mudaram durante o
     // teste, não vale (revisão do #312, P2-7).
     const agora = await ligacaoParaMudar(trx, id, l.versao);
+    // Uma ligação de antes da 0095 ganha aqui a conta; se a mesma conta já
+    // está noutra ligação activa, o teste falha (docs/29 §19).
+    if (erro === null && conta !== null && (await contaEmUso(trx, id, conta))) {
+      erro = CONTA_EM_USO;
+    }
     await trx
       .updateTable("ligacao_faturacao")
       .set({
+        ...(erro === null && conta !== null ? { conta_emissor: conta } : {}),
         estado: erro === null ? "pronta" : "com_erro",
         // Um teste falhado também põe o caso na fila, mas sem e-mail: quem
         // testou está a ver o resultado (docs/29 §18.3).
@@ -1017,6 +1065,12 @@ export async function pedirAutorizacao(
         "invoices.invalid_field",
         `a empresa ${empresa} não está na lista das contas de teste (M8): o modo real está fechado`,
       );
+    }
+    // Antes de mandar o dono ao Moloni: a empresa noutra ligação activa não
+    // se liga (docs/29 §19, Q1 «B»).
+    const conta = a.contaDe?.({ company_id: empresa }) ?? empresa;
+    if (await contaEmUso(trx, id, conta)) {
+      throw new ErroDocumentos("invoices.account_in_use", CONTA_EM_USO);
     }
     const estado = randomBytes(32).toString("base64url");
     const url = a.urlAutorizacao(estado);

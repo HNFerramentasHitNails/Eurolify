@@ -181,6 +181,12 @@ export interface AdaptadorFaturacao {
   /** Se o Eurolify pode usar esta empresa do emissor (M8, só as de teste). */
   empresaPermitida?(empresa: string): boolean;
   /**
+   * A conta no emissor que as credenciais abrem (o `company_id` do Moloni),
+   * para a base ver e não deixar ligar a mesma em duas ligações (docs/29
+   * §19); null num emissor sem contas (o de ensaio).
+   */
+  contaDe?(credenciais: CredenciaisEmissor): string | null;
+  /**
    * Troca o código da autorização pelas credenciais da `empresa` e confere
    * que dão acesso a ela (como `testar`). Lança o erro do emissor.
    */

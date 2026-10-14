@@ -1025,6 +1025,8 @@ export const en: Textos = {
   moloniRecusou: "Moloni refused: {erro} Ask again.",
   moloniOcupado:
     "There are documents half-way in Moloni; resolve them before changing the account.",
+  moloniEmpresaEmUso:
+    "This Moloni company is already connected to another Eurolify account. If it is yours, disconnect it there first, or contact Eurolify support.",
   moloniVoltar: "Back to Invoicing",
   ossTitulo: "OSS report",
   ossPeriodo: "Period",

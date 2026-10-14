@@ -93,6 +93,13 @@ export interface Falhas {
 
 export function moloniFalso() {
   const empresa = 401965;
+  /**
+   * As empresas desta conta: cada `credenciais()` sem empresa abre uma nova,
+   * porque o Eurolify não deixa a mesma empresa em duas ligações activas
+   * (docs/29 §19). A lista é a das empresas de teste (M8) da configuração.
+   */
+  const empresas: string[] = [String(empresa)];
+  let proximaEmpresa = empresa + 1;
   const estado = {
     tokens: new Map<string, number>(), // access_token → expira (ms)
     refresh: new Set<string>(),
@@ -246,7 +253,8 @@ export function moloniFalso() {
   };
 
   const metodos: Record<string, (c: Json) => unknown> = {
-    "companies/getAll": () => [{ company_id: empresa, name: "Empresa trial" }],
+    "companies/getAll": () =>
+      empresas.map((e) => ({ company_id: Number(e), name: "Empresa trial" })),
     "countries/getAll": () => estado.paises,
     "customers/getByVat": (c) =>
       estado.clientes
@@ -586,10 +594,12 @@ export function moloniFalso() {
   };
 
   /** Credenciais como as que o dono deixaria ao ligar (§13.4). */
-  const credenciais = () => {
+  const credenciais = (daEmpresa?: string) => {
     const t = novoToken();
+    const e = daEmpresa ?? String(proximaEmpresa++);
+    if (!empresas.includes(e)) empresas.push(e);
     return {
-      company_id: String(empresa),
+      company_id: e,
       access_token: t.access,
       refresh_token: t.refresh,
       access_expira: new Date(Date.now() + 3_600_000).toISOString(),
@@ -638,5 +648,6 @@ export function moloniFalso() {
     artigo,
     cliente,
     empresa,
+    empresas,
   };
 }

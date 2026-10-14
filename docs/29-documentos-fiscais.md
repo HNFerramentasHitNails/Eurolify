@@ -899,3 +899,105 @@ faturas retidas e o dono não sabe porquê.
   não conhece o endereço do Hub); 4 (as ligações que já estiverem com erro ao
   migrar entram logo vencidas, e sai o aviso de vencido na volta seguinte); 6
   (o valor novo `ligacao_faturacao` nas listas da API de tarefas, aditivo).
+
+## 19. Uma empresa do emissor, uma ligação só (desenho, 14/10/2026)
+
+> **Estado: aprovado e em código** (`docs/06`, EP). Diogo, 14/10/2026:
+> *«sim, aprovo o desenho com a Q1 em B»*. Pedido inicial: *«sim, avança com o
+> desenho»*. Fecha a metade do P2-1 da revisão do #407 (§17) que não
+> depende da medição no Moloni: «a mesma empresa não se liga em dois
+> comerciantes». Só desenho; nenhum código antes de aprovado (ADR-0023).
+
+### 19.1 O caso
+
+O identificador da conta no emissor, o `company_id` do Moloni, só existe
+dentro das credenciais cifradas da ligação (`credenciais`, migração 0050;
+`moloni.ts`, `cred["company_id"]`) e, no pedido de autorização, em
+`autorizacao_faturacao.empresa` (0081). A base não o vê, por isso não
+impede que a mesma empresa fique ligada duas vezes.
+- **Entre comerciantes:** quem tiver uma chave de dono de uma loja e o código
+  de autorização de outra liga a empresa de faturação dela à sua e emite
+  faturas lá.
+- **No mesmo comerciante:** duas entidades legais ligadas à mesma empresa do
+  Moloni emitem com o NIF errado numa delas. Uma empresa do Moloni é um
+  contribuinte, e uma entidade legal também.
+
+Hoje o risco está fechado pela lista de empresas de teste (M8). Passa a
+existir quando o modo real abrir.
+
+### 19.2 O desenho
+
+| Regra | Porquê |
+|---|---|
+| **Coluna nova** `ligacao_faturacao.conta_emissor` (texto, não cifrado): o identificador da conta no emissor. No Moloni é o `company_id`, só dígitos (como `autorizacao_faturacao.empresa`). No emissor de ensaio fica vazio | a base só consegue conferir o que vê; o `company_id` não é segredo nem dado pessoal |
+| **Uma por emissor, entre as ligações activas, de todos os comerciantes:** índice único em (`adaptador`, `conta_emissor`) onde `activa` | a regra vale entre comerciantes, por isso não pode ficar só na API (o RLS esconde as ligações dos outros) |
+| **Quem a escreve:** a API, na mesma escrita das credenciais (`definirCredenciais`), a partir delas. O adaptador diz qual é a conta (`contaDe(credenciais)`) | uma regra, um sítio |
+| **Antes de mandar o dono ao Moloni** (`pedirAutorizacao`): recusa já se a empresa pedida está noutra ligação activa, para o dono não gastar uma autorização | o índice é a rede; isto é a resposta cedo |
+| **A recusa:** 409 `invoices.account_in_use`, «esta empresa do emissor já está ligada noutra ligação do Eurolify». Não diz de que comerciante nem de que entidade (Q1) | não revela dados de outro comerciante |
+| **Desligar liberta-a:** uma ligação desligada (`activa = false`) sai do índice | trocar de loja ou de entidade continua possível, por quem desliga a antiga |
+| **As ligações que já existem:** ficam com `conta_emissor` vazio. Uma ligação Moloni sem ela não emite: o primeiro teste da ligação (`testarLigacao`) preenche-a a partir das credenciais e, se a empresa já estiver noutra, a ligação fica `com_erro` com o motivo novo | sem decifrar na migração; hoje só há ligações de ensaio (VPS no Reino Unido, sem dados reais, ADR-0019) |
+
+### 19.3 Testes (no código)
+
+- dois comerciantes, a mesma empresa: o segundo é recusado ao pedir a
+  autorização e, se passar por lá, ao gravar as credenciais (o índice);
+- o mesmo comerciante, duas entidades, a mesma empresa: recusado;
+- desligar a primeira liberta a empresa;
+- a recusa não traz o comerciante nem a entidade da outra ligação;
+- uma ligação Moloni sem `conta_emissor` não emite, e o teste preenche-a;
+- a base recusa a segunda inserção directa (o índice, sem a API).
+
+### 19.4 Pergunta para o Diogo ou o Bruno
+
+| # | Pergunta | Proposta |
+|---|---|---|
+| Q1 | **O que diz a recusa ao dono?** | **A:** «esta empresa do Moloni já está ligada a outra conta do Eurolify; se é sua, desligue-a lá primeiro», sem dizer qual. **B:** o mesmo, mais «fale com o apoio do Eurolify», para quando o dono não reconhece a outra ligação (pode ser um abuso). Proponho a **B** |
+
+### 19.5 O que fica por verificar
+
+- **A outra metade do P2-1** (prender o código de autorização ao pedido): espera
+  pela medição na conta trial (§17), como estava.
+- **Se o Moloni deixa a mesma empresa** dar acesso a dois utilizadores: não
+  verificado. A regra do Eurolify vale na mesma.
+
+### 19.6 Em código (14/10/2026; migração 0095; EP)
+
+- **Migração 0095:**
+  - a coluna `conta_emissor`;
+  - o índice `ligacao_faturacao_uma_por_conta`;
+  - a restrição `ligacao_faturacao_pronta_com_conta`: uma ligação Moloni
+    pronta tem de ter a conta;
+  - as ligações Moloni prontas sem conta passam a «por testar».
+- **API (`src/faturacao/repositorio.ts`):**
+  - `definirCredenciais` grava a conta (`contaDe` do adaptador) na mesma
+    escrita das credenciais;
+  - `pedirAutorizacao` recusa antes de mandar o dono ao Moloni;
+  - `testarLigacao` dá a conta às ligações antigas, ou falha com a recusa.
+- **A pergunta à base:** escreve a conta num ponto de salvaguarda que se
+  desfaz sempre. O índice responde mesmo com o RLS a esconder as ligações dos
+  outros comerciantes, e não é preciso nenhuma função com poderes de dono.
+- **A recusa:** `invoices.account_in_use` (409), com o texto da Q1 «B»
+  (`CONTA_EM_USO`). No Hub, `moloniEmpresaEmUso` em PT, ES e EN, ao pedir e
+  ao voltar do Moloni.
+- **Desvio do desenho:** uma ligação antiga cuja empresa já está noutra fica
+  `com_erro` com o motivo `teste_falhou` e a recusa no erro. Não se criou um
+  motivo novo, porque a fila e o e-mail continuam iguais.
+- **Os testes:** 2 em `test/documentos-api.test.ts`. O Moloni simulado
+  (`test/moloni-falso.ts`) passa a dar uma empresa nova a cada
+  `credenciais()`, porque os testes ligavam várias lojas à mesma empresa.
+
+- **Revisão do agente (Sonnet 5.5, #449), sem P0 nem P1:**
+  - **P2-1, fica assim:** se outro comerciante liga a empresa entre o pedido
+    de autorização e o regresso do Moloni (dois donos ao mesmo tempo), o
+    regresso recusa com `account_in_use`. A autorização fica gasta e o dono
+    tem de pedir outra. Os tokens que o Moloni já deu não ficam guardados.
+    Não verifiquei se o Moloni os mantém activos até expirarem.
+  - **P2-2:** o teste afirma que a pergunta à base não deixa a conta escrita.
+  - **P3-2:** `contaDe` tira os zeros à esquerda: «0401965» e «401965» são a
+    mesma empresa para o índice. O pedido de autorização usa a mesma regra.
+  - **P3-3:** o ponto de salvaguarda é libertado depois de desfeito.
+  - **P3-1, fica para decisão antes do modo real:** quem pede a autorização
+    sabe se uma empresa já está ligada noutro sítio, sem saber onde. Hoje a
+    lista das contas de teste (M8) limita-o. Antes de abrir o modo real,
+    decide-se se se aceita, se se limita o ritmo ou se se registam as
+    recusas.

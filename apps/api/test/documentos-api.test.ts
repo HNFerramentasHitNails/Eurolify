@@ -70,7 +70,7 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       moloni: new AdaptadorMoloni({
         clientId: "dev-eurolify",
         clientSecret: "segredo-do-developer",
-        empresasPermitidas: [String(moloni.empresa)],
+        empresasPermitidas: moloni.empresas,
         redirectUri:
           "https://api.exemplo.test/invoicing-connections/moloni/callback",
         fetch: moloni.fetch,
@@ -1623,6 +1623,148 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       sql`update autorizacao_faturacao set usada_em = null
         where comerciante_id = ${s.c}::uuid`.execute(base.dono),
     ).rejects.toThrow(/invoices\.immutable/);
+  });
+
+  it("uma empresa do Moloni, uma ligação só: outro comerciante ou outra entidade não a ligam; desligar liberta-a (docs/29 §19)", async () => {
+    const a = await cenario();
+    const b = await cenario();
+    const { id: daA, credenciais } = await ligarMoloni(a);
+    const empresa = credenciais.company_id;
+    const novaLigacao = async (s: Cenario, entidade: string) => {
+      await ok(
+        s.adm("PUT", `/legal-entities/lgl_${entidade}/invoicing`, {
+          emissor: "eurolify",
+        }),
+        204,
+      );
+      return String(
+        (
+          await ok(
+            s.adm("POST", "/invoicing-connections", {
+              entidade_legal: `lgl_${entidade}`,
+              adaptador: "moloni",
+              serie: "500",
+            }),
+            201,
+          )
+        )["id"],
+      );
+    };
+    const daB = await novaLigacao(b, b.entidade);
+    // Ao pedir a autorização, antes de mandar o dono ao Moloni; e ao gravar
+    // as credenciais (o índice). A recusa não diz de quem é a outra.
+    const pedido = await b.adm(
+      "POST",
+      `/invoicing-connections/${daB}/authorize`,
+      { empresa },
+    );
+    expect(pedido.statusCode).toBe(409);
+    expect(pedido.json()).toMatchObject({ codigo: "invoices.account_in_use" });
+    expect(pedido.body).toContain("fale com o apoio do Eurolify");
+    expect(pedido.body).not.toContain(a.entidade);
+    expect(pedido.body).not.toContain(a.c);
+    // A sonda volta atrás: a ligação de B fica sem conta (revisão, P2-2).
+    expect(
+      (
+        await sql<{ conta_emissor: string | null }>`select conta_emissor
+          from ligacao_faturacao where id = ${daB.slice(4)}::uuid`.execute(
+          base.dono,
+        )
+      ).rows[0]?.conta_emissor,
+    ).toBeNull();
+    expect(
+      await codigo(
+        b.adm("PUT", `/invoicing-connections/${daB}/credentials`, {
+          credenciais: moloni.credenciais(empresa),
+        }),
+      ),
+    ).toEqual([409, "invoices.account_in_use"]);
+    // No mesmo comerciante, outra entidade: também não.
+    const outraEntidade = await criarEntidadeLegal(base.api, a.c, {
+      denominacao: "Segunda, Lda.",
+      forma_juridica: "sociedade por quotas",
+      pais: "PT",
+      numero_fiscal: "509999981",
+      morada_linha: "Rua 2",
+      morada_codigo_postal: "1000-002",
+      morada_localidade: "Lisboa",
+    });
+    const daA2 = await novaLigacao(a, outraEntidade);
+    expect(
+      await codigo(
+        a.adm("PUT", `/invoicing-connections/${daA2}/credentials`, {
+          credenciais: moloni.credenciais(empresa),
+        }),
+      ),
+    ).toEqual([409, "invoices.account_in_use"]);
+    // A base recusa sem a API.
+    await expect(
+      sql`update ligacao_faturacao set conta_emissor = ${empresa}
+        where id = ${daB.slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/ligacao_faturacao_uma_por_conta/);
+    // Desligar a primeira liberta a empresa.
+    const l = await ligacaoDe(a, daA);
+    await ok(
+      a.adm("PATCH", `/invoicing-connections/${daA}`, {
+        versao: l["versao"],
+        activa: false,
+      }),
+    );
+    await ok(
+      b.adm("PUT", `/invoicing-connections/${daB}/credentials`, {
+        credenciais: moloni.credenciais(empresa),
+      }),
+      204,
+    );
+    expect(
+      await ok(b.adm("POST", `/invoicing-connections/${daB}/test`)),
+    ).toEqual({ estado: "pronta", erro: null });
+  });
+
+  it("uma ligação Moloni de antes da 0095 não emite até ao teste, que lhe dá a empresa; se a empresa já está noutra, o teste falha (docs/29 §19)", async () => {
+    const a = await cenario();
+    const b = await cenario();
+    const { id: daA, credenciais } = await ligarMoloni(a);
+    const empresa = credenciais.company_id;
+    // Como fica uma ligação antiga depois da migração: sem a conta, por
+    // testar; e pronta sem a conta a base recusa.
+    const antiga = (id: string) =>
+      sql`update ligacao_faturacao set conta_emissor = null, estado = 'por_testar'
+        where id = ${id.slice(4)}::uuid`.execute(base.dono);
+    await antiga(daA);
+    await expect(
+      sql`update ligacao_faturacao set estado = 'pronta'
+        where id = ${daA.slice(4)}::uuid`.execute(base.dono),
+    ).rejects.toThrow(/ligacao_faturacao_pronta_com_conta/);
+    const contaDe = async (id: string) =>
+      (
+        await sql<{ conta_emissor: string | null }>`
+          select conta_emissor from ligacao_faturacao where id = ${id.slice(4)}::uuid`.execute(
+          base.dono,
+        )
+      ).rows[0]?.conta_emissor ?? null;
+    // O teste dá-lhe a conta.
+    expect(
+      await ok(a.adm("POST", `/invoicing-connections/${daA}/test`)),
+    ).toEqual({ estado: "pronta", erro: null });
+    expect(await contaDe(daA)).toBe(empresa);
+    // Duas antigas com a mesma empresa (ligadas antes da regra): a primeira
+    // a testar fica com ela; a outra falha o teste com a recusa.
+    await antiga(daA);
+    const { id: daB } = await ligarMoloni(b);
+    await ok(
+      b.adm("PUT", `/invoicing-connections/${daB}/credentials`, {
+        credenciais: moloni.credenciais(empresa),
+      }),
+      204,
+    );
+    expect(
+      await ok(b.adm("POST", `/invoicing-connections/${daB}/test`)),
+    ).toEqual({ estado: "pronta", erro: null });
+    const r = await ok(a.adm("POST", `/invoicing-connections/${daA}/test`));
+    expect(r["estado"]).toBe("com_erro");
+    expect(String(r["erro"])).toContain("fale com o apoio do Eurolify");
+    expect(await contaDe(daA)).toBeNull();
   });
 
   const ligacaoDe = async (s: Cenario, id: string) =>

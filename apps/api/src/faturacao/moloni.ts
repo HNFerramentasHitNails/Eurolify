@@ -238,6 +238,15 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     );
   }
 
+  contaDe(credenciais: CredenciaisEmissor): string | null {
+    // Sem zeros à esquerda: «0401965» e «401965» são a mesma empresa para o
+    // índice (revisão do #449, P3-2).
+    const e = credenciais["company_id"];
+    return e !== undefined && /^\d{1,12}$/.test(e)
+      ? e.replace(/^0+(?=\d)/, "")
+      : null;
+  }
+
   empresaPermitida(empresa: string): boolean {
     return this.cfg.empresasPermitidas.includes(empresa);
   }
