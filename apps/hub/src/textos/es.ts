@@ -1725,7 +1725,7 @@ export const es: Textos = {
   etiquetaDevolucaoIncertaExplicacao:
     "El transportista no respondió con certeza. Confirme en su panel si la etiqueta existe: si existe, anúlela allí; después anúlela aquí. No se pide otra hasta entonces.",
   etiquetaDevolucaoServico: "Servicio",
-  etiquetaDevolucaoEm: "Solicitada el",
+  etiquetaDevolucaoEm: "En este estado desde",
   etiquetaDevolucaoDescarregar: "Descargar el PDF",
   etiquetaDevolucaoPedir: "Pedir la etiqueta de devolución",
   etiquetaDevolucaoPedirOutra: "Pedir otra etiqueta de devolución",
@@ -1733,7 +1733,7 @@ export const es: Textos = {
   etiquetaDevolucaoPesoDaCaixa:
     "Peso de la caja: {g} (los artículos a devolver y el embalaje).",
   etiquetaDevolucaoCusto:
-    "La etiqueta la paga la cuenta del comerciante en el transportista. No se descuenta nada al cliente.",
+    "La etiqueta la paga la cuenta del comerciante en el transportista. Esta solicitud no descuenta nada al cliente.",
   etiquetaDevolucaoPedirBotao: "Pedir la etiqueta",
   etiquetaDevolucaoSemPeso:
     "Una variante de esta devolución no tiene peso: corrija el peso de la variante en el artículo antes de pedir la etiqueta.",
@@ -1767,4 +1767,10 @@ export const es: Textos = {
     "Este transportista aún no hace etiquetas de devolución en Eurolify.",
   devolucoesColunaEncomenda: "Pedido",
   devolucaoDeEncomenda: "Devolución del {data}, pedido terminado en {id}",
+  etiquetaDevolucaoFicouIncerta:
+    "El transportista no respondió con certeza: la etiqueta puede existir y estar pagada. Confírmelo en su panel antes de hacer otra cosa.",
+  etiquetaDevolucaoFoiRecusada:
+    "El transportista rechazó la etiqueta. El motivo está abajo; puede pedir otra.",
+  etiquetaDevolucaoSemPermissao:
+    "Aún no hay etiqueta de devolución, y su función no permite pedirla.",
 };

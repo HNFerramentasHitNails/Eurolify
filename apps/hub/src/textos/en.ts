@@ -1707,7 +1707,7 @@ export const en: Textos = {
   etiquetaDevolucaoIncertaExplicacao:
     "The carrier did not answer with certainty. Check in its dashboard whether the label exists: if it does, void it there; then void it here. No other label can be requested until then.",
   etiquetaDevolucaoServico: "Service",
-  etiquetaDevolucaoEm: "Requested on",
+  etiquetaDevolucaoEm: "In this state since",
   etiquetaDevolucaoDescarregar: "Download the PDF",
   etiquetaDevolucaoPedir: "Request the return label",
   etiquetaDevolucaoPedirOutra: "Request another return label",
@@ -1715,7 +1715,7 @@ export const en: Textos = {
   etiquetaDevolucaoPesoDaCaixa:
     "Parcel weight: {g} (the items to return and the packaging).",
   etiquetaDevolucaoCusto:
-    "The label is paid by the merchant's carrier account. Nothing is deducted from the customer.",
+    "The label is paid by the merchant's carrier account. This request deducts nothing from the customer.",
   etiquetaDevolucaoPedirBotao: "Request the label",
   etiquetaDevolucaoSemPeso:
     "A variant in this return has no weight: fix the variant's weight in the item before requesting the label.",
@@ -1748,4 +1748,10 @@ export const en: Textos = {
     "This carrier does not yet issue return labels in Eurolify.",
   devolucoesColunaEncomenda: "Order",
   devolucaoDeEncomenda: "Return of {data}, order ending in {id}",
+  etiquetaDevolucaoFicouIncerta:
+    "The carrier did not answer with certainty: the label may exist and be paid for. Check its dashboard before doing anything else.",
+  etiquetaDevolucaoFoiRecusada:
+    "The carrier refused the label. The reason is below; you can request another.",
+  etiquetaDevolucaoSemPermissao:
+    "There is no return label yet, and your role cannot request one.",
 };

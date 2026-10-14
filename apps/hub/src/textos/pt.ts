@@ -1702,7 +1702,7 @@ export const pt = {
   etiquetaDevolucaoIncertaExplicacao:
     "A transportadora não respondeu com certeza. Confirme no painel dela se a etiqueta existe: se existir, anule-a lá; depois anule-a aqui. Não se pede outra até lá.",
   etiquetaDevolucaoServico: "Serviço",
-  etiquetaDevolucaoEm: "Pedida em",
+  etiquetaDevolucaoEm: "Neste estado desde",
   etiquetaDevolucaoDescarregar: "Descarregar o PDF",
   etiquetaDevolucaoPedir: "Pedir a etiqueta de devolução",
   etiquetaDevolucaoPedirOutra: "Pedir outra etiqueta de devolução",
@@ -1710,7 +1710,7 @@ export const pt = {
   etiquetaDevolucaoPesoDaCaixa:
     "Peso da caixa: {g} (os artigos a devolver e a embalagem).",
   etiquetaDevolucaoCusto:
-    "A etiqueta é paga pela conta do comerciante na transportadora. Não se desconta nada ao cliente.",
+    "A etiqueta é paga pela conta do comerciante na transportadora. Este pedido não desconta nada ao cliente.",
   etiquetaDevolucaoPedirBotao: "Pedir a etiqueta",
   etiquetaDevolucaoSemPeso:
     "Uma variante desta devolução não tem peso: corrija o peso da variante no artigo antes de pedir a etiqueta.",
@@ -1743,6 +1743,12 @@ export const pt = {
     "Esta transportadora ainda não faz etiquetas de devolução no Eurolify.",
   devolucoesColunaEncomenda: "Encomenda",
   devolucaoDeEncomenda: "Devolução de {data}, encomenda terminada em {id}",
+  etiquetaDevolucaoFicouIncerta:
+    "A transportadora não respondeu com certeza: a etiqueta pode existir e estar paga. Confirme no painel dela antes de fazer outra coisa.",
+  etiquetaDevolucaoFoiRecusada:
+    "A transportadora recusou a etiqueta. O motivo está abaixo; pode pedir outra.",
+  etiquetaDevolucaoSemPermissao:
+    "Ainda não há etiqueta de devolução, e o seu papel não a pede.",
 };
 
 export type Textos = typeof pt;

@@ -1514,7 +1514,7 @@ export async function listarDevolucoes(
       ])
       .orderBy("d.criada_em", "desc")
       .orderBy("d.id", "desc")
-      .limit(200);
+      .limit(LIMITE_DA_LISTA_DE_DEVOLUCOES);
     if (filtro.prazoReembolso !== undefined) {
       // O limiar é o da base (posvenda_dias_de_aviso), não um número aqui.
       q =

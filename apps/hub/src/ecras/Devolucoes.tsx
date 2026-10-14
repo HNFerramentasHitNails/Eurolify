@@ -22,6 +22,7 @@ import {
   erroDaDevolucao,
   ESTADOS_DEVOLUCAO,
   estadoDoFiltro,
+  contagemDaLista,
   idCurto,
   TEXTO_DA_ORIGEM,
   TEXTO_DO_ESTADO_DA_DEVOLUCAO,
@@ -138,6 +139,12 @@ export function Devolucoes({
   const c = comerciante ?? "";
   const idFiltro = useId();
 
+  // Outro filtro: a lista anterior sai e mostra-se «a carregar», sem
+  // desmontar o campo do filtro, que fica com o foco (revisão, P2-3).
+  useEffect(() => {
+    setDados(null);
+  }, [estado]);
+
   const carregar = useCallback(async () => {
     if (!valido) return;
     const este = ++ultimo.current;
@@ -213,15 +220,10 @@ export function Devolucoes({
                 <CaixaDeErro erro={erro} aoTentar={() => void carregar()} />
               )}
               <p className="secundario" role="status">
-                {n === 0
-                  ? estado === null
-                    ? t.devolucoesVazio
-                    : t.devolucoesVazioNoFiltro
-                  : n >= dados.limite
-                    ? preencher(t.devolucoesContagemMaximo, { n })
-                    : n === 1
-                      ? t.devolucoesContagemUm
-                      : preencher(t.devolucoesContagem, { n })}
+                {(() => {
+                  const k = contagemDaLista(n, dados.limite, estado !== null);
+                  return preencher(t[k], { n });
+                })()}
               </p>
               {n === 0 ? null : (
                 <table className="tabela-larga">
@@ -451,42 +453,48 @@ function EtiquetaDaDevolucao({
   }, [falha, sucesso]);
 
   const ultimo = useRef(0);
-  const ler = useCallback(async () => {
-    // Só a última leitura conta (revisão, P3-2).
-    const este = ++ultimo.current;
-    try {
-      let e: EtiquetaDevolucao | null;
+  const ler = useCallback(
+    async (limparErro = false) => {
+      // Só a última leitura conta (revisão, P3-2).
+      const este = ++ultimo.current;
       try {
-        e = await api.etiquetaDevolucao(comerciante, d.id);
-      } catch (x) {
-        // Sem etiqueta ainda: um 404 de envios.
-        if (x instanceof ErroHub && x.codigo === "shipping.not_found") e = null;
-        else throw x;
-      }
-      if (este !== ultimo.current) return;
-      setEtiqueta(e);
-      setAgora(Date.now());
-      const a = accoesDaEtiqueta(d.estado, e, escreve, Date.now());
-      if (a.pedir) {
-        const s = await api.servicosDaDevolucao(comerciante, d.id);
-        if (este !== ultimo.current) return;
-        setServicos(s);
-        const [unica] = s.opcoes;
-        if (s.opcoes.length === 1 && unica !== undefined) {
-          setEscolha(`${unica.conta}|${unica.servico}`);
+        let e: EtiquetaDevolucao | null;
+        try {
+          e = await api.etiquetaDevolucao(comerciante, d.id);
+        } catch (x) {
+          // Sem etiqueta ainda: um 404 de envios.
+          if (x instanceof ErroHub && x.codigo === "shipping.not_found")
+            e = null;
+          else throw x;
         }
-      } else {
-        setServicos(null);
+        if (este !== ultimo.current) return;
+        // «Tentar outra vez»: a leitura correu bem, o erro sai (revisão, P2-1).
+        if (limparErro) setFalha(null);
+        setEtiqueta(e);
+        setAgora(Date.now());
+        const a = accoesDaEtiqueta(d.estado, e, escreve, Date.now());
+        if (a.pedir) {
+          const s = await api.servicosDaDevolucao(comerciante, d.id);
+          if (este !== ultimo.current) return;
+          setServicos(s);
+          const [unica] = s.opcoes;
+          if (s.opcoes.length === 1 && unica !== undefined) {
+            setEscolha(`${unica.conta}|${unica.servico}`);
+          }
+        } else {
+          setServicos(null);
+        }
+      } catch (x) {
+        if (este !== ultimo.current) return;
+        if (semSessao(x)) {
+          navegar("/entrar", { substituir: true });
+          return;
+        }
+        setFalha(erroDaDevolucao(x));
       }
-    } catch (x) {
-      if (este !== ultimo.current) return;
-      if (semSessao(x)) {
-        navegar("/entrar", { substituir: true });
-        return;
-      }
-      setFalha(erroDaDevolucao(x));
-    }
-  }, [comerciante, d.id, d.estado, escreve, navegar]);
+    },
+    [comerciante, d.id, d.estado, escreve, navegar],
+  );
   useEffect(() => {
     void ler();
   }, [ler, d.versao]);
@@ -532,6 +540,14 @@ function EtiquetaDaDevolucao({
         conta,
         servico,
       });
+      // Incerta ou recusada é um aviso com foco, não silêncio: pode haver uma
+      // etiqueta paga (revisão, P2-2).
+      if (r.estado === "incerta") {
+        throw new ErroDoEcra("etiquetaDevolucaoFicouIncerta");
+      }
+      if (r.estado === "recusada") {
+        throw new ErroDoEcra("etiquetaDevolucaoFoiRecusada");
+      }
       return r.estado === "emitida" ? "etiquetaDevolucaoPedidaAgora" : null;
     });
   }
@@ -601,7 +617,7 @@ function EtiquetaDaDevolucao({
       </h2>
       <div ref={caixa} tabIndex={-1}>
         {erro === null ? null : (
-          <CaixaDeErro erro={erro} aoTentar={() => void ler()} />
+          <CaixaDeErro erro={erro} aoTentar={() => void ler(true)} />
         )}
         {sucesso === null ? null : (
           <p className="sucesso" role="status">
@@ -617,9 +633,11 @@ function EtiquetaDaDevolucao({
         <>
           {etiqueta === null ? (
             <p className="secundario">
-              {d.estado === "a_aguardar"
-                ? t.etiquetaDevolucaoNenhuma
-                : t.etiquetaDevolucaoSoAAguardar}
+              {d.estado !== "a_aguardar"
+                ? t.etiquetaDevolucaoSoAAguardar
+                : escreve
+                  ? t.etiquetaDevolucaoNenhuma
+                  : t.etiquetaDevolucaoSemPermissao}
             </p>
           ) : (
             <>

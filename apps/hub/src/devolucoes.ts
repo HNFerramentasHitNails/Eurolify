@@ -45,6 +45,20 @@ export function idCurto(id: string): string {
   return id.slice(-8);
 }
 
+/**
+ * A frase da contagem da lista: vazia (com ou sem filtro), uma, várias, ou
+ * as mais recentes quando chegou ao limite da API (nunca corta em silêncio).
+ */
+export function contagemDaLista(
+  n: number,
+  limite: number,
+  comFiltro: boolean,
+): keyof Textos {
+  if (n === 0) return comFiltro ? "devolucoesVazioNoFiltro" : "devolucoesVazio";
+  if (n >= limite) return "devolucoesContagemMaximo";
+  return n === 1 ? "devolucoesContagemUm" : "devolucoesContagem";
+}
+
 /** O filtro do endereço, ou null se não for um estado. */
 export function estadoDoFiltro(valor: string | null): EstadoDevolucao | null {
   return ESTADOS_DEVOLUCAO.find((e) => e === valor) ?? null;

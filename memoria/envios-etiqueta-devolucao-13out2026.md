@@ -60,10 +60,14 @@ especificação.
   de leitura) e as rotas `/hub/returns…`. O desenho é o `docs/36` §22.10. O
   Diogo aprovou-o: *«sim, aprovo; avança com o código»*.
 - **Números**, a 14/10/2026, local, contados pelo resumo do `vitest`:
-  - `apps/api/test/envios-hub-devolucoes.test.ts`: 3 verdes;
+  - `apps/api/test/envios-hub-devolucoes.test.ts`: 3 verdes, e 4 depois
+    das revisões;
   - `envios-devolucao`, `identidade-api`, `posvenda-api` e `envios-hub*`:
     verdes depois da mudança;
-  - o Hub: 300 verdes (eram 293).
+  - o Hub: 300 verdes (eram 293), e 301 depois das revisões.
+  - Duas revisões do agente (Sonnet 5.5): a primeira ficou incompleta,
+    porque a cópia de trabalho mudou de ramo a meio; a segunda não deu P0
+    nem P1. As duas estão no pedido (`docs/36` §22.11).
   - O script das capturas passou sem falhas, depois de pôr os oito
     módulos nas verificações da entrada.
 - **Ficou por verificar:**

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ErroHub, type EtiquetaDevolucao } from "../src/api";
 import {
   accoesDaEtiqueta,
+  contagemDaLista,
   erroDaDevolucao,
   estadoDoFiltro,
   INCERTA_IDADE_MINIMA_MS,
@@ -102,6 +103,14 @@ describe("a etiqueta de uma devolução", () => {
 });
 
 describe("o ecrã das devoluções", () => {
+  it("a contagem diz quando a lista chegou ao limite da API, e distingue o vazio com filtro", () => {
+    expect(contagemDaLista(200, 200, false)).toBe("devolucoesContagemMaximo");
+    expect(contagemDaLista(199, 200, false)).toBe("devolucoesContagem");
+    expect(contagemDaLista(1, 200, true)).toBe("devolucoesContagemUm");
+    expect(contagemDaLista(0, 200, false)).toBe("devolucoesVazio");
+    expect(contagemDaLista(0, 200, true)).toBe("devolucoesVazioNoFiltro");
+  });
+
   it("o filtro do endereço só aceita um estado", () => {
     expect(estadoDoFiltro("fechada")).toBe("fechada");
     expect(estadoDoFiltro("tudo")).toBeNull();

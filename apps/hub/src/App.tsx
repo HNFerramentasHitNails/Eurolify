@@ -432,12 +432,7 @@ function Ecra({
       );
     case "devolucoes":
       return (
-        <Devolucoes
-          // Outro filtro, outra lista: sem a contagem da anterior.
-          key={`${chave} ${consulta}`}
-          comerciante={comerciante}
-          consulta={consulta}
-        />
+        <Devolucoes key={chave} comerciante={comerciante} consulta={consulta} />
       );
     case "devolucao":
       return (
