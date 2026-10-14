@@ -38,6 +38,7 @@ transacção que os gatilhos lêem.
 | Stock e encomendas | `transicao_encomenda` (0047) | o estado | `quem` | sem `origem` (conferido a 10/10/2026, `base/esquema.ts`); desde a 0053, `canal` e `pedido` | — | — | sim |
 | Eventos para fora | `evento_saida` (0021) | o evento | só interno (CH: não sai nos webhooks) | — | — | — | sim |
 | Documentos fiscais | `documento_rasto` (0050) | o passo e o estado | `quem` | — | — | — | `em`, `motivo` |
+| Documentos fiscais | `recusa_conta_emissor` (0096; `docs/29` §19.7) | a empresa recusada, o passo e a ligação de quem pediu | `quem` | `canal`, `pedido` | `ia` | `autorizado_por` | `em` (as quatro colunas pelo `rasto_completar()`, desde o início) |
 
 **Desde o passo 2 (migração 0053, #334):** as oito tabelas do rasto acima,
 menos o `evento_saida`, têm as colunas `canal`, `pedido`, `ia`,

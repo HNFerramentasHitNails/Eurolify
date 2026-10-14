@@ -998,6 +998,44 @@ existir quando o modo real abrir.
   - **P3-3:** o ponto de salvaguarda é libertado depois de desfeito.
   - **P3-1, fica para decisão antes do modo real:** quem pede a autorização
     sabe se uma empresa já está ligada noutro sítio, sem saber onde. Hoje a
-    lista das contas de teste (M8) limita-o. Antes de abrir o modo real,
-    decide-se se se aceita, se se limita o ritmo ou se se registam as
-    recusas.
+    lista das contas de teste (M8) limita-o. **Decidido:** registam-se as
+    recusas (§19.7).
+
+### 19.7 O registo das recusas (14/10/2026; migração 0096; EQ)
+
+Decisão do Diogo, 14/10/2026: *«sim, regista cada recusa»* (P3-1 da revisão
+do #449). A recusa diz a quem pede que a empresa está ligada noutro sítio,
+sem dizer onde. O registo serve ao apoio do Eurolify para ver quem anda a
+experimentar empresas que não são suas.
+
+Ex.: o dono da «Loja B» pede para ligar a empresa 401965 do Moloni, que já
+está ligada a outra loja. Recebe a recusa e fica uma linha: a ligação dele, a
+empresa 401965, o passo `autorizar`, quem e quando.
+
+- **Onde fica:** na tabela `recusa_conta_emissor`. Só se acrescenta. Leva o
+  contexto comum do rasto (canal, pedido, IA, quem autorizou; `docs/28`
+  §3.1).
+- **O que tem:** a ligação de quem pediu, o emissor, a empresa pedida, o
+  passo, quem e quando.
+  - Os quatro passos: `autorizar`, ao pedir a autorização; `credenciais`, ao
+    gravar as credenciais pela API; `autorizacao`, ao voltar do emissor;
+    `teste`, no teste de uma ligação antiga.
+- **O que não tem:** a outra ligação e o outro comerciante. Cada comerciante
+  vê só as suas recusas (RLS). Quem cruza com as ligações que têm a empresa é
+  o apoio, com o papel de dono da base.
+- **Quando se escreve:** a transacção que recusa volta atrás, por isso a
+  recusa grava-se numa transacção própria, logo a seguir. No teste, a
+  transacção não volta atrás, e a recusa grava-se nela.
+  - Se o registo falhar, o pedido devolve o erro do registo e não a recusa:
+    uma recusa sem registo não passa em silêncio.
+- **Quanto tempo:** não se apaga até o jurista e o contabilista decidirem
+  quanto tempo se guarda o rasto (`docs/28`, Q4).
+  - O `quem` é o identificador da pessoa ou da chave (`per_…`, `key_…`), como
+    no resto do rasto.
+  - A empresa do emissor é um número. Não verifiquei se, para um empresário
+    em nome individual, conta como dado pessoal: fica **C** para o jurista,
+    com o resto do rasto.
+- **O que fica fora:** não há ecrã no Hub nem rota que leia o registo; o
+  apoio lê-o na base. Não há limite de ritmo, porque a decisão foi registar.
+  Um aviso automático, por exemplo ao fim de N recusas, fica para quando
+  houver comerciantes de fora.

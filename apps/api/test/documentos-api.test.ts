@@ -1702,6 +1702,40 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
       sql`update ligacao_faturacao set conta_emissor = ${empresa}
         where id = ${daB.slice(4)}::uuid`.execute(base.dono),
     ).rejects.toThrow(/ligacao_faturacao_uma_por_conta/);
+    // A empresa livre ao pedir e ligada por outro antes do regresso do
+    // Moloni: a recusa sai ao voltar (revisão do #449, P2-1).
+    const outra = moloni.credenciais().company_id;
+    const pedidoB = await ok(
+      b.adm("POST", `/invoicing-connections/${daB}/authorize`, {
+        empresa: outra,
+      }),
+    );
+    await ok(
+      a.adm("PUT", `/invoicing-connections/${daA2}/credentials`, {
+        credenciais: moloni.credenciais(outra),
+      }),
+      204,
+    );
+    expect(
+      await codigo(
+        b.adm("POST", `/invoicing-connections/${daB}/authorize/complete`, {
+          codigo: moloni.codigoAutorizacao(),
+          estado: pedidoB["estado"],
+        }),
+      ),
+    ).toEqual([409, "invoices.account_in_use"]);
+    // Cada recusa fica registada, com a ligação de quem pediu, a empresa
+    // pedida e o passo, e nunca a outra ligação (docs/29 §19.7).
+    expect(await recusasDe([daB, daA2])).toEqual([
+      { ligacao: daB, conta: empresa, passo: "autorizar", canal: "api" },
+      { ligacao: daB, conta: empresa, passo: "credenciais", canal: "api" },
+      { ligacao: daA2, conta: empresa, passo: "credenciais", canal: "api" },
+      { ligacao: daB, conta: outra, passo: "autorizacao", canal: "api" },
+    ]);
+    // Só se acrescenta.
+    await expect(
+      sql`delete from recusa_conta_emissor`.execute(base.dono),
+    ).rejects.toThrow();
     // Desligar a primeira liberta a empresa.
     const l = await ligacaoDe(a, daA);
     await ok(
@@ -1765,7 +1799,25 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(r["estado"]).toBe("com_erro");
     expect(String(r["erro"])).toContain("fale com o apoio do Eurolify");
     expect(await contaDe(daA)).toBeNull();
+    expect(await recusasDe([daA, daB])).toEqual([
+      { ligacao: daA, conta: empresa, passo: "teste", canal: "api" },
+    ]);
   });
+
+  /** As recusas registadas destas ligações, pela ordem (docs/29 §19.7). */
+  const recusasDe = async (ligacoes: string[]) =>
+    (
+      await sql<{
+        ligacao: string;
+        conta: string;
+        passo: string;
+        canal: string;
+      }>`
+        select 'isx_' || ligacao_id as ligacao, conta, passo, canal
+        from recusa_conta_emissor
+        where ligacao_id = any(${ligacoes.map((l) => l.slice(4))}::uuid[])
+        order by em`.execute(base.dono)
+    ).rows;
 
   const ligacaoDe = async (s: Cenario, id: string) =>
     (

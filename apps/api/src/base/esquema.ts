@@ -1627,6 +1627,24 @@ export interface TabelaCorrecaoExpedicao {
   em: ColumnType<Date, never, never>;
 }
 
+/**
+ * Uma recusa da mesma empresa do emissor (docs/29 §19.7, 0096): só se
+ * acrescenta; o contexto do rasto põe-no a base.
+ */
+export interface TabelaRecusaContaEmissor {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  ligacao_id: ColumnType<string, string, never>;
+  adaptador: ColumnType<string, string, never>;
+  conta: ColumnType<string, string, never>;
+  passo: ColumnType<PassoDaRecusa, PassoDaRecusa, never>;
+  quem: ColumnType<string, string, never>;
+  em: ColumnType<Date, never, never>;
+}
+
+export type PassoDaRecusa =
+  "autorizar" | "credenciais" | "autorizacao" | "teste";
+
 /** Uma encomenda parada já avisada (docs/36 §18, 0085): só se acrescenta. */
 export interface TabelaEncomendaParada {
   encomenda_id: ColumnType<string, string, never>;
@@ -1803,6 +1821,7 @@ export interface BaseDados {
   linha_encomenda_folha: TabelaLinhaEncomendaFolha;
   ligacao_faturacao: TabelaLigacaoFaturacao;
   autorizacao_faturacao: TabelaAutorizacaoFaturacao;
+  recusa_conta_emissor: TabelaRecusaContaEmissor;
   documento_fiscal: TabelaDocumentoFiscal;
   documento_conteudo: TabelaDocumentoConteudo;
   documento_prova: TabelaDocumentoProva;
