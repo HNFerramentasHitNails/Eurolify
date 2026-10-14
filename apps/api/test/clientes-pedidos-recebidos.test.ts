@@ -269,6 +269,30 @@ describe.skipIf(URL_BASE === undefined)(
       ]);
     });
 
+    it("a exportação junta também os pedidos da ficha fundida, e não os de outra ficha (revisão do #454)", async () => {
+      const fica = await ficha();
+      const absorvida = await ficha();
+      const outra = await ficha();
+      const naFica = await recebido(fica, { recebido_em: haDias(3) });
+      const naAbsorvida = await recebido(absorvida, { recebido_em: haDias(2) });
+      await recebido(outra, { recebido_em: haDias(1) });
+      await ok(
+        pedir("POST", `/customers/${fica}/merge`, {
+          absorver: absorvida,
+          ensaio: false,
+        }),
+      );
+      const e = await ok(
+        pedir("POST", `/customers/${fica}/export`, {
+          verificacao: "resposta do e-mail da ficha a 14/10/2026",
+        }),
+      );
+      expect((e["pedidos_recebidos"] as Json[]).map((x) => x["id"])).toEqual([
+        String(naFica["id"]).slice(4),
+        String(naAbsorvida["id"]).slice(4),
+      ]);
+    });
+
     it("recusa um pedido chegado no futuro, sem ficha, numa ficha que não está activa e de outra loja", async () => {
       const id = await ficha();
       await recusa(
