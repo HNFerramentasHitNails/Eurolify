@@ -1474,3 +1474,21 @@ canal).
 
 **Decidido:** Q-P3, aprovado pelo Diogo a 13/10/2026 (*«a»*), o aviso e o
 texto; programa-se a seguir à parte 1.
+
+**Em código, parte 2** (14/10/2026; A1–A4 e o texto):
+
+| O quê | Onde |
+|---|---|
+| `aviso_prazo_em` no pedido recebido: põe-se uma vez, num pedido aberto, nunca se tira nem se muda, e não no mesmo acto que prorrogar ou fechar (a guarda da 0092, redefinida) | migração 0094 |
+| a regra (A1), num sítio: aberto, sem aviso e o dia de hoje no fuso do comerciante depois do prazo em vigor (o prorrogado, se houver); as funções da tarefa (os comerciantes, os pedidos por avisar com limite, a marca, só por `sistema:…`) | 0094 (`clientes_aviso_prazo_pendentes`, `_comerciantes`, `_marcar`) |
+| a tarefa de hora a hora, por comerciante, 50 por volta, que só marca (`sistema:prazos-titular`; `tarefa:prazos_titular` no rasto) | `src/clientes/aviso-prazo.ts`, `src/servidor.ts` |
+| o tipo `privacy.deadline_passed`: ao marcar, um gatilho (sem `ALWAYS`, regra da 0091) cria uma notificação por pessoa com `customers:privacy` (hoje só o dono), na língua do Hub, com a loja, o pedido, a ficha, o tipo e os dois dias; nunca o nome, o e-mail nem o NIF (A2, A3) | 0094 |
+| no envio: quem recebe lido outra vez (`notificacao_destino`) e cancelada com `pedido_ja_fechado` se o pedido fechou entretanto | 0094 (`clientes_aviso_espera`); `src/notificacoes/repositorio.ts` |
+| o texto aprovado em pt, es e en, com o tipo do pedido em linguagem comum | `src/notificacoes/modelos.ts` |
+| a verificação diária (A4): `clientes_pedidos_sem_aviso_em_atraso()`, só a contagem dos pedidos abertos com o prazo passado há mais de um dia e sem aviso, só para o `eurolify_limpeza` | 0094; `infra/vps/ficheiros/sbin/eurolify-verificacao`, `infra/vps/preparar.sh`, `infra/vps/testes/verificacao.sh` |
+| testes, que falham sem a regra (uma vez só, o gestor não recebe, a contagem) | `test/clientes-aviso-prazo.test.ts` |
+
+O corpo em espanhol e em inglês foi traduzido do português aprovado; os
+assuntos são os aprovados. A tarefa e a contagem só vêem os comerciantes
+com um membro activo ou uma chave válida (`tarefas_comerciantes()`, 0066):
+sem nenhum, não há quem receba nem quem responda.
