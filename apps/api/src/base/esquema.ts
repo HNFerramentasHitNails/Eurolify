@@ -1557,6 +1557,8 @@ export interface TabelaExpedicao {
   peso_corrigido_g: ColumnType<number | null, never, number | null>;
   conta_escolhida_id: ColumnType<string | null, never, string | null>;
   servico_escolhido: ColumnType<string | null, never, string | null>;
+  // O peso de cada caixa (docs/36 §23, 0101); null = uma caixa.
+  volumes_g: ColumnType<number[] | null, never, number[] | null>;
   etiqueta: ColumnType<EstadoEtiqueta, never, EstadoEtiqueta>;
   etiqueta_tentativa: ColumnType<number, never, number>;
   etiqueta_motivo: ColumnType<string | null, never, string | null>;
@@ -1582,6 +1584,17 @@ export interface TabelaEtiquetaFicheiro {
   formato: ColumnType<"pdf" | "zpl", "pdf" | "zpl", never>;
   conteudo: ColumnType<Buffer, Buffer, never>;
   criado_em: ColumnType<Date, never, never>;
+  /** O volume (docs/36 §23, 0101): 1 numa expedição de uma caixa. */
+  volume: ColumnType<number, number | undefined, never>;
+}
+
+/** O seguimento de cada volume de uma expedição com vários (docs/36 §23). */
+export interface TabelaVolumeSeguimento {
+  expedicao_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  volume: ColumnType<number, number, never>;
+  seguimento: ColumnType<string, string, never>;
+  url_seguimento: ColumnType<string | null, string | null, never>;
 }
 
 /** A etiqueta de devolução pela transportadora (docs/36 §22, 0093). */
@@ -1621,7 +1634,7 @@ export interface TabelaCorrecaoExpedicao {
   id: Generated<string>;
   comerciante_id: ColumnType<string, never, never>;
   expedicao_id: ColumnType<string, never, never>;
-  campo: ColumnType<"peso" | "servico", never, never>;
+  campo: ColumnType<"peso" | "servico" | "volumes", never, never>;
   antes: ColumnType<unknown, never, never>;
   depois: ColumnType<unknown, never, never>;
   motivo: ColumnType<string | null, never, never>;
@@ -1667,6 +1680,8 @@ export interface TabelaEventoSeguimento {
   estado_normalizado: ColumnType<string, string, never>;
   em: ColumnType<Date, Date, never>;
   recebido_em: ColumnType<Date, never, never>;
+  /** O volume do evento (docs/36 §23); null numa expedição de uma caixa. */
+  volume: ColumnType<number | null, number | null | undefined, never>;
 }
 
 export interface TabelaAvisoTransportadora {
@@ -1813,6 +1828,7 @@ export interface BaseDados {
   movimento_stock: TabelaMovimentoStock;
   expedicao: TabelaExpedicao;
   etiqueta_ficheiro: TabelaEtiquetaFicheiro;
+  volume_seguimento: TabelaVolumeSeguimento;
   etiqueta_devolucao: TabelaEtiquetaDevolucao;
   etiqueta_devolucao_ficheiro: TabelaEtiquetaDevolucaoFicheiro;
   encomenda_parada: TabelaEncomendaParada;

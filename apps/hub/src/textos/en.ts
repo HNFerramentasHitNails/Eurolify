@@ -1756,4 +1756,31 @@ export const en: Textos = {
     "The carrier refused the label. The reason is below; you can request another.",
   etiquetaDevolucaoSemPermissao:
     "There is no return label yet, and your role cannot request one.",
+  // Vários volumes numa expedição (docs/36 §23).
+  volumesBotao: "Boxes",
+  volumesTitulo: "Boxes (several)",
+  volumesAjuda:
+    "When the order does not fit in one box: the weight of each box, in grams (2 to 15 boxes). One label and one tracking number per box, and the shipment is only delivered when all have arrived.",
+  volumesMaximoDoServico: "This label's service takes up to {n} boxes.",
+  volumesServicoDeUmaCaixa:
+    "This label's service only takes one box: first change the service to one that takes several.",
+  volumesLegenda: "Weight of each box",
+  volumesPesoDoVolume: "Box {n}, in grams",
+  volumesAcrescentar: "Add a box",
+  volumesTirar: "Remove the last box",
+  volumesInvalidos: "Enter the weight of each box, in grams (2 to 15 boxes).",
+  volumesMudadosAgora: "The boxes were saved.",
+  voltarAUmaCaixa: "Back to one box",
+  volumesContagem: "{n} boxes",
+  volumesLinha: "Box {n}: {g}",
+  volumesDescarregar: "Download the label for box {n}",
+  volumesDoEvento: "box {n}",
+  correccaoVolumes: "Boxes",
+  volumesPesoTotal: "Weight of all boxes",
+  volumesServicoDeUmaCaixaPeca:
+    "This label's service only takes one box: ask the owner or the manager to change the service.",
+  volumesTiraPesoCorrigido:
+    "Saving the boxes removes the manually corrected weight: the weight becomes that of each box.",
+  volumesRecusados:
+    "The label's service does not take these boxes (how many, or the weight of one of them): change the service or the boxes.",
 };

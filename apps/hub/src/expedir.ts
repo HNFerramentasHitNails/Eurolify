@@ -79,6 +79,39 @@ export function pesoDoTexto(texto: string): number | null {
   return g >= 1 && g <= 1_000_000 ? g : null;
 }
 
+/**
+ * Os pesos dos volumes (docs/36 §23): 2 a 15 caixas, cada uma com um peso
+ * válido em gramas; senão `null`.
+ */
+export function volumesDoTexto(textos: readonly string[]): number[] | null {
+  if (textos.length < 2 || textos.length > 15) return null;
+  const pesos = textos.map(pesoDoTexto);
+  return pesos.every((g): g is number => g !== null) ? pesos : null;
+}
+
+/**
+ * Quantas caixas leva o serviço que a etiqueta vai usar: o escolhido, ou o
+ * vendido, como a API decide; procura-se esse serviço (conta e código) na
+ * lista dos que servem. Se não está lá (não serve a caixa), `null`: não se
+ * sabe, e a API decide (revisão do pedido do Hub, P2-2).
+ */
+export function maxVolumesDaEtiqueta(info: {
+  escolhido: { conta: string; servico: string } | null;
+  vendido: { conta: string; servico: string } | null;
+  opcoes: readonly {
+    conta: string;
+    servico: string;
+    max_volumes?: number;
+  }[];
+}): number | null {
+  const alvo = info.escolhido ?? info.vendido;
+  if (alvo === null) return null;
+  const o = info.opcoes.find(
+    (x) => x.conta === alvo.conta && x.servico === alvo.servico,
+  );
+  return o === undefined ? null : (o.max_volumes ?? 1);
+}
+
 /** O motivo de uma correcção: pelo menos 3 caracteres, no máximo 500. */
 export const motivoServe = (texto: string) => {
   const n = texto.trim().length;

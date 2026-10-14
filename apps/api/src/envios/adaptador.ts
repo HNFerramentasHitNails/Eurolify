@@ -27,6 +27,11 @@ export interface ServicoTransportadora {
    * método `ponto`, e um método `ponto` só aceita um serviço destes.
    */
   ponto?: boolean;
+  /**
+   * Quantos volumes (caixas) leva um envio deste serviço (docs/36 §23); sem
+   * isto, 1. O `pesoMaxG` é o de cada volume.
+   */
+  maxVolumes?: number;
 }
 
 /**
@@ -68,15 +73,29 @@ export interface PedidoEtiqueta {
   pesoG: number;
   /** O ponto de recolha escolhido no checkout (docs/36 §21), se houver. */
   ponto?: string;
+  /**
+   * O peso de cada volume, em gramas, quando são 2 ou mais (docs/36 §23);
+   * `pesoG` é a soma. Sem isto, um volume com `pesoG`.
+   */
+  volumesG?: readonly number[];
   /** Para a chamada não pagar duas etiquetas (R2). */
   chaveIdempotencia: string;
 }
 
-export interface EtiquetaEmitida {
+/** A etiqueta de um volume. */
+export interface EtiquetaDoVolume {
   seguimento: string;
   /** O endereço público de seguimento (https), se a transportadora o tiver. */
   urlSeguimento: string | null;
   ficheiro: { formato: "pdf" | "zpl"; conteudo: Buffer };
+}
+
+/**
+ * A etiqueta emitida: a do volume 1 e, num envio com vários volumes
+ * (docs/36 §23), `volumes` com todos, pela ordem pedida (o 1.º é o de cima).
+ */
+export interface EtiquetaEmitida extends EtiquetaDoVolume {
+  volumes?: readonly EtiquetaDoVolume[];
 }
 
 export type ResultadoEtiqueta =

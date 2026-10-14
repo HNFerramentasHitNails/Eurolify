@@ -1318,7 +1318,10 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       "estado_transportadora",
       "expedicao_id",
       "id",
+      "volume",
     ]);
+    // As caixas (docs/36 §23): sem volumes, a lista vem vazia.
+    expect(f["seguimento_dos_volumes"]).toEqual([]);
     for (const x of daOutra) expect(texto).not.toContain(x);
     expect(texto).not.toContain("Rui Costa");
     expect(f["problemas"]).toEqual([

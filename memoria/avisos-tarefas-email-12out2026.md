@@ -44,4 +44,4 @@
 - O e-mail aponta para a lista da API, porque o ecrã «A decidir» do Hub
   (peça 21, parte 2) ainda não existe.
 - O motivo de uma mudança de prazo nunca entra no e-mail. Ligar esse motivo
-  ao apagamento de dados do titular continua por fazer (`docs/33` §6).
+  ao apagamento de dados do titular: feito a 14/10/2026 (migração 0102, `docs/33` §6).

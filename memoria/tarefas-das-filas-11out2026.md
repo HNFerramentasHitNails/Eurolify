@@ -66,7 +66,7 @@ peça 21, continua assim.
 - **Lição:** um teste que escreve a linha à mão (`update membro set ate`) não
   prova o caminho real; testar pelas funções que o produto usa.
 - Ficam, com a razão escrita no `docs/33` §13: P2-5, P2-6 (o motivo livre no
-  apagamento do titular, à espera do código da DU), P3-1, P3-4, P3-6 a P3-9.
+  apagamento do titular; ligado a 14/10/2026, migração 0102), P3-1, P3-4, P3-6 a P3-9.
 
 ## Números do código (11/10/2026)
 

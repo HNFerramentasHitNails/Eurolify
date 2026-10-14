@@ -154,7 +154,10 @@ describe.skipIf(URL_BASE === undefined)("Hub: as devoluções", () => {
     expect(typeof servicos["peso_g"]).toBe("number");
     expect(
       (servicos["opcoes"] as Json[]).map((o) => [o["conta"], o["servico"]]),
-    ).toEqual([[s.conta, "EXPRESSO_48"]]);
+    ).toEqual([
+      [s.conta, "EXPRESSO_48"],
+      [s.conta, "MULTI_48"],
+    ]);
 
     const e = await ok(
       como("armazem", "POST", `/hub/returns/${rma}/label`, {

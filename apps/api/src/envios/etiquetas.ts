@@ -112,6 +112,7 @@ export async function lerEtiqueta(
         "peso_corrigido_g",
         "conta_escolhida_id",
         "servico_escolhido",
+        "volumes_g",
         "versao",
       ])
       .where("id", "=", id)
@@ -119,12 +120,41 @@ export async function lerEtiqueta(
     if (x === undefined) {
       throw new ErroEnvios("shipping.not_found", "esta expedição não existe");
     }
-    const f = await trx
+    const ficheiros = await trx
       .selectFrom("etiqueta_ficheiro")
-      .select(["formato"])
+      .select(["volume", "formato"])
       .where("expedicao_id", "=", id)
-      .executeTakeFirst();
-    return { ...x, ficheiro: f?.formato ?? null };
+      .orderBy("volume")
+      .execute();
+    // Os volumes (docs/36 §23): o peso de cada um e, com a etiqueta, o
+    // seguimento e o ficheiro de cada um.
+    const seguimentos =
+      x.volumes_g === null
+        ? []
+        : await trx
+            .selectFrom("volume_seguimento")
+            .select(["volume", "seguimento", "url_seguimento"])
+            .where("expedicao_id", "=", id)
+            .execute();
+    const volumes =
+      x.volumes_g === null
+        ? null
+        : x.volumes_g.map((peso, i) => {
+            const s = seguimentos.find((v) => v.volume === i + 1);
+            return {
+              volume: i + 1,
+              peso_g: peso,
+              seguimento: s?.seguimento ?? null,
+              url_seguimento: s?.url_seguimento ?? null,
+              ficheiro:
+                ficheiros.find((f) => f.volume === i + 1)?.formato ?? null,
+            };
+          });
+    return {
+      ...x,
+      ficheiro: ficheiros.find((f) => f.volume === 1)?.formato ?? null,
+      volumes,
+    };
   });
 }
 
@@ -139,6 +169,7 @@ interface Preparado {
     destinatario: MoradaEtiqueta;
     pesoG: number;
     ponto?: string;
+    volumesG?: number[];
   };
 }
 
@@ -178,6 +209,7 @@ async function preparar(
         "expedicao.peso_corrigido_g",
         "expedicao.conta_escolhida_id",
         "expedicao.servico_escolhido",
+        "expedicao.volumes_g",
         "armazem.embalagem_g",
         "encomenda.entrega",
         "encomenda.contacto",
@@ -261,19 +293,28 @@ async function preparar(
       .where("linha_expedicao.expedicao_id", "=", id)
       .execute();
     const { pesoG, onu } = await conteudoDe(trx, linhas);
-    // O peso corrigido por uma pessoa ganha ao calculado (docs/36 §19).
-    if (x.peso_corrigido_g === null && pesoG === null) {
+    // Os volumes, com o peso de cada um, ganham a tudo (docs/36 §23); sem
+    // eles, o peso corrigido por uma pessoa ganha ao calculado (§19).
+    const volumes = x.volumes_g;
+    if (volumes === null && x.peso_corrigido_g === null && pesoG === null) {
       throw new ErroEnvios(
         "shipping.invalid_field",
         "uma variante da expedição não tem peso: corrija o peso da expedição (PUT …/weight) ou o da variante",
       );
     }
-    const peso = x.peso_corrigido_g ?? (pesoG ?? 0) + x.embalagem_g;
-    if (servico.pesoMaxG !== null && peso > servico.pesoMaxG) {
+    const peso =
+      volumes === null
+        ? (x.peso_corrigido_g ?? (pesoG ?? 0) + x.embalagem_g)
+        : volumes.reduce((a, b) => a + b, 0);
+    // O máximo do serviço é por volume.
+    const maisPesado = volumes === null ? peso : Math.max(...volumes);
+    if (servico.pesoMaxG !== null && maisPesado > servico.pesoMaxG) {
       throw new ErroEnvios(
         "shipping.invalid_field",
-        "a caixa pesa mais do que o serviço aceita",
-        { peso_g: peso, peso_max_g: servico.pesoMaxG },
+        volumes === null
+          ? "a caixa pesa mais do que o serviço aceita"
+          : "um volume pesa mais do que o serviço aceita",
+        { peso_g: maisPesado, peso_max_g: servico.pesoMaxG },
       );
     }
     // O serviço confere-se outra vez ao pedir (o escolhido não passou pelo
@@ -286,8 +327,9 @@ async function preparar(
       pais: entregaPais,
       ponto: pontoId !== undefined,
       temTelefone: temTelefone(telefone),
-      pesoG: peso,
+      pesoG: maisPesado,
       onu,
+      volumes: volumes?.length ?? 1,
     });
     if (porque !== null) {
       throw new ErroEnvios(
@@ -348,6 +390,7 @@ async function preparar(
         pesoG: peso,
         // O ponto escolhido no checkout (§21); a morada acima é a dele.
         ...(typeof pontoId === "string" ? { ponto: pontoId } : {}),
+        ...(volumes === null ? {} : { volumesG: [...volumes] }),
       },
     };
   });
@@ -369,7 +412,7 @@ async function registar(
     await marcar(trx, quem, `etiqueta ${r.estado}`);
     const x = await trx
       .selectFrom("expedicao")
-      .select(["etiqueta", "etiqueta_tentativa"])
+      .select(["etiqueta", "etiqueta_tentativa", "volumes_g"])
       .where("id", "=", id)
       .forUpdate()
       .executeTakeFirstOrThrow();
@@ -379,21 +422,54 @@ async function registar(
     ) {
       return;
     }
+    // Com vários volumes (docs/36 §23), uma etiqueta por volume, pela ordem
+    // pedida. Menos (ou mais) do que os volumes: não se sabe que caixas têm
+    // etiqueta, e fica incerta para uma pessoa (§23.5).
+    const pedidos = x.volumes_g?.length ?? 1;
+    const recebidas =
+      r.estado !== "emitida" ? [] : pedidos === 1 ? [r] : (r.volumes ?? []);
+    if (r.estado === "emitida" && recebidas.length !== pedidos) {
+      r = {
+        estado: "incerta",
+        motivo: `a transportadora devolveu ${String(recebidas.length)} etiquetas para ${String(pedidos)} volumes`,
+      };
+    }
     if (r.estado === "emitida") {
       await trx
         .deleteFrom("etiqueta_ficheiro")
         .where("expedicao_id", "=", id)
         .execute();
       await trx
-        .insertInto("etiqueta_ficheiro")
-        .values({
-          expedicao_id: id,
-          comerciante_id: c,
-          tentativa,
-          formato: r.ficheiro.formato,
-          conteudo: r.ficheiro.conteudo,
-        })
+        .deleteFrom("volume_seguimento")
+        .where("expedicao_id", "=", id)
         .execute();
+      for (const [i, v] of recebidas.entries()) {
+        await trx
+          .insertInto("etiqueta_ficheiro")
+          .values({
+            expedicao_id: id,
+            comerciante_id: c,
+            tentativa,
+            volume: i + 1,
+            formato: v.ficheiro.formato,
+            conteudo: v.ficheiro.conteudo,
+          })
+          .execute();
+        if (pedidos > 1) {
+          await trx
+            .insertInto("volume_seguimento")
+            .values({
+              expedicao_id: id,
+              comerciante_id: c,
+              volume: i + 1,
+              seguimento: v.seguimento,
+              url_seguimento: v.urlSeguimento,
+            })
+            .execute();
+        }
+      }
+      const [primeira] = recebidas;
+      if (primeira !== undefined) r = { estado: "emitida", ...primeira };
       await trx
         .updateTable("expedicao")
         .set({
@@ -546,8 +622,27 @@ export async function anularEtiqueta(
   }
   await noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, "etiqueta anulada");
+    // Só a etiqueta que se anulou na transportadora: se entretanto outra
+    // foi pedida (outra tentativa), nada se apaga (revisão do #453, P2-3).
+    const agora = await trx
+      .selectFrom("expedicao")
+      .select(["etiqueta", "etiqueta_tentativa"])
+      .where("id", "=", id)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    if (
+      agora.etiqueta !== "emitida" ||
+      agora.etiqueta_tentativa !== x.etiqueta_tentativa
+    ) {
+      return;
+    }
+    // Anula-se o envio inteiro: os volumes vão todos (docs/36 §23).
     await trx
       .deleteFrom("etiqueta_ficheiro")
+      .where("expedicao_id", "=", id)
+      .execute();
+    await trx
+      .deleteFrom("volume_seguimento")
       .where("expedicao_id", "=", id)
       .execute();
     await trx
@@ -673,9 +768,36 @@ export async function aplicarEventos(
   eventos: readonly EventoSeguimento[],
   origem: "aviso" | "consulta",
   quem: string,
+  /**
+   * O volume dos eventos, numa expedição com vários (docs/36 §23): cada
+   * evento fica com ele, e a expedição só fica entregue com todos.
+   */
+  volume?: number,
 ): Promise<number> {
   return noEnvios(db, c, async (trx) => {
     await marcar(trx, quem, `seguimento (${origem})`);
+    // A expedição bloqueada primeiro: dois seguimentos ao mesmo tempo (a
+    // volta e uma consulta) esperam um pelo outro, e o segundo conta os
+    // volumes entregues do primeiro (revisão do #453, P1-1).
+    const { volumes_g } = await trx
+      .selectFrom("expedicao")
+      .select("volumes_g")
+      .where("id", "=", id)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    // Numa expedição com volumes, cada evento diz de que volume é: um
+    // «entregue» sem volume entregaria a expedição inteira (P2-1).
+    if (volumes_g !== null && volume === undefined && eventos.length > 0) {
+      throw new ErroEnvios(
+        "shipping.invalid_field",
+        "a expedição tem vários volumes: os eventos de seguimento têm de dizer de que volume são",
+      );
+    }
+    const quantos = volume === undefined ? 1 : (volumes_g?.length ?? 1);
+    const doVolume =
+      volume === undefined
+        ? ""
+        : ` (volume ${String(volume)} de ${String(quantos)})`;
     const novos: EventoSeguimento[] = [];
     const problemas: string[] = [];
     // Num envio para um ponto de recolha, chegar ao ponto não é entregar
@@ -698,6 +820,7 @@ export async function aplicarEventos(
         .select("id")
         .where("expedicao_id", "=", id)
         .where("estado_normalizado", "=", "disponivel_para_levantar")
+        .$if(volume !== undefined, (q) => q.where("volume", "=", volume ?? 0))
         .executeTakeFirst()) !== undefined;
     const ordenados = [...eventos.filter(eventoValido)].sort(
       (a, b) => a.em.getTime() - b.em.getTime(),
@@ -715,10 +838,15 @@ export async function aplicarEventos(
           comerciante_id: c,
           expedicao_id: id,
           origem,
-          id_externo: e.idExterno,
+          // O mesmo evento em dois volumes conta uma vez em cada (§23).
+          id_externo:
+            volume === undefined
+              ? e.idExterno
+              : `v${String(volume)}:${e.idExterno.slice(0, 195)}`,
           estado_transportadora: e.estadoTransportadora.slice(0, 100),
           estado_normalizado: e.estadoNormalizado,
           em: e.em,
+          volume: volume ?? null,
         })
         .onConflict((oc) =>
           oc.columns(["expedicao_id", "id_externo"]).doNothing(),
@@ -729,7 +857,7 @@ export async function aplicarEventos(
         novos.push(e);
         if (e.estadoNormalizado !== ordenados[n]?.estadoNormalizado) {
           problemas.push(
-            `A transportadora deu a expedição shp_${id}, para um ponto de recolha, como entregue (${e.em.toISOString()}) sem antes a dar como disponível para levantar. Pode ser só a chegada ao ponto: confirmar com a transportadora e marcar a entrega à mão (docs/36 §21).`,
+            `A transportadora deu a expedição shp_${id}${doVolume}, para um ponto de recolha, como entregue (${e.em.toISOString()}) sem antes a dar como disponível para levantar. Pode ser só a chegada ao ponto: confirmar com a transportadora e marcar a entrega à mão (docs/36 §21).`,
           );
         }
       }
@@ -771,6 +899,14 @@ export async function aplicarEventos(
             break;
           case "entregue":
             if (x.estado === "criada") await passar("expedida");
+            // Com vários volumes, decide-se depois dos eventos, pelo estado
+            // de todos os volumes (L13; docs/36 §23.2).
+            if (
+              volume !== undefined &&
+              (x.estado === "criada" || x.estado === "expedida")
+            ) {
+              break;
+            }
             if (x.estado === "criada" || x.estado === "expedida") {
               await passar(
                 "entregue",
@@ -781,13 +917,27 @@ export async function aplicarEventos(
               );
             } else if (x.estado !== "entregue") {
               problemas.push(
-                `A transportadora deu a expedição shp_${id} como entregue (${quando}), mas no Eurolify está «${x.estado}». Confirmar com a transportadora.`,
+                `A transportadora deu a expedição shp_${id}${doVolume} como entregue (${quando}), mas no Eurolify está «${x.estado}». Confirmar com a transportadora.`,
               );
             }
             break;
           case "devolvida":
           case "perdida":
             if (x.estado === "criada") await passar("expedida");
+            // Um volume perdido ou devolvido não decide a expedição: os
+            // outros podem chegar. Fica para uma pessoa, e a expedição não
+            // fica entregue sozinha (docs/36 §23.3).
+            if (
+              volume !== undefined &&
+              (x.estado === "criada" || x.estado === "expedida")
+            ) {
+              problemas.push(
+                e.estadoNormalizado === "perdida"
+                  ? `A transportadora deu o volume ${String(volume)} de ${String(quantos)} da expedição shp_${id} como perdido (${quando}). A expedição não fica entregue sozinha: confirmar com a transportadora e reenviar ou reembolsar o que faltar.`
+                  : `O volume ${String(volume)} de ${String(quantos)} da expedição shp_${id} foi devolvido ao remetente (${quando}). A expedição não fica entregue sozinha: contactar o cliente.`,
+              );
+              break;
+            }
             if (x.estado === "criada" || x.estado === "expedida") {
               await passar(
                 e.estadoNormalizado === "perdida"
@@ -802,7 +952,7 @@ export async function aplicarEventos(
             } else if (x.estado === "entregue") {
               // Só para a frente (§4.2), mas a contradição vê-a uma pessoa.
               problemas.push(
-                `A transportadora deu a expedição shp_${id}, já entregue, como ${e.estadoNormalizado === "perdida" ? "perdida" : "devolvida"} (${quando}). Confirmar com a transportadora.`,
+                `A transportadora deu a expedição shp_${id}${doVolume}, já entregue, como ${e.estadoNormalizado === "perdida" ? "perdida" : "devolvida"} (${quando}). Confirmar com a transportadora.`,
               );
             }
             break;
@@ -817,6 +967,48 @@ export async function aplicarEventos(
           `O evento «${e.estadoNormalizado}» da transportadora (${quando}) não mudou a expedição shp_${id}: ${codigoDe(erro)}. Tratar à mão.`,
         );
         break;
+      }
+    }
+    // Com vários volumes, a expedição fica entregue quando todos os volumes
+    // têm um «entregue», com eventos novos ou já gravados: uma consulta que
+    // não traz nada de novo também acaba uma expedição que ficou para trás
+    // (revisão do #453, P1-1). A livre resolução conta do último (L13).
+    if (volume !== undefined) {
+      const x = await trx
+        .selectFrom("expedicao")
+        .select("estado")
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      if (x.estado === "criada" || x.estado === "expedida") {
+        const entregues = await trx
+          .selectFrom("evento_seguimento")
+          .select([
+            sql<number>`count(distinct volume)::int`.as("n"),
+            sql<Date | null>`max(em)`.as("ultimo"),
+          ])
+          .where("expedicao_id", "=", id)
+          .where("estado_normalizado", "=", "entregue")
+          .where("volume", "is not", null)
+          .executeTakeFirstOrThrow();
+        if (entregues.n >= quantos) {
+          await sql`savepoint seguimento`.execute(trx);
+          try {
+            if (x.estado === "criada") await passar("expedida");
+            await passar(
+              "entregue",
+              `transportadora: os ${String(quantos)} volumes entregues, o último a ${entregues.ultimo === null ? "?" : new Date(entregues.ultimo).toISOString()}`.slice(
+                0,
+                500,
+              ),
+            );
+            await sql`release savepoint seguimento`.execute(trx);
+          } catch (erro) {
+            await sql`rollback to savepoint seguimento`.execute(trx);
+            problemas.push(
+              `Todos os volumes da expedição shp_${id} foram entregues, mas a expedição não mudou: ${codigoDe(erro)}. Tratar à mão.`,
+            );
+          }
+        }
       }
     }
     if (problemas.length > 0) {
@@ -857,19 +1049,66 @@ export async function consultarSeguimento(
       "a expedição não tem etiqueta emitida",
     );
   }
-  let eventos: EventoSeguimento[];
-  try {
-    eventos = await comTempo(
-      cfg,
-      adaptador.consultarSeguimento(credenciais, x.seguimento),
-    );
-  } catch {
+  // Com vários volumes (docs/36 §23), o seguimento de cada um; decide-se
+  // pelos volumes da expedição, e os números têm de bater certo com eles
+  // (revisão do #453, P2-1).
+  const { volumes_g, volumes } = await noEnvios(db, c, async (trx) => ({
+    volumes_g: (
+      await trx
+        .selectFrom("expedicao")
+        .select("volumes_g")
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow()
+    ).volumes_g,
+    volumes: await trx
+      .selectFrom("volume_seguimento")
+      .select(["volume", "seguimento"])
+      .where("expedicao_id", "=", id)
+      .orderBy("volume")
+      .execute(),
+  }));
+  if (volumes_g !== null && volumes.length !== volumes_g.length) {
     throw new ErroEnvios(
-      "shipping.carrier_unavailable",
-      "a transportadora não respondeu",
+      "shipping.invalid_field",
+      `a expedição tem ${String(volumes_g.length)} volumes e ${String(volumes.length)} números de seguimento: tratar à mão`,
     );
   }
-  return aplicarEventos(db, c, id, eventos, "consulta", quem);
+  const consultar = async (seguimento: string) => {
+    try {
+      return await comTempo(
+        cfg,
+        adaptador.consultarSeguimento(credenciais, seguimento),
+      );
+    } catch {
+      throw new ErroEnvios(
+        "shipping.carrier_unavailable",
+        "a transportadora não respondeu",
+      );
+    }
+  };
+  if (volumes_g === null) {
+    return aplicarEventos(
+      db,
+      c,
+      id,
+      await consultar(x.seguimento),
+      "consulta",
+      quem,
+    );
+  }
+  let novos = 0;
+  for (const v of volumes) {
+    novos += await aplicarEventos(
+      db,
+      c,
+      id,
+      await consultar(v.seguimento),
+      "consulta",
+      quem,
+      v.volume,
+    );
+  }
+  return novos;
 }
 
 /** Os eventos de seguimento de uma expedição, por ordem. */
@@ -896,6 +1135,7 @@ export async function listarEventos(
         "estado_normalizado",
         "em",
         "recebido_em",
+        "volume",
       ])
       .where("expedicao_id", "=", id)
       .orderBy("em")
@@ -909,12 +1149,14 @@ export async function ficheiroDaEtiqueta(
   db: Kysely<BaseDados>,
   c: string,
   id: string,
+  volume = 1,
 ) {
   const f = await noEnvios(db, c, (trx) =>
     trx
       .selectFrom("etiqueta_ficheiro")
       .select(["formato", "conteudo"])
       .where("expedicao_id", "=", id)
+      .where("volume", "=", volume)
       .executeTakeFirst(),
   );
   if (f === undefined) {
@@ -1026,7 +1268,21 @@ export async function receberAviso(
         .where("id", "=", ref[1])
         .where("etiqueta_tentativa", "=", Number(ref[2]));
     } else if (leitura.seguimento !== null) {
-      q = q.where("seguimento", "=", leitura.seguimento);
+      // O número de qualquer volume de uma expedição com vários (§23).
+      const seguimento = leitura.seguimento;
+      q = q.where((w) =>
+        w.or([
+          w("seguimento", "=", seguimento),
+          w(
+            "id",
+            "in",
+            w
+              .selectFrom("volume_seguimento")
+              .select("expedicao_id")
+              .where("seguimento", "=", seguimento),
+          ),
+        ]),
+      );
     } else {
       return undefined;
     }
@@ -1053,19 +1309,27 @@ export async function receberAviso(
     return true;
   }
   try {
-    await aplicarEventos(
+    // Numa expedição com vários volumes, o aviso não diz de que volume são
+    // os eventos: é só um sinal para consultar cada um (docs/36 §23).
+    const variosVolumes = await noEnvios(
       db,
       c,
-      expedicao,
-      leitura.eventos,
-      "aviso",
-      QUEM_DAS_TAREFAS,
+      async (trx) =>
+        (
+          await trx
+            .selectFrom("expedicao")
+            .select("volumes_g")
+            .where("id", "=", expedicao)
+            .executeTakeFirstOrThrow()
+        ).volumes_g !== null,
     );
+    const eventos = variosVolumes ? [] : leitura.eventos;
+    await aplicarEventos(db, c, expedicao, eventos, "aviso", QUEM_DAS_TAREFAS);
     // Um aviso sem eventos é um sinal para consultar (docs/36 §16, D4: a
     // Sendcloud): a volta consulta esta expedição daqui a um minuto.
     // Só numa expedição que ainda anda: numa acabada, o trabalho é apagar o
     // ficheiro aos 30 dias (Q7), e não se antecipa (revisão do #406, P2-3).
-    if (leitura.eventos.length === 0) {
+    if (eventos.length === 0) {
       await noEnvios(db, c, async (trx) => {
         const x = await trx
           .selectFrom("expedicao")

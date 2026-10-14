@@ -44,17 +44,35 @@ export function transportadoraFalsa() {
     /** Como responde ao próximo pedido de etiqueta de devolução (docs/36 §22). */
     pedirDevolucao: "emitir" as "emitir" | "recusar" | "rede" | "erro",
     pedidosDevolucao: [] as PedidoEtiqueta[],
+    /** Quantas etiquetas devolve num envio com vários volumes (null = todas). */
+    volumesDevolvidos: null as number | null,
   };
-  const emitir = (referencia: string): EtiquetaEmitida => {
+  const umaEtiqueta = (referencia: string, volume: number) => {
     estado.numero += 1;
-    const e: EtiquetaEmitida = {
+    return {
       seguimento: `EA${String(estado.numero).padStart(9, "0")}PT`,
       urlSeguimento: `https://seguimento.exemplo/EA${String(estado.numero)}`,
       ficheiro: {
-        formato: "pdf",
-        conteudo: Buffer.from(`%PDF-falso ${referencia}`),
+        formato: "pdf" as const,
+        conteudo: Buffer.from(
+          `%PDF-falso ${referencia} volume ${String(volume)}`,
+        ),
       },
     };
+  };
+  const emitir = (referencia: string, volumes = 1): EtiquetaEmitida => {
+    const todas = Array.from({ length: volumes }, (_, i) =>
+      umaEtiqueta(referencia, i + 1),
+    );
+    const dadas =
+      volumes > 1 && estado.volumesDevolvidos !== null
+        ? todas.slice(0, estado.volumesDevolvidos)
+        : todas;
+    const [primeira] = dadas;
+    if (primeira === undefined) throw new Error("sem etiquetas");
+    // Várias caixas (docs/36 §23): uma etiqueta por volume.
+    const e: EtiquetaEmitida =
+      volumes > 1 ? { ...primeira, volumes: dadas } : primeira;
     estado.etiquetas.set(referencia, e);
     return e;
   };
@@ -88,6 +106,16 @@ export function transportadoraFalsa() {
         pedeEmail: false,
         aceitaOnu: [],
         ponto: true,
+      },
+      {
+        codigo: "MULTI_48",
+        nome: { pt: "Várias caixas, 48 h" },
+        paises: ["PT"],
+        pesoMaxG: 5_000,
+        pedeTelefone: false,
+        pedeEmail: false,
+        aceitaOnu: [],
+        maxVolumes: 3,
       },
       {
         codigo: "SO_ESPANHA",
@@ -126,13 +154,16 @@ export function transportadoraFalsa() {
         case "rede":
           throw new ErroDeRede("tempo esgotado");
         case "rede_mas_criada":
-          emitir(pedido.referencia);
+          emitir(pedido.referencia, pedido.volumesG?.length ?? 1);
           throw new ErroDeRede("tempo esgotado");
         case "pendurar":
           // Nunca responde: o núcleo tem de desistir sozinho.
           return new Promise<never>(() => undefined);
         default:
-          return { estado: "emitida", ...emitir(pedido.referencia) };
+          return {
+            estado: "emitida",
+            ...emitir(pedido.referencia, pedido.volumesG?.length ?? 1),
+          };
       }
     },
     pedirEtiquetaDevolucao(_c, pedido) {

@@ -294,6 +294,19 @@ export interface EtiquetaExpedicao {
   peso_corrigido_g?: number | null;
   escolhido?: { conta: string; servico: string } | null;
   versao?: number;
+  /** O peso de cada caixa (docs/36 §23); null ou ausente = uma caixa. */
+  volumes_g?: number[] | null;
+  /** Com vários volumes: o seguimento e o ficheiro de cada um. */
+  volumes?: VolumeDaEtiqueta[] | null;
+}
+
+/** Um volume de uma expedição com várias caixas (docs/36 §23). */
+export interface VolumeDaEtiqueta {
+  volume: number;
+  peso_g: number;
+  seguimento: string | null;
+  url_seguimento: string | null;
+  ficheiro: string | null;
 }
 
 /** Um serviço que serve a expedição (docs/36 §19). */
@@ -303,6 +316,8 @@ export interface OpcaoDeServico {
   transportadora: string;
   servico: string;
   nome: Record<string, string>;
+  /** Quantas caixas o serviço leva num envio (docs/36 §23). */
+  max_volumes?: number;
   vendido: boolean;
   escolhido: boolean;
 }
@@ -312,6 +327,8 @@ export interface ServicosDaExpedicao {
   versao: number;
   peso_calculado_g: number | null;
   peso_corrigido_g: number | null;
+  /** O peso de cada caixa (docs/36 §23); null = uma caixa. */
+  volumes_g?: number[] | null;
   vendido: { conta: string; servico: string } | null;
   escolhido: { conta: string; servico: string } | null;
   /** Porque é que o serviço escolhido já não serve (em português), ou null. */
@@ -395,7 +412,7 @@ export interface ServicosDaDevolucao {
 
 /** Uma correcção do peso ou do serviço, com o motivo (docs/36 §19). */
 export interface CorrecaoExpedicao {
-  campo: "peso" | "servico";
+  campo: "peso" | "servico" | "volumes";
   antes: unknown;
   depois: unknown;
   motivo: string | null;
@@ -409,6 +426,8 @@ export interface EventoSeguimento {
   estado: string;
   estado_transportadora: string;
   em: string;
+  /** O volume (docs/36 §23); null numa expedição de uma caixa. */
+  volume?: number | null;
 }
 
 /** Um serviço de uma conta (docs/36 §8). */
@@ -1342,6 +1361,17 @@ export const api = {
       `/hub/shipments/${encodeURIComponent(id)}/weight`,
       { comerciante, corpo },
     ),
+  /** Os volumes da expedição (docs/36 §23): 2 a 15 pesos, ou null. */
+  mudarVolumes: (
+    comerciante: string,
+    id: string,
+    corpo: { versao: number; volumes_g: number[] | null; motivo: string },
+  ) =>
+    pedir<{ versao: number }>(
+      "PUT",
+      `/hub/shipments/${encodeURIComponent(id)}/volumes`,
+      { comerciante, corpo },
+    ),
   mudarServico: (
     comerciante: string,
     id: string,
@@ -1364,9 +1394,9 @@ export const api = {
       { comerciante },
     ),
   /** O ficheiro da etiqueta (PDF ou ZPL), em bytes, para descarregar. */
-  ficheiroEtiqueta: (comerciante: string, id: string) =>
+  ficheiroEtiqueta: (comerciante: string, id: string, volume = 1) =>
     pedirBytes(
-      `/hub/shipments/${encodeURIComponent(id)}/label/file`,
+      `/hub/shipments/${encodeURIComponent(id)}/label/file${volume === 1 ? "" : `?volume=${String(volume)}`}`,
       comerciante,
     ),
   // As devoluções e a etiqueta de devolução (docs/36 §22.10).

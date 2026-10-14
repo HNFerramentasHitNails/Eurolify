@@ -7178,6 +7178,162 @@ try {
     }
   }
 
+  // Vários volumes (docs/36 §23): o formulário «Volumes» antes da etiqueta,
+  // e a etiqueta emitida com duas caixas, cada uma com o seu seguimento e o
+  // seu PDF. Respostas simuladas (em modo teste a Sendcloud não tem serviços
+  // de várias caixas); dados fictícios.
+  const simularVolumes = async (contexto, emitida) => {
+    await simular(contexto);
+    const json = (corpo) => ({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "private, no-store" },
+      body: JSON.stringify(corpo),
+    });
+    const conta = "cac_0199e000-0000-7000-8000-000000000003";
+    await contexto.route(`**/hub/shipments/${EXPEDICAO_SIMULADA}/label`, (r) =>
+      r.fulfill(
+        json({
+          expedicao: EXPEDICAO_SIMULADA,
+          estado_expedicao: "criada",
+          etiqueta: emitida ? "emitida" : "por_pedir",
+          tentativa: emitida ? 1 : 0,
+          motivo: null,
+          em: emitida ? "2026-10-14T09:30:00.000Z" : null,
+          conta: emitida ? conta : null,
+          transportadora: emitida ? "sendcloud" : null,
+          servico: emitida ? "postnl:multi" : null,
+          seguimento: emitida ? "3SMULTI0000001" : null,
+          url_seguimento: null,
+          peso_g: emitida ? 4000 : null,
+          ficheiro: emitida ? "pdf" : null,
+          peso_corrigido_g: null,
+          escolhido: { conta, servico: "postnl:multi" },
+          volumes_g: [1200, 2800],
+          volumes: [
+            {
+              volume: 1,
+              peso_g: 1200,
+              seguimento: emitida ? "3SMULTI0000001" : null,
+              url_seguimento: null,
+              ficheiro: emitida ? "pdf" : null,
+            },
+            {
+              volume: 2,
+              peso_g: 2800,
+              seguimento: emitida ? "3SMULTI0000002" : null,
+              url_seguimento: null,
+              ficheiro: emitida ? "pdf" : null,
+            },
+          ],
+          versao: 5,
+        }),
+      ),
+    );
+    await contexto.route(
+      `**/hub/shipments/${EXPEDICAO_SIMULADA}/corrections`,
+      (r) =>
+        r.fulfill(
+          json({
+            dados: [
+              {
+                campo: "volumes",
+                antes: null,
+                depois: [1200, 2800],
+                motivo: "não cabe numa caixa",
+                quem: "pessoa:per_0199e000-0000-7000-8000-000000000009",
+                em: "2026-10-14T09:05:00.000Z",
+              },
+            ],
+          }),
+        ),
+    );
+    await contexto.route(
+      `**/hub/shipments/${EXPEDICAO_SIMULADA}/services`,
+      (r) =>
+        r.fulfill(
+          json({
+            versao: 5,
+            peso_calculado_g: 3900,
+            peso_corrigido_g: null,
+            volumes_g: [1200, 2800],
+            vendido: { conta, servico: "sendcloud:letter" },
+            escolhido: { conta, servico: "postnl:multi" },
+            escolhido_nao_serve: null,
+            opcoes: [
+              {
+                conta,
+                conta_nome: "Sendcloud",
+                transportadora: "sendcloud",
+                servico: "postnl:multi",
+                nome: { pt: "PostNL, várias caixas" },
+                max_volumes: 15,
+                vendido: false,
+                escolhido: true,
+              },
+            ],
+          }),
+        ),
+    );
+  };
+  for (const tema of ["light", "dark"]) {
+    for (const largura of [375, 768, 1280]) {
+      for (const [nome, emitida] of [
+        ["expedir-volumes", false],
+        ["expedir-volumes-emitida", true],
+      ]) {
+        const c = await navegador.newContext({
+          ignoreHTTPSErrors: true,
+          colorScheme: tema,
+          viewport: { width: largura, height: 900 },
+          storageState: sessao,
+        });
+        await simularVolumes(c, emitida);
+        const p = await c.newPage();
+        await p.goto(
+          `${ORIGEM}/expedir/${ENCOMENDA_SIMULADA}?comerciante=mer_${comerciante}`,
+        );
+        await p.getByRole("heading", { name: /Encomenda de/ }).waitFor();
+        if (emitida) {
+          await p
+            .getByRole("button", { name: "Descarregar a etiqueta da caixa 2" })
+            .waitFor();
+          confere(
+            (await p
+              .getByRole("button", {
+                name: "Descarregar a etiqueta",
+                exact: true,
+              })
+              .count()) === 0,
+            `${nome} ${String(largura)} ${tema}: com várias caixas, um PDF por caixa`,
+          );
+        } else {
+          await p.getByRole("button", { name: "Volumes", exact: true }).click();
+          await p.getByLabel("Caixa 2, em gramas").waitFor();
+          confere(
+            (await p.getByLabel("Caixa 2, em gramas").inputValue()) === "2800",
+            `${nome} ${String(largura)} ${tema}: o formulário traz os volumes guardados`,
+          );
+        }
+        const largo = await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        );
+        confere(
+          !largo,
+          `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
+        );
+        await p.screenshot({
+          path: join(
+            SAIDA,
+            `${nome}-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+          ),
+          fullPage: true,
+        });
+        await c.close();
+      }
+    }
+  }
+
   // As capturas: os ecrãs × 3 larguras × 2 temas.
   const ecras = [
     ["entrar", "/entrar", "Entrar no Hub"],

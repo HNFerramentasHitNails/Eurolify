@@ -29,6 +29,7 @@ import {
   comEtiqueta,
   conferirQuantidades,
   erroDeExpedir,
+  maxVolumesDaEtiqueta,
   motivoServe,
   nomeDoMetodo,
   pesoDoTexto,
@@ -38,6 +39,7 @@ import {
   TEXTO_DO_ESTADO_DA_ETIQUETA,
   TEXTO_DO_ESTADO_DA_EXPEDICAO,
   totalPorExpedir,
+  volumesDoTexto,
 } from "../expedir";
 import { entradaDe } from "../modulos";
 import { preencher, TAG_LINGUA, type Textos } from "../textos";
@@ -628,13 +630,13 @@ function Expedicao({
     seguimento: seguimento.trim() === "" ? null : seguimento.trim(),
   });
 
-  async function descarregar() {
+  async function descarregar(volume = 1, formato = etiqueta?.ficheiro) {
     try {
-      const bytes = await api.ficheiroEtiqueta(comerciante, x.id);
+      const bytes = await api.ficheiroEtiqueta(comerciante, x.id, volume);
       const url = URL.createObjectURL(bytes);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `etiqueta-${x.id}.${etiqueta?.ficheiro === "zpl" ? "zpl" : "pdf"}`;
+      a.download = `etiqueta-${x.id}${volume === 1 ? "" : `-volume-${String(volume)}`}.${formato === "zpl" ? "zpl" : "pdf"}`;
       document.body.append(a);
       a.click();
       a.remove();
@@ -715,7 +717,8 @@ function Expedicao({
                 </p>
               ) : null}
               <dl>
-                {etiqueta.seguimento === null ? null : (
+                {etiqueta.seguimento === null ||
+                etiqueta.volumes != null ? null : (
                   <>
                     <dt>{t.etiquetaSeguimento}</dt>
                     <dd>
@@ -736,7 +739,11 @@ function Expedicao({
                 )}
                 {etiqueta.peso_g === null ? null : (
                   <>
-                    <dt>{t.etiquetaPeso}</dt>
+                    <dt>
+                      {etiqueta.volumes == null
+                        ? t.etiquetaPeso
+                        : t.volumesPesoTotal}
+                    </dt>
                     <dd>
                       {preencher(t.etiquetaGramas, { g: etiqueta.peso_g })}
                     </dd>
@@ -745,6 +752,60 @@ function Expedicao({
               </dl>
               {etiqueta.peso_corrigido_g == null ? null : (
                 <p className="secundario">{t.pesoCorrigidoNota}</p>
+              )}
+              {etiqueta.volumes == null ? null : (
+                // Várias caixas (docs/36 §23): o peso, o seguimento e o
+                // ficheiro de cada uma.
+                <>
+                  <h4>
+                    {preencher(t.volumesContagem, {
+                      n: etiqueta.volumes.length,
+                    })}
+                  </h4>
+                  <ol className="eventos">
+                    {etiqueta.volumes.map((v) => (
+                      <li key={v.volume}>
+                        {preencher(t.volumesLinha, {
+                          n: v.volume,
+                          g: preencher(t.etiquetaGramas, { g: v.peso_g }),
+                        })}
+                        {v.seguimento === null ? null : (
+                          <>
+                            {" — "}
+                            {v.url_seguimento === null ||
+                            !v.url_seguimento.startsWith("https://") ? (
+                              <code translate="no">{v.seguimento}</code>
+                            ) : (
+                              <a
+                                href={v.url_seguimento}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {v.seguimento}
+                              </a>
+                            )}
+                          </>
+                        )}
+                        {v.ficheiro === null ? null : (
+                          <>
+                            {" "}
+                            <button
+                              type="button"
+                              disabled={ocupado !== null}
+                              onClick={() =>
+                                void descarregar(v.volume, v.ficheiro)
+                              }
+                            >
+                              {preencher(t.volumesDescarregar, {
+                                n: v.volume,
+                              })}
+                            </button>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
               {etiqueta.escolhido == null ? null : (
                 <p className="secundario">
@@ -770,7 +831,8 @@ function Expedicao({
                     {ocupado === "pedir" ? t.etiquetaAPedir : t.etiquetaPedir}
                   </button>
                 ) : null}
-                {etiqueta.ficheiro === null ? null : (
+                {etiqueta.ficheiro === null ||
+                etiqueta.volumes != null ? null : (
                   <button
                     type="button"
                     disabled={ocupado !== null}
@@ -816,6 +878,7 @@ function Expedicao({
                 <Correccoes
                   comerciante={comerciante}
                   expedicao={x.id}
+                  comVolumes={etiqueta.volumes_g != null}
                   mudaServico={mudaServico}
                   ocupado={ocupado !== null}
                   concluido={async (texto) => {
@@ -836,7 +899,9 @@ function Expedicao({
                         {data(cr.em)} —{" "}
                         {cr.campo === "peso"
                           ? t.correccaoPeso
-                          : t.correccaoServico}
+                          : cr.campo === "volumes"
+                            ? t.correccaoVolumes
+                            : t.correccaoServico}
                         :{" "}
                         {cr.depois === null
                           ? t.correccaoVoltou
@@ -844,9 +909,17 @@ function Expedicao({
                             ? preencher(t.etiquetaGramas, {
                                 g: Number(cr.depois),
                               })
-                            : String(
-                                (cr.depois as { servico?: string }).servico,
-                              )}
+                            : cr.campo === "volumes"
+                              ? (Array.isArray(cr.depois) ? cr.depois : [])
+                                  .map((g: unknown) =>
+                                    preencher(t.etiquetaGramas, {
+                                      g: Number(g),
+                                    }),
+                                  )
+                                  .join(" + ")
+                              : String(
+                                  (cr.depois as { servico?: string }).servico,
+                                )}
                         {cr.motivo === null ? "" : ` (${cr.motivo})`}
                       </li>
                     ))}
@@ -860,7 +933,11 @@ function Expedicao({
                 <ol className="eventos">
                   {eventos.map((ev, i) => (
                     <li key={`${ev.em}-${String(i)}`}>
-                      {data(ev.em)} — {ev.estado_transportadora}
+                      {data(ev.em)} —{" "}
+                      {ev.volume == null
+                        ? ""
+                        : `${preencher(t.volumesDoEvento, { n: ev.volume })}: `}
+                      {ev.estado_transportadora}
                     </li>
                   ))}
                 </ol>
@@ -1002,12 +1079,15 @@ function Expedicao({
 function Correccoes({
   comerciante,
   expedicao,
+  comVolumes,
   mudaServico,
   ocupado,
   concluido,
 }: {
   comerciante: string;
   expedicao: string;
+  /** Com vários volumes, o peso corrige-se neles (docs/36 §23.9). */
+  comVolumes: boolean;
   mudaServico: boolean;
   ocupado: boolean;
   /** Depois de gravar: o texto do sucesso, e a expedição relida. */
@@ -1016,21 +1096,42 @@ function Correccoes({
   const { t, lingua, navegar } = useHub();
   const [aGravar, setAGravar] = useState(false);
   const tituloRef = useRef<HTMLHeadingElement>(null);
-  const [aberto, setAberto] = useState<"peso" | "servico" | null>(null);
+  const [aberto, setAberto] = useState<"peso" | "servico" | "volumes" | null>(
+    null,
+  );
   const [info, setInfo] = useState<ServicosDaExpedicao | null>(null);
   const [falha, setFalha] = useState<unknown>(null);
   const [peso, setPeso] = useState("");
   const [servico, setServico] = useState("");
+  // O peso de cada caixa, como se escreveu (docs/36 §23).
+  const [pesos, setPesos] = useState<string[]>([]);
   const [motivo, setMotivo] = useState("");
   const [invalido, setInvalido] = useState<keyof Textos | null>(null);
   const id = `correccao-${expedicao}`;
+  // Uma caixa acrescentada: o foco vai para o campo dela (revisão, P2-5).
+  const caixasAntes = useRef(0);
+  useEffect(() => {
+    if (aberto === "volumes" && pesos.length > caixasAntes.current) {
+      if (caixasAntes.current > 0) {
+        document
+          .getElementById(`${id}-volume-${String(pesos.length)}`)
+          ?.focus();
+      }
+    }
+    caixasAntes.current = pesos.length;
+  }, [aberto, pesos.length, id]);
   // Ao abrir, o foco vai para o título do formulário (o botão que o abriu
   // desaparece; revisão do #429, P3-4).
   useEffect(() => {
     if (aberto !== null) tituloRef.current?.focus();
   }, [aberto]);
 
-  async function abrir(qual: "peso" | "servico") {
+  // Abrir, cancelar e abrir outro depressa: só conta a última resposta
+  // (revisão, P3-7), como nos outros ecrãs deste ficheiro.
+  const ultimoAbrir = useRef(0);
+
+  async function abrir(qual: "peso" | "servico" | "volumes") {
+    const este = ++ultimoAbrir.current;
     setAberto(qual);
     setInfo(null);
     setFalha(null);
@@ -1038,19 +1139,27 @@ function Correccoes({
     setMotivo("");
     try {
       const r = await api.servicosDaExpedicao(comerciante, expedicao);
+      if (este !== ultimoAbrir.current) return;
       setInfo(r);
       setPeso(r.peso_corrigido_g === null ? "" : String(r.peso_corrigido_g));
+      setPesos(
+        r.volumes_g === null || r.volumes_g === undefined
+          ? ["", ""]
+          : r.volumes_g.map(String),
+      );
       const actual =
         r.opcoes.find((o) => o.escolhido) ?? r.opcoes.find((o) => o.vendido);
       setServico(
         actual === undefined ? "" : `${actual.conta}|${actual.servico}`,
       );
     } catch (e) {
+      if (este !== ultimoAbrir.current) return;
       setFalha(erroDeExpedir(e));
     }
   }
 
   function fechar() {
+    ++ultimoAbrir.current;
     setAberto(null);
     setInfo(null);
   }
@@ -1069,7 +1178,15 @@ function Correccoes({
         navegar("/entrar", { substituir: true });
         return;
       }
-      setFalha(erroDeExpedir(mostrar));
+      // A recusa dos volumes não é a da etiqueta: o serviço não leva estas
+      // caixas (revisão, P2-3).
+      setFalha(
+        aberto === "volumes" &&
+          mostrar instanceof ErroHub &&
+          mostrar.codigo === "shipping.invalid_field"
+          ? new ErroDoEcra("volumesRecusados")
+          : erroDeExpedir(mostrar),
+      );
     } finally {
       setAGravar(false);
     }
@@ -1080,6 +1197,23 @@ function Correccoes({
     if (info === null || aberto === null) return;
     if (!motivoServe(motivo)) {
       setInvalido("motivoEmFalta");
+      return;
+    }
+    if (aberto === "volumes") {
+      const v = voltar ? null : volumesDoTexto(pesos);
+      if (!voltar && v === null) {
+        setInvalido("volumesInvalidos");
+        return;
+      }
+      void gravar(
+        () =>
+          api.mudarVolumes(comerciante, expedicao, {
+            versao: info.versao,
+            volumes_g: v,
+            motivo: motivo.trim(),
+          }),
+        "volumesMudadosAgora",
+      );
       return;
     }
     if (aberto === "peso") {
@@ -1122,12 +1256,21 @@ function Correccoes({
   if (aberto === null) {
     return (
       <div className="accoes">
+        {comVolumes ? null : (
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => void abrir("peso")}
+          >
+            {t.corrigirPeso}
+          </button>
+        )}
         <button
           type="button"
           disabled={ocupado}
-          onClick={() => void abrir("peso")}
+          onClick={() => void abrir("volumes")}
         >
-          {t.corrigirPeso}
+          {t.volumesBotao}
         </button>
         {mudaServico ? (
           <button
@@ -1142,7 +1285,13 @@ function Correccoes({
     );
   }
 
-  const titulo = aberto === "peso" ? t.corrigirPeso : t.mudarServico;
+  const titulo =
+    aberto === "peso"
+      ? t.corrigirPeso
+      : aberto === "volumes"
+        ? t.volumesTitulo
+        : t.mudarServico;
+  const maxVolumes = info === null ? null : maxVolumesDaEtiqueta(info);
   return (
     <form
       className="cartao"
@@ -1161,6 +1310,78 @@ function Correccoes({
         falha === null ? (
           <ACarregar />
         ) : null
+      ) : aberto === "volumes" ? (
+        <>
+          <p className="secundario">{t.volumesAjuda}</p>
+          {maxVolumes === null ? null : (
+            <p className={maxVolumes > 1 ? "secundario" : "aviso"} role="note">
+              {maxVolumes > 1
+                ? preencher(t.volumesMaximoDoServico, { n: maxVolumes })
+                : mudaServico
+                  ? t.volumesServicoDeUmaCaixa
+                  : t.volumesServicoDeUmaCaixaPeca}
+            </p>
+          )}
+          {info.peso_corrigido_g === null ? null : (
+            <p className="aviso" role="note">
+              {t.volumesTiraPesoCorrigido}
+            </p>
+          )}
+          <fieldset
+            {...(invalido === "volumesInvalidos"
+              ? { "aria-describedby": `${id}-erro` }
+              : {})}
+          >
+            <legend>{t.volumesLegenda}</legend>
+            {pesos.map((p, i) => (
+              <div className="campo" key={String(i)}>
+                <label htmlFor={`${id}-volume-${String(i + 1)}`}>
+                  {preencher(t.volumesPesoDoVolume, { n: i + 1 })}
+                </label>
+                <input
+                  id={`${id}-volume-${String(i + 1)}`}
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={1_000_000}
+                  value={p}
+                  {...(invalido === "volumesInvalidos" &&
+                  pesoDoTexto(p) === null
+                    ? { "aria-invalid": true, "aria-describedby": `${id}-erro` }
+                    : {})}
+                  onChange={(ev) => {
+                    const novo = [...pesos];
+                    novo[i] = ev.target.value;
+                    setPesos(novo);
+                    setInvalido(null);
+                  }}
+                />
+              </div>
+            ))}
+            {/* Os botões ficam, desligados no limite: o foco não se perde
+                (revisão, P2-5). */}
+            <div className="accoes">
+              <button
+                type="button"
+                disabled={pesos.length >= Math.min(15, maxVolumes ?? 15)}
+                onClick={() => {
+                  setPesos([...pesos, ""]);
+                }}
+              >
+                {t.volumesAcrescentar}
+              </button>
+              <button
+                type="button"
+                disabled={pesos.length <= 2}
+                onClick={() => {
+                  setPesos(pesos.slice(0, -1));
+                }}
+              >
+                {t.volumesTirar}
+              </button>
+            </div>
+          </fieldset>
+        </>
       ) : aberto === "peso" ? (
         <>
           <p className="secundario">
@@ -1266,12 +1487,25 @@ function Correccoes({
       )}
       <div className="accoes">
         {info === null ? null : (
-          <button type="submit" className="principal" disabled={aGravar}>
+          <button
+            type="submit"
+            className="principal"
+            disabled={
+              aGravar ||
+              // Já se sabe que o serviço não leva estas caixas (P2-4).
+              (aberto === "volumes" &&
+                maxVolumes !== null &&
+                pesos.length > maxVolumes)
+            }
+          >
             {aGravar ? t.aCarregar : t.guardarCorreccao}
           </button>
         )}
         {info !== null &&
         ((aberto === "peso" && info.peso_corrigido_g !== null) ||
+          (aberto === "volumes" &&
+            info.volumes_g !== null &&
+            info.volumes_g !== undefined) ||
           (aberto === "servico" && info.escolhido !== null)) ? (
           <button
             type="button"
@@ -1280,7 +1514,11 @@ function Correccoes({
               guardar(e, true);
             }}
           >
-            {aberto === "peso" ? t.voltarAoCalculado : t.voltarAoVendido}
+            {aberto === "peso"
+              ? t.voltarAoCalculado
+              : aberto === "volumes"
+                ? t.voltarAUmaCaixa
+                : t.voltarAoVendido}
           </button>
         ) : null}
         <button type="button" onClick={fechar}>
