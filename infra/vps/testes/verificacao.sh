@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Teste da verificação diária (eurolify-verificacao), só a parte das duas
 # tarefas da API que limpam dados pessoais (docs/23 §15.11; migração 0088):
-# a fila do titular e as sessões de checkout. Corre como root num contentor
+# a fila do titular e as sessões de checkout; e a do aviso do prazo legal dos
+# pedidos do titular (docs/23 §15.15; migração 0096). Corre como root num contentor
 # Ubuntu descartável (fluxo verificar), sem docker a sério: um docker de
 # mentira responde às consultas do psql. Nunca correr numa máquina a sério.
 set -Eeuo pipefail
@@ -25,7 +26,7 @@ case "$1" in
     exit 0 ;;
   exec)
     sql="${*: -1}"
-    for f in titular_pendentes_em_atraso checkout_sessoes_em_atraso; do
+    for f in titular_pendentes_em_atraso checkout_sessoes_em_atraso clientes_pedidos_sem_aviso_em_atraso; do
       [[ "$sql" == *"$f"* ]] || continue
       estado="$(cat "/tmp/falso/$f" 2>/dev/null || echo ausente)"
       if [[ "$sql" == *to_regprocedure* ]]; then
@@ -68,10 +69,11 @@ contem() { [[ "$1" == *"$2"* ]]; }
 sem_texto() { [[ "$1" != *"$2"* ]]; }
 
 saida=""
-verificar() { # verificar <titular> <checkout>: «-» é a função que não existe
+verificar() { # verificar <titular> <checkout> [<avisos>]: «-» é a função que não existe
   rm -f /tmp/falso/*
   [[ "$1" == - ]] || printf '%s' "$1" >/tmp/falso/titular_pendentes_em_atraso
   [[ "$2" == - ]] || printf '%s' "$2" >/tmp/falso/checkout_sessoes_em_atraso
+  [[ "${3:--}" == - ]] || printf '%s' "$3" >/tmp/falso/clientes_pedidos_sem_aviso_em_atraso
   saida="$(PATH="$falsos:$PATH" bash "$repo/infra/vps/ficheiros/sbin/eurolify-verificacao" 2>&1 || true)"
 }
 
@@ -102,6 +104,18 @@ confere "a linha do erro do psql não sai" sem_texto "$saida" "ana@exemplo.pt"
 # 5. Uma resposta que não é número avisa.
 verificar texto 0
 confere "uma contagem que não é número avisa" contem "$saida" "a contagem (a fila do titular) não é um número"
+
+# 6. Os avisos do prazo legal dos pedidos do titular (0096): sem atraso, nada;
+# com atraso, a linha com o número e a tarefa.
+verificar 0 0 0
+confere "sem atraso, os avisos do titular não aparecem" sem_texto "$saida" "sem aviso"
+verificar 0 0 3
+confere "a tarefa dos avisos parada avisa com o número" contem "$saida" \
+  "3 pedido(s) do titular com o prazo legal passado há mais de um dia sem aviso: a tarefa dos avisos (clientes/aviso-prazo.ts) não está a correr"
+confere "com atraso só nos avisos, a fila do titular não aparece" sem_texto "$saida" "encomenda(s)"
+verificar 0 0 falha
+confere "a falha da contagem dos avisos avisa só a categoria" contem "$saida" \
+  "não consegui contar os pedidos do titular por avisar: a consulta falhou"
 
 if ((falhas)); then
   echo "$falhas verificação(ões) falharam"

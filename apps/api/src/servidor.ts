@@ -27,6 +27,7 @@ import { agendarLimpezaDosFicheiros } from "./catalogo/limpeza-ficheiros.js";
 import { consultaVies } from "./clientes/vies.js";
 import { agendarFilaVies } from "./clientes/vies-fila.js";
 import { agendarApagamentosPendentes } from "./clientes/titular-fila.js";
+import { agendarAvisosDoTitular } from "./clientes/aviso-prazo.js";
 import { agendarLimpezaDasSessoes } from "./checkout/limpeza-sessoes.js";
 import { proxyConfiavel } from "./base/limite.js";
 import { serializadores } from "./base/registo.js";
@@ -320,6 +321,15 @@ const pararApagamentos =
       )
     : () => undefined;
 
+// O aviso quando o prazo legal de um pedido do titular passa com o pedido
+// aberto, de hora a hora (docs/23 §15.15, A4).
+const pararAvisosDoTitular =
+  base !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:prazos_titular" }, () =>
+        agendarAvisosDoTitular(base, app.log),
+      )
+    : () => undefined;
+
 // Os envios (docs/36 §4): o seguimento das etiquetas, as incertas e os
 // ficheiros a apagar, de 5 em 5 minutos. Só com a chave das credenciais.
 const pararEnvios =
@@ -353,6 +363,7 @@ for (const sinal of ["SIGINT", "SIGTERM"] as const) {
     pararParadas();
     pararSessoes();
     pararApagamentos();
+    pararAvisosDoTitular();
     pararConclusoes();
     pararDocumentos();
     pararRenovacoes();
