@@ -1126,7 +1126,12 @@ function Correccoes({
     if (aberto !== null) tituloRef.current?.focus();
   }, [aberto]);
 
+  // Abrir, cancelar e abrir outro depressa: só conta a última resposta
+  // (revisão, P3-7), como nos outros ecrãs deste ficheiro.
+  const ultimoAbrir = useRef(0);
+
   async function abrir(qual: "peso" | "servico" | "volumes") {
+    const este = ++ultimoAbrir.current;
     setAberto(qual);
     setInfo(null);
     setFalha(null);
@@ -1134,6 +1139,7 @@ function Correccoes({
     setMotivo("");
     try {
       const r = await api.servicosDaExpedicao(comerciante, expedicao);
+      if (este !== ultimoAbrir.current) return;
       setInfo(r);
       setPeso(r.peso_corrigido_g === null ? "" : String(r.peso_corrigido_g));
       setPesos(
@@ -1147,11 +1153,13 @@ function Correccoes({
         actual === undefined ? "" : `${actual.conta}|${actual.servico}`,
       );
     } catch (e) {
+      if (este !== ultimoAbrir.current) return;
       setFalha(erroDeExpedir(e));
     }
   }
 
   function fechar() {
+    ++ultimoAbrir.current;
     setAberto(null);
     setInfo(null);
   }
