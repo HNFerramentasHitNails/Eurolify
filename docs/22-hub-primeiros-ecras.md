@@ -2889,3 +2889,110 @@ dados de quem recebe não vão para o título da janela.
   - o 400 de validação sem `no-store`;
   - o espanhol nos códigos sem texto;
   - «entregue» sem confirmação.
+
+## 34. O ecrã «Diferenças de pagamento» (issue #462)
+
+Decisão do Diogo, 14/10/2026 («A»): é o **primeiro ecrã de fila** do Hub. A
+fila das diferenças (`pdi_`, `docs/26` §3.6) só se vê e resolve hoje pela
+chave do dono (`GET /payment-issues`, `POST /payment-issues/{id}/resolve`,
+`apps/api/src/pagamentos/rotas.ts:776-847`), e a lista «A decidir» mostra o
+caso só pelo identificador (§28.1). O `docs/26` (P2-6) põe este ecrã como
+**porta antes do modo real**: nenhum dinheiro real passa antes de uma pessoa
+poder resolver a fila pela sessão dela. Skills: `eurolify-design`,
+`eurolify-hub-modular`, `eurolify-hub-quality-gate`, `payments-psd2-sca`,
+`eurolify-finance-reconciliation-eu` (5: diferenças com motivo, dono e prova;
+nunca resolvidas pelo sistema), `observability-security` e
+`eu-gdpr-privacy`.
+
+Ex.: o dono abre «A decidir», vê «Diferença de pagamento · pdi_…0190 ·
+incerto · vencida» e carrega no caso. Abre «Diferenças de pagamento» nesse
+caso: «MB WAY · 123,00 € · referência 4810… · a EuPago não respondeu ao
+cobrar (14/10 às 10:12) · encomenda ord_…7731, a aguardar pagamento». Vê a
+conta na EuPago, escolhe «Foi pago», escreve «Confirmado no painel da EuPago
+a 14/10» e confirma. A encomenda passa a paga e a diferença sai da fila.
+
+### 34.1 O que entra e o que fica de fora
+
+| Entra |
+|---|
+| **A lista** das diferenças, abertas por omissão e resolvidas a pedido, da mais antiga para a mais recente, com a contagem e «Ver mais» |
+| **O caso**: o motivo em linguagem comum, a prova, o pagamento (método, montante, moeda, estado, referência), a encomenda (identificador e estado) e a tarefa (responsável e prazo, da peça 21) |
+| **Resolver**, só o dono (`payments:resolve`): o texto da resolução, e num pagamento incerto a escolha «Foi pago» / «Não foi pago» |
+| **A ligação** a partir da lista «A decidir»: o caso `pdi_` passa a abrir este ecrã |
+
+| Fica de fora, e porquê |
+|---|
+| **O aviso em bruto do prestador** (`pwh_`). O corpo pode trazer o telefone do MB WAY e o e-mail (`docs/26` §3.5 e §7); nenhuma rota o lê hoje e este ecrã também não. Mostra-se só que há aviso e o resultado. |
+| **Resolver várias de uma vez.** Nunca em lote (`AGENTS.md`, «Não se erra», regra 5). |
+| **Pagar uma encomenda com montante ou moeda diferentes.** A base recusa marcar paga uma encomenda com outro montante (`docs/26` §4.2; gatilho da 0044); o ecrã não o contorna (Q2). |
+| **Reembolsar ou contactar o cliente a partir daqui.** São de outras filas e de outros ecrãs (pós-venda, `docs/30`). |
+
+### 34.2 Como o Hub lê e escreve
+
+As rotas pelo Hub fazem **o mesmo** que as da chave, com a sessão em vez da
+chave, como as de «A decidir» (§28.2): a permissão vem dos `ambitos` do papel
+da sessão, e quem escreve é `pessoa:per_…`.
+
+| Caminho | Quem | O que faz |
+|---|---|---|
+| `GET /hub/payment-issues?estado=aberta\|resolvida&limite=&cursor=` | `payments:read` no papel: o dono, o gestor e o apoio (`papel_ambitos`, 0074:138-173) | a lista de `listarDiferencas`, **com limite e cursor** (a rota da chave não pagina; passa a paginar também, com o mesmo limite por omissão de `GET /payments`: 50, máximo 100) |
+| `GET /hub/payment-issues/{id}` | `payments:read` | a diferença, mais o resumo do pagamento (o de `paraAdministracao`, sem `instrucoes`), a encomenda (identificador, estado e total) e a tarefa (`responsavel`, `prazo`, `vencida`, da peça 21) |
+| `POST /hub/payment-issues/{id}/resolve` `{ resolucao, pagamento?: capturado\|falhado }` | `payments:resolve` no papel: **só o dono** | a mesma `resolverDiferenca`, com `pessoa:per_…` |
+
+- **Sem versão e sem `Idempotency-Key`**, como as outras escritas do Hub
+  (§28.2). A diferença não tem versão, mas resolvida é imutável (gatilho da
+  0044): um segundo envio dá **409 `payments.immutable`**. O ecrã relê o caso:
+  se ficou resolvida por esta pessoa com este texto, dá-o por feito; senão,
+  mostra quem a resolveu e quando.
+- **Os erros** já existem: `payments.not_found` (404), `payments.immutable`
+  (409), `payments.invalid_transition` (409: um incerto sem a escolha),
+  `payments.invalid_field` (400), `payments.retry` (503).
+
+### 34.3 O ecrã
+
+| Onde | O que mostra | Estados além do normal |
+|---|---|---|
+| **Entrada** (`/`) | Um módulo «Diferenças de pagamento» para quem tem `payments:read`, com o número das abertas. | — |
+| **Diferenças de pagamento** (`/diferencas?comerciante=…`) | «Abertas · Resolvidas» (alternância), a contagem («3 abertas») e a lista: **tabela** a partir de 768 px, **cartões** abaixo. Cada linha: o caso (`pdi_…0190`), o motivo em linguagem comum, o montante e o método, a encomenda, há quanto tempo, o responsável e o prazo da tarefa («vencida» com o token de §28.3). | a carregar; erro com «Tentar outra vez»; vazio («Nenhuma diferença aberta.»); sem `payments:read` (sem módulo; a rota responde 403) |
+| **O caso** (`/diferencas/pdi_…`) | O motivo e o que ele quer dizer, numa frase («A EuPago não respondeu quando se cobrou. Veja na conta da EuPago se o pagamento entrou.»). A prova em linhas legíveis (esperado / recebido; de / para; a mensagem do prestador). O pagamento e a encomenda. A tarefa, com «Ficar com o caso» e «Mudar o prazo…» como em §28.3. Resolvida: quem, quando e o texto. | a carregar; erro; não encontrado (`payments.not_found`) |
+| **Resolver** (no caso, só para o dono) | O texto da resolução (obrigatório, até 2000), com a frase «Não escreva dados de clientes neste texto.». Num **incerto**: «Foi pago» / «Não foi pago», obrigatório (Q1). Confirmar pede a confirmação com o que vai acontecer («A encomenda ord_…7731 passa a paga.»). | `payments.immutable` (relê: «Outra pessoa resolveu este caso entretanto.»); `payments.invalid_transition`; `payments.retry`; sem `payments:resolve` (o gestor e o apoio vêem o caso, sem o botão, e a frase «Só o dono resolve diferenças de pagamento.») |
+
+**Os motivos em linguagem comum** (pt, es e en), os dez de hoje
+(`0061:319-327`): `incerto`, `aviso_sem_pagamento`, `montante_diferente`,
+`moeda_diferente`, `transicao_impossivel`, `pago_depois_de_cancelada`,
+`pagamento_duplicado`, `reembolso_incerto`, `reembolso_por_confirmar`,
+`reembolso_desconhecido`. Um código sem texto mostra-se como está.
+
+### 34.4 Por onde é que isto ainda pode sair errado
+
+- **«Foi pago» sem prova do montante.** `resolverDiferenca` não recebe nada do
+  prestador: a encomenda passa a paga pela palavra da pessoa
+  (`repositorio.ts:1804-1810`). O `docs/26` (P2-2) pede que se veja a conta
+  no prestador antes, mas nada o obriga (Q1).
+- **Montante ou moeda diferentes** só se fecham com texto: a encomenda fica
+  por pagar (Q2).
+- **Os reembolsos na mesma fila.** Os três motivos `reembolso_*` (0061) entram
+  na fila `pagamento` e o reembolso tem também a fila `reembolso`: o mesmo
+  caso pode aparecer duas vezes em «A decidir» (não verificado com dados; Q3).
+- **O texto da resolução** é livre e não está no apagamento do titular
+  (`docs/23` §15.2 não o lista): o mesmo problema do motivo das tarefas
+  (`docs/33` §6). A frase no campo ajuda, não resolve: liga-se ao apagamento
+  num pedido próprio, depois deste.
+- **Ver antes de dizer feito:** 375, 768 e 1280 px, claro e escuro, só
+  teclado; Safari e telemóvel real ficam por ver, como nos outros ecrãs.
+
+### 34.5 Perguntas
+
+**Q1.** Num pagamento incerto, «Foi pago» marca a encomenda como paga só pela
+palavra do dono. Ex.: a EuPago não respondeu a uma cobrança MB WAY de
+123,00 €; o dono escolhe «Foi pago» e a encomenda pode seguir para envio.
+- **A (proposta):** o ecrã mostra o montante, a referência e a data à vista e
+  pede uma confirmação escrita do que se viu («Vi na conta da EuPago o
+  pagamento de 123,00 € com a referência 4810…»), que fica no texto da
+  resolução. A base não muda.
+- **B:** só a escolha e o texto livre, como a rota da chave hoje.
+- **C:** «Foi pago» só depois de uma consulta ao prestador que o confirme (a
+  consulta já existe por chave); sem ela, o botão não aparece.
+
+**Q2.** (depois da Q1) O que diz o ecrã num montante ou moeda diferentes.
+**Q3.** (depois da Q2) Os reembolsos: aqui, na fila deles, ou nas duas.
