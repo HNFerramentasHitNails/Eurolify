@@ -158,6 +158,9 @@ const FUNCOES_DA_API = [
   "notificacao_destino",
   "pagamento_transicao_valida",
   "pagamentos_adiar_tarefa",
+  // O prazo dos avisos sem pagamento (0105): o gatilho do aviso pergunta, com
+  // quem escreve, se a limpeza está a correr.
+  "pagamentos_avisos_resumo_em_curso",
   "pagamentos_casos_a_decidir",
   "pagamentos_comerciantes_com_tarefas",
   "pagamentos_conta_do_aviso",

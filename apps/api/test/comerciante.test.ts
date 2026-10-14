@@ -186,6 +186,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0100_faturacao_autorizacoes_limpeza",
         "0101_envios_volumes",
         "0102_tarefas_motivo_no_apagamento",
+        "0105_pagamentos_avisos_retencao",
       ]);
     });
 
@@ -258,6 +259,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // A marca da pseudonimização em curso (0049): só a função do dono
           // lhe toca.
           "pseudonimizacao_em_curso",
+          // A marca da limpeza dos avisos sem pagamento (0105): só a função
+          // do dono lhe toca.
+          "aviso_resumo_em_curso",
           // A fila da tarefa dos documentos fiscais (0050).
           "tarefa_documento",
           // Os campos sensíveis do rasto e a chave do resumo (0054): só as

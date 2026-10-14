@@ -414,8 +414,9 @@ a sandbox**, porque não há credenciais de teste.
 passa por aqui antes delas):
 - **A retenção dos avisos em bruto** (§7; revisão do #288, P2-8): a tabela não
   deixa apagar nem ao dono; os avisos válidos podem trazer o telefone do MB
-  WAY. Os avisos **sem** pagamento: desenho no §16 (14/10/2026, Q1 por
-  decidir). Os outros seguem a encomenda: a porta P2-3 do `docs/25`.
+  WAY. Os avisos **sem** pagamento passam a resumo 90 dias depois de chegar
+  (§16, ET; em código, 0105). Os outros seguem a encomenda: a porta P2-3 do
+  `docs/25`.
 - **A fila de diferenças num ecrã do Hub**, pela sessão de uma pessoa (P2-6). Desenho no
   `docs/22` §34 (aprovado a 14/10/2026; ES).
 - **A sandbox da EuPago** (V1, V4, V5) e o registo do prestador (V6).
@@ -556,11 +557,24 @@ chave do rasto (0054), e a marca de que veio do prazo:
   apagamento do titular (0102) e, quando houver, no prazo das encomendas
   (porta P2-3 do `docs/25`, ainda sem desenho).
 
-### 16.7 Pergunta para o Diogo ou o Bruno
+### 16.7 Decisão
 
-**Q1 — Ao fim de quantos dias um aviso sem pagamento passa a resumo?**
-- a) **90 dias**, a proposta do §7 (recomendo: cobre um cliente que só
-  reclama semanas depois de pagar a uma referência errada; a diferença aberta
-  já segura os casos em investigação);
-- b) **30 dias**, como as autorizações de faturação (ER);
-- c) outro prazo.
+**Q1 — ao fim de quantos dias um aviso sem pagamento passa a resumo?**
+**a) 90 dias** (Diogo, 14/10/2026: *«sim, aprovo o desenho com a Q1 em a)»*;
+`docs/06`, ET). Continua **C** até o jurista o ver (§16.5).
+
+### 16.8 Em código (14/10/2026; migração 0105; #467)
+
+| O quê | Onde |
+|---|---|
+| a regra num sítio (`aviso_pagamento_resumivel`): sem pagamento, mais de 90 dias, corpo por limpar, sem diferença aberta; o resumo (`aviso_pagamento_resumo`, a forma da 0102 com `"motivo": "prazo"`); o corpo já em resumo reconhece-se pelo conteúdo (`aviso_pagamento_em_resumo`) | migração 0105 |
+| a marca da transacção (`aviso_resumo_em_curso`, só do dono) e o gatilho do aviso, que dentro dela aceita só o corpo, só o resumo certo e só o que a regra deixa; fora dela, o de antes (a API nem tem o `UPDATE` do corpo) | migração 0105 |
+| `pagamentos_avisos_resumir()` (até 50 000 por corrida) e `pagamentos_avisos_em_atraso()`, só para o `eurolify_limpeza` | migração 0105; `infra/vps/preparar.sh` |
+| a limpeza das 05:00 chama-a e regista a contagem; a verificação das 07:00 avisa os atrasos | `eurolify-limpeza`, `eurolify-verificacao`; `infra/vps/testes/verificacao.sh` (caso 8) |
+| testes: o prazo dos dois lados, os três resultados sem pagamento, o corpo vazio, o corpo que não é JSON, o já em resumo pela 0102, a diferença aberta e a resolvida, outro comerciante, as recusas sem a marca e com a marca, o resumo igual ao da 0102, o reenvio repetido e o erro ainda tratável | `apps/api/test/pagamentos-avisos-retencao.test.ts` |
+
+**O texto do `erro`** (§16.2): as mensagens do adaptador da EuPago ao ler
+um aviso são textos fixos, sem valores do corpo (`eupago.ts`, `lerAviso`,
+lido a 14/10/2026). **Por verificar:** as mensagens de um erro ao aplicar o
+aviso (da base ou do repositório), que o `erro` guarda como vêm; e a
+resolução das diferenças sem encomenda (§16.5).

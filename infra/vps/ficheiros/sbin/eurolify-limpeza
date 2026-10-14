@@ -69,3 +69,20 @@ if [[ "$existe" == t ]]; then
   registar "limpeza: $autorizacoes pedido(s) de autorização da faturação apagado(s)"
   echo "Limpeza: $autorizacoes pedido(s) de autorização da faturação apagado(s)."
 fi
+
+# Os avisos de pagamento sem pagamento (0105; docs/26 §16): os chegados há
+# mais de 90 dias, sem diferença aberta, passam o corpo a resumo. A função é
+# SECURITY DEFINER e o papel da limpeza só tem o EXECUTE dela. Regista só a
+# contagem, nunca o aviso. Antes da 0105 publicada, não há nada a fazer.
+existe="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
+  -v ON_ERROR_STOP=1 -qAt -c "select to_regprocedure('public.pagamentos_avisos_resumir()') is not null")" ||
+  falhar "a limpeza não conseguiu ver se a função dos avisos de pagamento existe"
+if [[ "$existe" == t ]]; then
+  avisos="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
+    -v ON_ERROR_STOP=1 -qAt -c "SET statement_timeout = '5min'" \
+    -c 'select pagamentos_avisos_resumir()')" ||
+    falhar "a limpeza dos avisos de pagamento falhou"
+  [[ "$avisos" =~ ^[0-9]+$ ]] || falhar "a limpeza dos avisos de pagamento devolveu '$avisos', não um número"
+  registar "limpeza: $avisos aviso(s) de pagamento sem pagamento passado(s) a resumo"
+  echo "Limpeza: $avisos aviso(s) de pagamento sem pagamento passado(s) a resumo."
+fi
