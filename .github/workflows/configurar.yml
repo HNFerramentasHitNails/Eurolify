@@ -18,7 +18,8 @@ on:
       accao:
         description: "configurar: leva os cinco SMTP_* para a API; testar: envia um e-mail de teste do remetente para ele próprio, com o que a API já tem (docs/34 §13.1); chave-envios-trocar: a chave dos envios passa a anterior e nasce uma nova; chave-envios-tirar-anterior: acaba a troca, só com 0 contas por passar (docs/36 §25.7)"
         type: choice
-        options: [configurar, testar, chave-envios-trocar, chave-envios-tirar-anterior]
+        options:
+          [configurar, testar, chave-envios-trocar, chave-envios-tirar-anterior]
         default: configurar
 
 permissions:
