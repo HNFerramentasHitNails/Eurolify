@@ -1878,4 +1878,5 @@ export const es: Textos = {
   estadoPagamento_em_disputa: "en disputa",
   estadoPagamento_ganha: "disputa ganada",
   estadoPagamento_perdida: "disputa perdida",
+  provaSemPormenor: "Sin detalles.",
 };

@@ -155,9 +155,10 @@ export function provaEmTexto(
     default:
       break;
   }
-  return Object.entries(p)
+  const resto = Object.entries(p)
     .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join(" · ");
+  return resto === "" ? t.provaSemPormenor : resto;
 }
 
 /** Os erros do resolver com texto próprio (§34.3). */

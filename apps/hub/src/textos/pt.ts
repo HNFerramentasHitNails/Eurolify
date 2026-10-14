@@ -1853,6 +1853,7 @@ export const pt = {
   estadoPagamento_em_disputa: "em disputa",
   estadoPagamento_ganha: "disputa ganha",
   estadoPagamento_perdida: "disputa perdida",
+  provaSemPormenor: "Sem pormenores.",
 };
 
 export type Textos = typeof pt;

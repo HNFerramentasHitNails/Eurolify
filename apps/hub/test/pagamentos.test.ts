@@ -86,6 +86,12 @@ describe("a prova em linguagem comum", () => {
     ).toBe("outro: x");
   });
 
+  it("uma prova vazia diz que não há pormenores", () => {
+    expect(provaEmTexto(t, diferenca("montante_diferente", {}), "pt-PT")).toBe(
+      "Sem pormenores.",
+    );
+  });
+
   it("cada motivo e cada estado da API têm texto nas três línguas, na fila e no ecrã", () => {
     for (const lingua of LINGUAS) {
       const textos = TEXTOS[lingua] as Record<string, string | undefined>;

@@ -1859,4 +1859,5 @@ export const en: Textos = {
   estadoPagamento_em_disputa: "in dispute",
   estadoPagamento_ganha: "dispute won",
   estadoPagamento_perdida: "dispute lost",
+  provaSemPormenor: "No details.",
 };

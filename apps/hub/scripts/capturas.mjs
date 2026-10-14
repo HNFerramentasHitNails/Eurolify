@@ -7179,8 +7179,8 @@ try {
     }
   }
 
-  // A fila de diferenças de pagamento (docs/22 §34): a lista vazia contra a
-  // API verdadeira; a lista cheia, as resolvidas e o diálogo de um incerto
+  // A fila de diferenças de pagamento (docs/22 §34): a lista contra a API
+  // verdadeira; a lista cheia, as resolvidas e o diálogo de um incerto
   // com respostas simuladas (o ensaio não tem pagamentos). Dados fictícios.
   {
     const c = await navegador.newContext({
@@ -7196,9 +7196,12 @@ try {
       .getByRole("heading", { name: /Diferenças de pagamento/ })
       .first()
       .waitFor();
-    await p.getByText("Não há diferenças por resolver.").waitFor();
+    // A diferença que a «A decidir» das capturas já criou (sem pagamento e
+    // sem prova), lida da API verdadeira.
+    await p.getByText("montante diferente").first().waitFor();
+    await p.getByText("Sem pormenores.").first().waitFor();
     await p.screenshot({
-      path: join(SAIDA, "diferencas-vazio-1280-claro.png"),
+      path: join(SAIDA, "diferencas-api-1280-claro.png"),
       fullPage: true,
     });
     await c.close();
