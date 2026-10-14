@@ -1916,7 +1916,7 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/tarefas/rotas
 | O armazém atribuir a outra pessoa ou mudar o prazo | a rota pede `tasks:assign`; o ecrã nem mostra os botões; a base confere quem pode ser responsável |
 | Duas pessoas ao mesmo tempo no mesmo caso | a versão (409) e o tranco do caso na base (`docs/33` R7) |
 | Ler «a tarefa está feita» numa atribuição | não há «marcar como feita» (R1): o caso sai da lista quando a fila o decide |
-| Um motivo de mudança de prazo com dados de clientes | a frase no campo; o motivo nunca vai no e-mail (`docs/34` §12, T4); a ligação ao apagamento do titular continua por fazer (`docs/33` §6) |
+| Um motivo de mudança de prazo com dados de clientes | a frase no campo; o motivo nunca vai no e-mail (`docs/34` §12, T4); o motivo limpa-se no apagamento do titular desde 14/10/2026 (migração 0102, `docs/33` §6) |
 | A lista parecer vazia por estar cortada | o total por fila e «Ver mais» (R10) |
 | Uma pessoa pensar que o identificador sem ligação é um erro | a linha diz «Este caso ainda não tem ecrã no Hub; decide-se pela integração.» uma vez por cima da lista, enquanto nenhuma fila tiver ecrã (Q1) |
 
@@ -1980,8 +1980,8 @@ onde carregar para a resolver.
   e atribuir a outra pessoa; a passagem nas capturas cobre a resposta
   perdida, o foco, os filtros, ficar com o caso, o prazo e o histórico.
 - O motivo livre de uma mudança de prazo vê-se no histórico por todos os
-  papéis que lêem a fila (o armazém e o apoio também); a ligação dele ao
-  apagamento do titular (DU) continua por fazer (`docs/33` §6).
+  papéis que lêem a fila (o armazém e o apoio também); limpa-se no
+  apagamento do titular (DU) desde 14/10/2026 (migração 0102, `docs/33` §6).
 
 ### 28.6 Antes de dizer que está feito (o pedido do código)
 

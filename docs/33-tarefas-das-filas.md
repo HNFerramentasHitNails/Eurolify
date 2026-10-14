@@ -110,7 +110,8 @@ seus gatilhos (§4.1).
 | `criada_em`, `actualizada_em` | — | — |
 
 Cada mudança (atribuir, tirar, mudar o prazo) grava-se em
-**`atribuicao_rasto`**, que só se acrescenta, com o contexto da transacção
+**`atribuicao_rasto`**, que só se acrescenta (excepção: o motivo passa a
+«(pseudonimizado)» no apagamento do titular, §6), com o contexto da transacção
 (`docs/28` §3.1: quem, canal, pedido, motivo, quem autorizou, IA).
 
 **Não há estado guardado.** «Aberta», «vencida» e «sem responsável»
@@ -156,7 +157,14 @@ caso quando foi decidido») e deixa de aparecer na lista.
   traz `motivos_de_prazo_limpos`.
 - **Exportação do titular:** a atribuição não tem dados do cliente; o caso
   exporta-se pelo domínio dele. **Proposta:** não entra na exportação.
-- **Apagamento do titular:** pseudonimizar a ficha não muda a atribuição.
+- **Apagamento do titular:** pseudonimizar a ficha não muda a atribuição;
+  só o motivo livre do rasto passa a marcador (ver acima). O que fica por
+  limpar: uma mudança de prazo escrita **depois** do apagamento num caso que
+  já não passa pela limpeza — um caso novo numa encomenda já limpa, o caso
+  `pedido_titular` do próprio pedido até se fechar, ou uma escrita que entre
+  ao mesmo tempo que o apagamento. O Hub diz para não escrever dados de
+  clientes no motivo; uma encomenda sem ficha (`cliente_id` vazio) não tem
+  titular e não se limpa (nunca se decide pelo nome nem pelo e-mail).
 - **Pessoas da equipa:** quem sai da equipa fica no histórico das
   atribuições e no rasto, como nos outros rastos (`docs/28`).
 
@@ -266,7 +274,7 @@ aprovação: a peça 21 passa a 2,5–5.
 | a régua das sete filas, com o âmbito que lê e o que decide (o espelho em TS conferido por um teste) | `tarefas_filas()`, migração 0066; `src/tarefas/filas.ts` |
 | uma função por domínio com os casos abertos, que filtra também pelo comerciante | `pagamentos_casos_a_decidir()`, `documentos_casos_a_decidir()`, `clientes_casos_a_decidir()`, `posvenda_casos_a_decidir()` |
 | «na fila desde» no documento, no par de duplicados, no reembolso e no problema, posto pelo gatilho do domínio; as linhas antigas usam o rasto ou a data | migração 0066 |
-| a atribuição e o rasto dela (só se acrescenta; o contexto pelo `rasto_completar()`), com o RLS forçado; cada linha do rasto põe o evento | `atribuicao`, `atribuicao_rasto` |
+| a atribuição e o rasto dela (só se acrescenta, salvo o motivo no apagamento do titular, 0102; o contexto pelo `rasto_completar()`), com o RLS forçado; cada linha do rasto põe o evento | `atribuicao`, `atribuicao_rasto` |
 | atribuir, mudar o prazo e marcar o aviso, com a tranca do caso e a versão; quem escreve vem de `eurolify.quem` | `tarefas_atribuir()`, `tarefas_mudar_prazo()`, `tarefas_marcar_vencida()` |
 | quem sai da equipa (pela própria pessoa, pelo dono ou desactivado pelo operador) ou muda de papel larga os casos que já não decide | `membro_tarefas_largar()` |
 | `GET /tasks`, `GET /tasks/{fila}/{caso}`, `POST …/assign`, `POST …/deadline` | `src/tarefas/rotas.ts` |
