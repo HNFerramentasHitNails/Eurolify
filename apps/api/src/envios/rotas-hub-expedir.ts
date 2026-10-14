@@ -36,12 +36,14 @@ import {
   correcoesDaExpedicao,
   corrigirPeso,
   mudarServico,
+  mudarVolumes,
   servicosDaExpedicao,
 } from "./correcoes.js";
 import { ferramentasDoHub } from "./rotas-hub.js";
 import {
   CorpoCorrigirPeso,
   CorpoMudarServico,
+  CorpoMudarVolumes,
   dadosDoServico,
   emEnvios,
   paraCorrecao,
@@ -49,6 +51,7 @@ import {
   paraEvento,
   paraServicosDaExpedicao,
   semIaNoServico,
+  VolumeDoFicheiro,
 } from "./rotas.js";
 
 // O ecrã «Expedir» do Hub (docs/22 §33; Diogo, 13/10/2026: «sim, aprovo;
@@ -265,6 +268,39 @@ export function rotasDeExpedirNoHub(
   );
 
   rotas.put(
+    "/hub/shipments/:id/volumes",
+    {
+      config: { ambito: "sessao_comerciante", hub: true },
+      schema: {
+        description:
+          "Os volumes da expedição pelo Hub (fulfilment:write), com motivo (docs/36 §23): o peso de cada caixa, ou `null` para uma caixa.",
+        params: Expedicao,
+        body: CorpoMudarVolumes,
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) =>
+      emEnvios(resposta, async () => {
+        const s = daSessao(pedido, resposta, "fulfilment:write");
+        return {
+          versao: await escreverNoHub(s.comercianteId, s.pessoaId, (trx) =>
+            mudarVolumes(
+              trx,
+              s.comercianteId,
+              semPrefixo(pedido.params.id),
+              pedido.body,
+              cfg,
+              quem(s.pessoaId),
+            ),
+          ),
+        };
+      }),
+  );
+
+  rotas.put(
     "/hub/shipments/:id/service",
     {
       config: { ambito: "sessao_comerciante", hub: true },
@@ -354,8 +390,9 @@ export function rotasDeExpedirNoHub(
       config: { ambito: "sessao_comerciante", hub: true },
       schema: {
         description:
-          "O ficheiro da etiqueta pelo Hub (PDF ou ZPL), enquanto existir. Tem dados pessoais: nunca fica em cache.",
+          "O ficheiro da etiqueta pelo Hub (PDF ou ZPL), enquanto existir; `?volume=` escolhe o volume (docs/36 §23). Tem dados pessoais: nunca fica em cache.",
         params: Expedicao,
+        querystring: VolumeDoFicheiro,
         response: {
           200: {
             description: "A etiqueta",
@@ -377,6 +414,7 @@ export function rotasDeExpedirNoHub(
           base,
           s.comercianteId,
           semPrefixo(pedido.params.id),
+          Number(pedido.query.volume ?? "1"),
         );
         return resposta
           .header(

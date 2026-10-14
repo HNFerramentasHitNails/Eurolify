@@ -1609,7 +1609,8 @@ junta quando ficar verde»*); juntou-se no #451.
 ## 23. Vários volumes numa expedição (desenho; parte 3, Q6, issue #393)
 
 Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
-envios»*. **Este desenho está por aprovar.** A Q6 (`docs/06`, ED) deixou um
+envios»*. Aprovado pelo Diogo a 14/10/2026 (*«sim, aprovo; avança com o
+código»*). A Q6 (`docs/06`, ED) deixou um
 volume por expedição e os vários volumes para a parte 3 (§1, «Fora desta
 fatia»). É a última peça da parte 3 que estava planeada; a cotação em tempo
 real só entra se um comerciante a pedir (Q3). Esta parte usa só a
@@ -1707,3 +1708,29 @@ conta a última; dentro de uma expedição passa a contar o último volume.
 Dois pedidos: (1) a API e a base (migração nova, a partir da 0097; o
 contrato do adaptador, a Sendcloud, os testes e a revisão do agente); (2) o
 Hub (os volumes em «Expedir»), com capturas.
+
+### 23.9 Em código (pedido 1; 14/10/2026; migração 0097)
+
+| O quê | Onde |
+|---|---|
+| `expedicao.volumes_g` (2 a 15 pesos, ou NULL = uma caixa); muda pelo gatilho das correcções da 0086 (criada, sem etiqueta viva, com motivo, no rasto como `volumes`) | migração 0097 |
+| o ficheiro da etiqueta ganha o volume (o que apaga pela expedição apaga todos); `volume_seguimento` com o número de cada volume; `evento_seguimento.volume` | migração 0097 |
+| o contrato: `maxVolumes` no serviço, `volumesG` no pedido, `volumes` na etiqueta emitida | `src/envios/adaptador.ts` |
+| `PUT /shipments/{id}/volumes` e `PUT /hub/shipments/{id}/volumes` (`fulfilment:write`); `GET …/label/file?volume=`; a etiqueta e os serviços mostram os volumes | `src/envios/correcoes.ts` (`mudarVolumes`), `rotas.ts`, `rotas-hub-expedir.ts` |
+| a etiqueta: o máximo do serviço por volume; menos etiquetas do que volumes ⇒ incerta; anular leva todos | `src/envios/etiquetas.ts` |
+| o seguimento: cada volume consulta-se à parte e os eventos ficam com o volume; entregue só com todos; um volume perdido ou devolvido abre um problema e não muda a expedição; um aviso de uma expedição com volumes é só um sinal para consultar | `src/envios/etiquetas.ts` (`aplicarEventos`, `consultarSeguimento`, `receberAviso`) |
+| a Sendcloud: `functionalities.multicollo` ⇒ até 15; uma caixa por volume no anúncio; uma etiqueta por caixa; uma caixa anulada deixa o envio sem etiqueta | `src/envios/sendcloud.ts` |
+| 5 testes pela API com a transportadora de ensaio; 1 do adaptador contra a Sendcloud de ensaio | `test/envios-volumes.test.ts`, `test/envios-sendcloud.test.ts` |
+
+**Desvios do desenho:**
+- **Com volumes, o peso corrigido sai** (o peso é o de cada volume), e
+  corrigir o peso é recusado enquanto houver volumes.
+- **O aviso de «para levantar» (§20)** não conta os volumes: avisa por
+  evento, como antes.
+- **O volume 1 fica também na expedição** (o seguimento e o ficheiro de
+  sempre), para o que já lia a expedição não mudar.
+- **Em modo teste a Sendcloud só tem `sendcloud:letter`:** os vários
+  volumes só se usam em modo real (V15).
+
+**Por fazer:** o pedido 2 (o Hub: «Volumes» em «Expedir»), com capturas.
+

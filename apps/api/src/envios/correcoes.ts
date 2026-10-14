@@ -21,8 +21,11 @@ interface Caixa {
   /** A encomenda entrega num ponto de recolha (docs/36 §21). */
   ponto: boolean;
   temTelefone: boolean;
+  /** O peso da caixa, ou o do volume mais pesado (docs/36 §23). */
   pesoG: number | null;
   onu: ReadonlySet<string>;
+  /** Quantos volumes (docs/36 §23); 1 sem volumes. */
+  volumes: number;
 }
 
 /** É o serviço vendido (a conta e o serviço da cópia do método)? */
@@ -44,8 +47,14 @@ export function porQueNaoServeACaixa(
       ? "não entrega em pontos de recolha, e a encomenda é para um ponto"
       : "entrega em pontos de recolha, e a encomenda é para uma morada";
   }
+  // O máximo do serviço é por volume (docs/36 §23).
+  if (caixa.volumes > (s.maxVolumes ?? 1)) {
+    return `não leva ${String(caixa.volumes)} volumes num envio (no máximo ${String(s.maxVolumes ?? 1)})`;
+  }
   if (s.pesoMaxG !== null && caixa.pesoG !== null && caixa.pesoG > s.pesoMaxG) {
-    return "a caixa pesa mais do que o serviço aceita";
+    return caixa.volumes > 1
+      ? "um volume pesa mais do que o serviço aceita"
+      : "a caixa pesa mais do que o serviço aceita";
   }
   if ([...caixa.onu].some((n) => !s.aceitaOnu.includes(n))) {
     return "não aceita uma mercadoria perigosa desta expedição";
@@ -87,6 +96,7 @@ async function caixaDa(
       "expedicao.peso_corrigido_g",
       "expedicao.conta_escolhida_id",
       "expedicao.servico_escolhido",
+      "expedicao.volumes_g",
       "armazem.embalagem_g",
       "encomenda.entrega",
       "encomenda.contacto",
@@ -124,8 +134,13 @@ async function caixaDa(
       pais: entrega.pais,
       ponto: (entrega as { ponto?: unknown }).ponto !== undefined,
       temTelefone: temTelefone(contacto.telefone),
-      pesoG: x.peso_corrigido_g ?? calculadoG,
+      // Com volumes, conta o mais pesado (o máximo do serviço é por volume).
+      pesoG:
+        x.volumes_g === null
+          ? (x.peso_corrigido_g ?? calculadoG)
+          : Math.max(...x.volumes_g),
       onu,
+      volumes: x.volumes_g?.length ?? 1,
     } satisfies Caixa,
   };
 }
@@ -274,6 +289,7 @@ export async function servicosDaExpedicao(
           transportadora: conta.transportadora,
           servico: s.codigo,
           nome: s.nome,
+          max_volumes: s.maxVolumes ?? 1,
           vendido: vendido?.conta === conta.id && vendido.servico === s.codigo,
           escolhido:
             x.conta_escolhida_id === conta.id &&
@@ -285,6 +301,7 @@ export async function servicosDaExpedicao(
       versao: x.versao,
       peso_calculado_g: calculadoG,
       peso_corrigido_g: x.peso_corrigido_g,
+      volumes_g: x.volumes_g,
       vendido,
       escolhido:
         x.conta_escolhida_id === null || x.servico_escolhido === null
@@ -310,6 +327,13 @@ export async function corrigirPeso(
     const { x, caixa, calculadoG } = await caixaDa(trx, id, true);
     conferirCorrigivel(x);
     conferirVersao(x.versao, dados.versao);
+    // Com volumes, o peso é o de cada volume (docs/36 §23).
+    if (x.volumes_g !== null) {
+      throw new ErroEnvios(
+        "shipping.invalid_field",
+        "a expedição tem vários volumes: o peso corrige-se nos volumes",
+      );
+    }
     if (x.peso_corrigido_g === dados.peso_g) return x.versao;
     // Com um serviço escolhido, o peso novo tem de caber nele: diz-se já, e
     // não só ao pedir a etiqueta (P3-3).
@@ -403,6 +427,66 @@ export async function mudarServico(
       .set({
         conta_escolhida_id: dados.conta,
         servico_escolhido: dados.servico,
+        versao: x.versao + 1,
+      })
+      .where("id", "=", id)
+      .execute();
+    return x.versao + 1;
+  });
+}
+
+/**
+ * Os volumes da expedição (docs/36 §23): o peso de cada caixa, 2 a 15, ou
+ * `null` para voltar a uma caixa. O serviço que a etiqueta vai usar (o
+ * escolhido, ou o vendido) tem de os levar; um método manual não tem
+ * etiqueta do Eurolify. Com volumes, o peso corrigido sai (o peso é o de
+ * cada volume). Devolve a versão.
+ */
+export async function mudarVolumes(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  dados: { versao: number; volumes_g: number[] | null; motivo: string },
+  cfg: ConfigEnvios | undefined,
+  quem: string,
+) {
+  return noEnvios(db, c, async (trx) => {
+    await marcar(trx, quem, dados.motivo);
+    const { x, caixa, vendido } = await caixaDa(trx, id, true);
+    conferirCorrigivel(x);
+    conferirVersao(x.versao, dados.versao);
+    const iguais =
+      JSON.stringify(x.volumes_g) === JSON.stringify(dados.volumes_g);
+    if (iguais) return x.versao;
+    if (dados.volumes_g !== null) {
+      const conta = x.conta_escolhida_id ?? vendido?.conta ?? null;
+      const codigo = x.servico_escolhido ?? vendido?.servico ?? null;
+      if (conta === null || codigo === null) {
+        throw new ErroEnvios(
+          "shipping.invalid_field",
+          "o método vendido é manual: a etiqueta faz-se fora do Eurolify (escolha primeiro um serviço)",
+        );
+      }
+      const servico = await servicoDaConta(trx, cfg, conta, codigo);
+      const porque = porQueNaoServeACaixa(servico, {
+        ...caixa,
+        pesoG: Math.max(...dados.volumes_g),
+        volumes: dados.volumes_g.length,
+      });
+      if (porque !== null) {
+        throw new ErroEnvios(
+          "shipping.invalid_field",
+          `o serviço da etiqueta não serve estes volumes: ${porque} (mude o serviço primeiro)`,
+        );
+      }
+    }
+    await trx
+      .updateTable("expedicao")
+      .set({
+        volumes_g: dados.volumes_g,
+        ...(dados.volumes_g !== null && x.peso_corrigido_g !== null
+          ? { peso_corrigido_g: null }
+          : {}),
         versao: x.versao + 1,
       })
       .where("id", "=", id)
