@@ -145,6 +145,15 @@ describe("o formulário do Moloni", () => {
 });
 
 describe("o adaptador Moloni", () => {
+  it("a conta da empresa (docs/29 §19): sem zeros à esquerda; sem company_id válido, nenhuma", () => {
+    const { a } = montar();
+    expect(a.contaDe({ company_id: "401965" })).toBe("401965");
+    expect(a.contaDe({ company_id: "0401965" })).toBe("401965");
+    expect(a.contaDe({ company_id: "0" })).toBe("0");
+    expect(a.contaDe({ company_id: "40x" })).toBeNull();
+    expect(a.contaDe({ access_token: "t" })).toBeNull();
+  });
+
   it("a autorização (docs/29 §17): sem endereço de resposta não se pede; o código troca-se uma vez pelos tokens da empresa de teste", async () => {
     const { m, a } = montar();
     expect(a.urlAutorizacao("abc")).toBeNull();

@@ -310,6 +310,7 @@ async function contaEmUso(
     throw e;
   } finally {
     await sql`rollback to savepoint conta_emissor`.execute(trx);
+    await sql`release savepoint conta_emissor`.execute(trx);
   }
 }
 
@@ -1067,7 +1068,8 @@ export async function pedirAutorizacao(
     }
     // Antes de mandar o dono ao Moloni: a empresa noutra ligação activa não
     // se liga (docs/29 §19, Q1 «B»).
-    if (await contaEmUso(trx, id, empresa)) {
+    const conta = a.contaDe?.({ company_id: empresa }) ?? empresa;
+    if (await contaEmUso(trx, id, conta)) {
       throw new ErroDocumentos("invoices.account_in_use", CONTA_EM_USO);
     }
     const estado = randomBytes(32).toString("base64url");

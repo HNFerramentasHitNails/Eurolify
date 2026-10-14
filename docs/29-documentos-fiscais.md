@@ -986,3 +986,18 @@ existir quando o modo real abrir.
   (`test/moloni-falso.ts`) passa a dar uma empresa nova a cada
   `credenciais()`, porque os testes ligavam várias lojas à mesma empresa.
 
+- **Revisão do agente (Sonnet 5.5, #449), sem P0 nem P1:**
+  - **P2-1, fica assim:** se outro comerciante liga a empresa entre o pedido
+    de autorização e o regresso do Moloni (dois donos ao mesmo tempo), o
+    regresso recusa com `account_in_use`. A autorização fica gasta e o dono
+    tem de pedir outra. Os tokens que o Moloni já deu não ficam guardados.
+    Não verifiquei se o Moloni os mantém activos até expirarem.
+  - **P2-2:** o teste afirma que a pergunta à base não deixa a conta escrita.
+  - **P3-2:** `contaDe` tira os zeros à esquerda: «0401965» e «401965» são a
+    mesma empresa para o índice. O pedido de autorização usa a mesma regra.
+  - **P3-3:** o ponto de salvaguarda é libertado depois de desfeito.
+  - **P3-1, fica para decisão antes do modo real:** quem pede a autorização
+    sabe se uma empresa já está ligada noutro sítio, sem saber onde. Hoje a
+    lista das contas de teste (M8) limita-o. Antes de abrir o modo real,
+    decide-se se se aceita, se se limita o ritmo ou se se registam as
+    recusas.

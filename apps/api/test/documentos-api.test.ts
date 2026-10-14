@@ -1663,6 +1663,15 @@ describe.skipIf(URL_BASE === undefined)("API dos documentos fiscais", () => {
     expect(pedido.body).toContain("fale com o apoio do Eurolify");
     expect(pedido.body).not.toContain(a.entidade);
     expect(pedido.body).not.toContain(a.c);
+    // A sonda volta atrás: a ligação de B fica sem conta (revisão, P2-2).
+    expect(
+      (
+        await sql<{ conta_emissor: string | null }>`select conta_emissor
+          from ligacao_faturacao where id = ${daB.slice(4)}::uuid`.execute(
+          base.dono,
+        )
+      ).rows[0]?.conta_emissor,
+    ).toBeNull();
     expect(
       await codigo(
         b.adm("PUT", `/invoicing-connections/${daB}/credentials`, {
