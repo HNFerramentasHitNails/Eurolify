@@ -56,6 +56,14 @@ const TRACOS: Record<IdModulo, readonly string[]> = {
     "M6.5 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
     "M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
   ],
+  // Um cartão com uma marca de atenção.
+  pagamentos: [
+    "M2.5 6h19v12h-19Z",
+    "M2.5 10h19",
+    "M6 14.5h4",
+    "M17 13v1.5",
+    "M17 16.5v.01",
+  ],
   // Uma chave.
   chaves: [
     "M8 15.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z",

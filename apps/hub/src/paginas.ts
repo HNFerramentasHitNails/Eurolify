@@ -247,6 +247,13 @@ export const PAGINAS = [
     exemplo: "/devolucoes/rma_0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70",
   },
   {
+    nome: "diferencas",
+    caminho: "/pagamentos/diferencas",
+    sessao: true,
+    titulo: "diferencasTitulo",
+    exemplo: "/pagamentos/diferencas",
+  },
+  {
     nome: "chaves",
     caminho: "/chaves",
     sessao: true,

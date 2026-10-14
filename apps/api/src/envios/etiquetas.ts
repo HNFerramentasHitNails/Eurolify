@@ -13,10 +13,12 @@ import {
   type EventoSeguimento,
   type MoradaEtiqueta,
 } from "./adaptador.js";
+import { recifrarContas } from "./chave.js";
 import { porQueNaoServeACaixa, temTelefone } from "./correcoes.js";
 import { ErroEnvios } from "./erros.js";
 import {
   adaptadorDe,
+  chaveDaVersao,
   credenciaisDe,
   noEnvios,
   servicosDe,
@@ -1221,10 +1223,9 @@ export async function receberAviso(
   if (dados === undefined) return false;
   const { adaptador, chave } = adaptadorDe(cfg, dados.transportadora);
   let leitura: ReturnType<typeof adaptador.lerAviso> = { valido: false };
-  if (
-    dados.segredo_aviso_cifra !== null &&
-    dados.chave_versao === chave.versao
-  ) {
+  // Na chave actual ou, durante a troca, na anterior (docs/36 §25).
+  const chaveDoSegredo = chaveDaVersao(chave, dados.chave_versao);
+  if (dados.segredo_aviso_cifra !== null && chaveDoSegredo !== undefined) {
     // A decifra também dentro do `try`: um segredo estragado é um aviso que
     // não se lê, e fica gravado como os outros (revisão do #400, P3-5).
     try {
@@ -1232,7 +1233,7 @@ export async function receberAviso(
         dados.segredo_aviso_cifra,
         conta,
         "segredo_aviso",
-        chave,
+        chaveDoSegredo,
       );
       leitura = adaptador.lerAviso(cabecalhos, corpo, segredo);
     } catch {
@@ -1359,6 +1360,9 @@ export interface ResultadoVolta {
   avisosResumidos: number;
   /** Os ficheiros das etiquetas de devolução apagados (docs/36 §22, Q7). */
   devolucoesApagadas: number;
+  /** A troca da chave (docs/36 §25): as contas passadas e as que faltam. */
+  contasRecifradas: number;
+  contasPorRecifrar: number;
 }
 
 /**
@@ -1378,6 +1382,8 @@ export async function correrTrabalho(
     erros: {},
     avisosResumidos: 0,
     devolucoesApagadas: 0,
+    contasRecifradas: 0,
+    contasPorRecifrar: 0,
   };
   const falhou = (erro: unknown) => {
     r.falhas += 1;
@@ -1397,6 +1403,27 @@ export async function correrTrabalho(
       n: number;
     }>`select envios_devolucao_ficheiros_apagar() as n`.execute(db);
     r.devolucoesApagadas = rows[0]?.n ?? 0;
+  } catch (erro) {
+    falhou(erro);
+  }
+  // Antes das etiquetas: uma conta ainda na chave anterior já se lê, mas
+  // passa já para a actual (docs/36 §25).
+  try {
+    const x = await recifrarContas(db, cfg);
+    r.contasRecifradas = x.recifradas;
+    r.contasPorRecifrar = x.faltam;
+    // Uma cifra que a anterior não abre é para uma pessoa; um erro da base
+    // conta como os outros (revisão do #466, P3-1).
+    if (x.ilegiveis > 0) {
+      r.falhas += x.ilegiveis;
+      r.erros["shipping.key_rotation"] =
+        (r.erros["shipping.key_rotation"] ?? 0) + x.ilegiveis;
+    }
+    if (x.falhas > 0) {
+      r.falhas += x.falhas;
+      r.erros["envios_chave.base"] =
+        (r.erros["envios_chave.base"] ?? 0) + x.falhas;
+    }
   } catch (erro) {
     falhou(erro);
   }
@@ -1499,7 +1526,9 @@ export function agendarTrabalhoEnvios(
           } else if (
             r.feitos > 0 ||
             r.avisosResumidos > 0 ||
-            r.devolucoesApagadas > 0
+            r.devolucoesApagadas > 0 ||
+            r.contasRecifradas > 0 ||
+            r.contasPorRecifrar > 0
           ) {
             registo.info(r, "envios: a volta correu");
           }

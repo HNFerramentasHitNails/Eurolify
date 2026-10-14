@@ -5634,6 +5634,7 @@ try {
       "devolucoes",
       "envios",
       "faturacao",
+      "pagamentos/diferencas",
       "chaves",
     ].map((c) => `/${c}?comerciante=mer_${comerciante}`);
     const medirEntrada = (p) =>
@@ -5707,7 +5708,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os oito módulos do dono, com o comerciante no endereço`,
+          `${nome}: os nove módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5789,9 +5790,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 8 &&
+        (await p.locator(".atalho-modulo").count()) === 9 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos oito módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos nove módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5957,8 +5958,9 @@ try {
             "Devoluções",
             "Envios",
             "Faturação",
+            "Diferenças de pagamento",
           ]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios e a faturação, sem as chaves",
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios, a faturação e as diferenças de pagamento, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
@@ -7159,6 +7161,175 @@ try {
         if (nome === "devolucao-emitida") {
           await p.getByRole("button", { name: "Descarregar o PDF" }).waitFor();
         }
+        const largo = await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        );
+        confere(
+          !largo,
+          `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
+        );
+        await p.screenshot({
+          path: join(
+            SAIDA,
+            `${nome}-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+          ),
+          fullPage: true,
+        });
+        await c.close();
+      }
+    }
+  }
+
+  // A fila de diferenças de pagamento (docs/22 §34): a lista contra a API
+  // verdadeira; a lista cheia, as resolvidas e o diálogo de um incerto
+  // com respostas simuladas (o ensaio não tem pagamentos). Dados fictícios.
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(
+      `${ORIGEM}/pagamentos/diferencas?comerciante=mer_${comerciante}`,
+    );
+    await p
+      .getByRole("heading", { name: /Diferenças de pagamento/ })
+      .first()
+      .waitFor();
+    // A diferença que a «A decidir» das capturas já criou (sem pagamento e
+    // sem prova), lida da API verdadeira.
+    await p.getByText("montante diferente").first().waitFor();
+    await p.getByText("Sem pormenores.").first().waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "diferencas-api-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+  const pagamentoSimulado = (i, metodo, montante, estado) => ({
+    id: `pay_0199e000-0000-7000-8000-0000000001${String(10 + i)}`,
+    encomenda: `ord_0199e000-0000-7000-8000-0000000002${String(10 + i)}`,
+    metodo,
+    montante,
+    moeda: "EUR",
+    estado,
+  });
+  const diferencaSimulada = (i, motivo, prova, pagamento, resolvida) => ({
+    id: `pdi_0199e000-0000-7000-8000-0000000003${String(10 + i)}`,
+    pagamento,
+    aviso: null,
+    motivo,
+    prova,
+    estado: resolvida ? "resolvida" : "aberta",
+    resolucao: resolvida
+      ? "Visto no back-office da EuPago: o cliente pagou menos 5 €; combinado pagar a diferença por transferência."
+      : null,
+    resolvida_por: resolvida
+      ? "chave:key_0199e000-0000-7000-8000-000000000099"
+      : null,
+    resolvida_em: resolvida ? "2026-10-14T09:40:00.000Z" : null,
+    criada_em: `2026-10-${String(14 - i).padStart(2, "0")}T08:1${String(i)}:00.000Z`,
+  });
+  const simularDiferencas = async (contexto) => {
+    await contexto.route(
+      /\/hub\/payment-issues\?estado=(aberta|resolvida)$/,
+      (r) => {
+        const resolvidas = r.request().url().endsWith("resolvida");
+        return r.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { "cache-control": "private, no-store" },
+          body: JSON.stringify({
+            dados: resolvidas
+              ? [
+                  diferencaSimulada(
+                    3,
+                    "montante_diferente",
+                    { esperado: 29.9, recebido: 24.9 },
+                    pagamentoSimulado(3, "mb_way", 29.9, "capturado"),
+                    true,
+                  ),
+                ]
+              : [
+                  diferencaSimulada(
+                    0,
+                    "incerto",
+                    { ao_cobrar: "tempo esgotado" },
+                    pagamentoSimulado(0, "multibanco", 42.5, "incerto"),
+                    false,
+                  ),
+                  diferencaSimulada(
+                    1,
+                    "montante_diferente",
+                    { esperado: 29.9, recebido: 24.9 },
+                    pagamentoSimulado(1, "mb_way", 29.9, "a_aguardar_cliente"),
+                    false,
+                  ),
+                  diferencaSimulada(
+                    2,
+                    "aviso_sem_pagamento",
+                    { referencia: "123456789", estado: "Paid" },
+                    null,
+                    false,
+                  ),
+                ],
+          }),
+        });
+      },
+    );
+  };
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    await simularDiferencas(c);
+    const p = await c.newPage();
+    await p.goto(
+      `${ORIGEM}/pagamentos/diferencas?comerciante=mer_${comerciante}`,
+    );
+    await p.getByText("Esperado 29,90").first().waitFor();
+    await p.getByRole("button", { name: /Resolver: estado incerto/ }).click();
+    await p.getByText("O cliente pagou?").waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "diferenca-resolver-incerto-1280-claro.png"),
+      fullPage: true,
+    });
+    // Sem dizer se foi pago, o diálogo não envia.
+    await p.getByLabel("O que se fez (obrigatório)").fill("Visto na EuPago.");
+    await p
+      .getByRole("button", { name: "Resolver", exact: true })
+      .last()
+      .click();
+    await p.getByText("Diga se o cliente pagou.").waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "diferenca-resolver-falta-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+  for (const tema of ["light", "dark"]) {
+    for (const largura of [375, 768, 1280]) {
+      for (const [nome, caminho] of [
+        ["diferencas", `/pagamentos/diferencas?comerciante=mer_${comerciante}`],
+        [
+          "diferencas-resolvidas",
+          `/pagamentos/diferencas?comerciante=mer_${comerciante}&estado=resolvida`,
+        ],
+      ]) {
+        const c = await navegador.newContext({
+          ignoreHTTPSErrors: true,
+          colorScheme: tema,
+          viewport: { width: largura, height: 900 },
+          storageState: sessao,
+        });
+        await simularDiferencas(c);
+        const p = await c.newPage();
+        await p.goto(`${ORIGEM}${caminho}`);
+        await p.getByText("Esperado 29,90").first().waitFor();
+        await p.waitForLoadState("networkidle");
         const largo = await p.evaluate(
           () => document.documentElement.scrollWidth > window.innerWidth,
         );

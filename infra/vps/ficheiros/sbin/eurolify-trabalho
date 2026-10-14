@@ -24,7 +24,7 @@ case "$fluxo" in
   # O comando do operador (docs/19 §6); o mesmo formato do eurolify-pedido.
   operar) padrao='^(comerciante [a-z]{2} [A-Za-z_]+(/[A-Za-z0-9_+-]+){0,2} [A-Za-z0-9_-]{1,200} run:[0-9]{1,20} github:[0-9]{1,20}|chave [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z:,]{1,200} eul_sk_[a-z2-7]{5} [0-9a-f]{64} [A-Za-z0-9_-]{1,200} github:[0-9]{1,20}|convite [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [A-Za-z0-9_-]{1,340} dono [0-9a-f]{64} github:[0-9]{1,20})$' ;;
   # A configuração do e-mail (docs/34 §13); o mesmo formato do eurolify-pedido.
-  configurar) padrao='^(smtp [A-Za-z0-9+/]+={0,2}|teste) run:[0-9]{1,20} github:[0-9]{1,20}$' ;;
+  configurar) padrao='^(smtp [A-Za-z0-9+/]+={0,2}|teste|chave-envios (trocar|tirar-anterior)) run:[0-9]{1,20} github:[0-9]{1,20}$' ;;
   *) falhar "fluxo desconhecido: '$fluxo'" ;;
 esac
 

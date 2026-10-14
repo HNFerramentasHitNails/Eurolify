@@ -1738,6 +1738,54 @@ export async function listarDiferencas(
 }
 
 /**
+ * A fila para o ecrã do Hub (docs/22 §34.2): as mesmas diferenças, com o
+ * resumo do pagamento de cada uma (encomenda, método, montante, moeda e
+ * estado), para o ecrã não o pedir um a um. Nunca o corpo do aviso.
+ */
+/** Quantas resolvidas o ecrã do Hub lê de uma vez (as mais recentes). */
+export const LIMITE_RESOLVIDAS_NO_HUB = 200;
+
+export async function diferencasParaOHub(
+  db: Kysely<BaseDados>,
+  c: string,
+  estado: "aberta" | "resolvida" | undefined,
+) {
+  return noPagamentos(db, c, (trx) => {
+    let q = trx
+      .selectFrom("diferenca_pagamento as d")
+      .leftJoin("pagamento as p", "p.id", "d.pagamento_id")
+      .select([
+        "d.id",
+        "d.pagamento_id",
+        "d.aviso_id",
+        "d.motivo",
+        "d.prova",
+        "d.estado",
+        "d.resolucao",
+        "d.resolvida_por",
+        "d.resolvida_em",
+        "d.criada_em",
+        "p.encomenda_id",
+        "p.metodo",
+        "p.montante",
+        "p.moeda",
+        "p.estado as pagamento_estado",
+      ]);
+    if (estado !== undefined) q = q.where("d.estado", "=", estado);
+    // As por resolver pela ordem de chegada; as resolvidas, as mais recentes
+    // primeiro e só as últimas 200 (revisão do #458, P2-3).
+    q =
+      estado === "resolvida"
+        ? q
+            .orderBy("d.resolvida_em", "desc")
+            .orderBy("d.id", "desc")
+            .limit(LIMITE_RESOLVIDAS_NO_HUB)
+        : q.orderBy("d.criada_em").orderBy("d.id");
+    return q.execute();
+  });
+}
+
+/**
  * Uma pessoa resolve uma diferença (docs/26 §3.6). Num pagamento incerto,
  * pode decidir o estado (`capturado` ou `falhado`), com a origem «pessoa».
  */
