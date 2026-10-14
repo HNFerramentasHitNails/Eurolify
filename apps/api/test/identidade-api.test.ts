@@ -270,6 +270,8 @@ describe.skipIf(URL_BASE === undefined)("API com chave (parte A)", () => {
       "/hub/invoicing-connections/{id}/issuer-options",
       "/hub/invoicing-connections/{id}/issuer-search",
       "/hub/invoicing-connections/{id}/test",
+      "/hub/payment-issues",
+      "/hub/payment-issues/{id}/resolve",
       "/hub/tax-reports/oss",
       "/hub/tax-reports/oss/classifications",
       "/hub/tax-reports/oss/close",
