@@ -1889,3 +1889,63 @@ Sendcloud (memória `envios-parte-c-sendcloud-12out2026.md`). Pela regra 4 do
 `AGENTS.md`, só entra com decisão escrita do Diogo ou do Bruno e o acordo de
 transferência. Mesmo assim, o comerciante precisaria do contrato com os CTT:
 a ShippyPro não dispensa o §24.2.
+
+## 25. Trocar a chave das credenciais sem as pedir outra vez (desenho e código; §14, P3-7; issue #393)
+
+Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
+envios»*; aprovado no mesmo dia: *«sim, aprovo; avança com o código»*.
+
+### 25.1 O problema
+
+As credenciais de cada conta de transportadora e o segredo dos avisos estão
+cifrados com a `ENVIOS_CHAVE` (§3.1), fora da base. Se a chave puder ter
+sido exposta, troca-se primeiro (regra 7 de «Operar a VPS» do `AGENTS.md`).
+Até aqui, com a chave nova, **todas as contas deixavam de se ler** até o
+comerciante colar as credenciais outra vez (`credenciaisDe`: «defina-as
+outra vez»).
+
+Ex.: a chave da versão «1» pode ter saído num registo. Põe-se uma nova,
+versão «2», e a antiga passa a `ENVIOS_CHAVE_ANTERIOR` com
+`ENVIOS_CHAVE_ANTERIOR_VERSAO=1`. A volta seguinte dos envios passa as contas
+para a «2»; quando o registo diz `contasPorRecifrar: 0`, tira-se a anterior.
+
+### 25.2 O que entra
+
+| O quê | Regra | Onde |
+|---|---|---|
+| A chave anterior | `ENVIOS_CHAVE_ANTERIOR` e `ENVIOS_CHAVE_ANTERIOR_VERSAO` (obrigatória); só decifra, nunca cifra. Sem `ENVIOS_CHAVE`, ou com a mesma versão das duas, a API não arranca | `src/servidor.ts`, `ConfigEnvios.chaveAnterior` |
+| Ler uma conta | com a chave da versão dela: a actual ou, durante a troca, a anterior; noutra versão, como até aqui («defina-as outra vez») | `chaveDaVersao`, `credenciaisDe` (`src/envios/repositorio.ts`) |
+| O segredo dos avisos | o mesmo: um aviso de uma conta ainda na anterior continua válido | `receberAviso` (`src/envios/etiquetas.ts`) |
+| Passar para a actual | na volta dos envios (5 em 5 minutos), antes das etiquetas: até 100 contas por volta, cada uma na sua transacção, com a conta bloqueada; decifra com a anterior e cifra com a actual as credenciais e o segredo, e muda a versão. A conta pronta continua pronta | `recifrarContas` (`src/envios/chave.ts`) |
+| Quantas faltam | o registo da volta diz `contasRecifradas` e `contasPorRecifrar`; uma cifra que a anterior não abre conta como falha (`shipping.key_rotation`) e fica como está | `correrTrabalho` |
+| A base | o gatilho da conta só a devolve a rascunho quando a cifra muda **com a mesma versão** (credenciais novas); com outra versão é a troca. A lista das contas por passar é uma função, comerciante a comerciante, que só devolve identificadores | migração `0103_envios_chave_anterior.sql` |
+
+### 25.3 O que fica de fora
+
+| Fica de fora | Porquê |
+|---|---|
+| Passar a conta no momento em que é usada | desvio ao que se propôs ao Diogo: escrever na conta a meio de uma etiqueta ou do checkout mistura duas coisas na mesma transacção; a volta passa-as em 5 minutos, e até lá a conta lê-se com a anterior |
+| Um ecrã no Hub com as que faltam | não há Hub do dono da plataforma; o número sai no registo da volta, que se lê pelo fluxo fixo de medir (ADR-0028) |
+| A chave dos pagamentos e a da faturação | o mesmo problema, noutros domínios: pedidos à parte |
+| Gerar e guardar a chave anterior na VPS | `infra/vps` (preparar.sh, publicar): pedido à parte, revisto, como manda o ADR-0028 |
+| Contas arquivadas | não mudam (gatilho); ficam na versão antiga e nunca se leem |
+
+### 25.4 Por onde é que isto ainda pode sair errado
+
+- **A chave anterior com a versão errada:** as contas não abrem e contam como
+  falhas em cada volta; nada se perde (a cifra fica como está).
+- **Tirar a anterior antes de tempo:** as contas que faltam voltam ao
+  «defina-as outra vez»; por isso só se tira com `contasPorRecifrar: 0`.
+- **Credenciais novas ao mesmo tempo que a volta:** a conta está bloqueada;
+  quem chega depois vê a versão actual e não mexe (testado).
+- O gatilho deixa passar uma cifra nova com outra versão sem voltar a
+  rascunho: só a API escreve a versão, e com a chave da configuração.
+
+### 25.5 Como se testou
+
+`test/envios-chave.test.ts` (5 testes, base local, 14/10/2026): a conta na
+anterior lê-se e o aviso é válido; a volta passa-a para a actual, pronta e
+com a mesma `testada_em`; sem a anterior, só se conta; duas voltas ao mesmo
+tempo passam cada conta uma vez; credenciais novas na mesma versão continuam
+a devolver a conta a rascunho; uma cifra que a anterior não abre fica e
+conta como falha.

@@ -70,10 +70,31 @@ export async function noEnvios<T>(
   }
 }
 
+/**
+ * As chaves com que se decifram as contas: a actual e, durante a troca, a
+ * anterior (docs/36 §25). Cifra-se sempre com a actual.
+ */
+export interface ChavesEnvios {
+  actual: ChavePagamentos;
+  anterior?: ChavePagamentos;
+}
+
+/** A chave da versão com que a conta foi cifrada, ou `undefined`. */
+export function chaveDaVersao(
+  chaves: ChavesEnvios,
+  versao: string | null,
+): ChavePagamentos | undefined {
+  if (versao === chaves.actual.versao) return chaves.actual;
+  if (chaves.anterior !== undefined && versao === chaves.anterior.versao) {
+    return chaves.anterior;
+  }
+  return undefined;
+}
+
 export function adaptadorDe(
   cfg: ConfigEnvios | undefined,
   transportadora: Transportadora,
-): { adaptador: AdaptadorTransportadora; chave: ChavePagamentos } {
+): { adaptador: AdaptadorTransportadora; chave: ChavesEnvios } {
   const adaptador = cfg?.adaptadores[transportadora];
   if (cfg?.chave === undefined) {
     throw new ErroEnvios(
@@ -87,7 +108,15 @@ export function adaptadorDe(
       `ainda não há adaptador para ${transportadora} neste servidor`,
     );
   }
-  return { adaptador, chave: cfg.chave };
+  return {
+    adaptador,
+    chave: {
+      actual: cfg.chave,
+      ...(cfg.chaveAnterior === undefined
+        ? {}
+        : { anterior: cfg.chaveAnterior }),
+    },
+  };
 }
 
 /** A morada de recolha e o contacto da etiqueta (validados na parte B). */
@@ -301,7 +330,7 @@ export function credenciaisDe(
     credenciais_cifra: Buffer | null;
     chave_versao: string | null;
   },
-  chave: ChavePagamentos,
+  chaves: ChavesEnvios,
 ): CredenciaisTransportadora {
   if (conta.credenciais_cifra === null) {
     throw new ErroEnvios(
@@ -309,7 +338,9 @@ export function credenciaisDe(
       "a conta não tem credenciais",
     );
   }
-  if (conta.chave_versao !== chave.versao) {
+  // Na actual ou, durante a troca, na anterior (docs/36 §25).
+  const chave = chaveDaVersao(chaves, conta.chave_versao);
+  if (chave === undefined) {
     throw new ErroEnvios(
       "shipping.account_not_ready",
       "as credenciais foram cifradas com outra versão da chave: defina-as outra vez",
