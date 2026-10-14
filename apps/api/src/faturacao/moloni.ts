@@ -238,6 +238,11 @@ export class AdaptadorMoloni implements AdaptadorFaturacao {
     );
   }
 
+  contaDe(credenciais: CredenciaisEmissor): string | null {
+    const e = credenciais["company_id"];
+    return e !== undefined && /^\d{1,12}$/.test(e) ? e : null;
+  }
+
   empresaPermitida(empresa: string): boolean {
     return this.cfg.empresasPermitidas.includes(empresa);
   }

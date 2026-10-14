@@ -902,8 +902,9 @@ faturas retidas e o dono não sabe porquê.
 
 ## 19. Uma empresa do emissor, uma ligação só (desenho, 14/10/2026)
 
-> **Estado: por aprovar.** Pedido do Diogo, 14/10/2026 (*«sim, avança com o
-> desenho»*). Fecha a metade do P2-1 da revisão do #407 (§17) que não
+> **Estado: aprovado e em código** (`docs/06`, EP). Diogo, 14/10/2026:
+> *«sim, aprovo o desenho com a Q1 em B»*. Pedido inicial: *«sim, avança com o
+> desenho»*. Fecha a metade do P2-1 da revisão do #407 (§17) que não
 > depende da medição no Moloni: «a mesma empresa não se liga em dois
 > comerciantes». Só desenho; nenhum código antes de aprovado (ADR-0023).
 
@@ -958,3 +959,30 @@ existir quando o modo real abrir.
   pela medição na conta trial (§17), como estava.
 - **Se o Moloni deixa a mesma empresa** dar acesso a dois utilizadores: não
   verificado. A regra do Eurolify vale na mesma.
+
+### 19.6 Em código (14/10/2026; migração 0095; EP)
+
+- **Migração 0095:**
+  - a coluna `conta_emissor`;
+  - o índice `ligacao_faturacao_uma_por_conta`;
+  - a restrição `ligacao_faturacao_pronta_com_conta`: uma ligação Moloni
+    pronta tem de ter a conta;
+  - as ligações Moloni prontas sem conta passam a «por testar».
+- **API (`src/faturacao/repositorio.ts`):**
+  - `definirCredenciais` grava a conta (`contaDe` do adaptador) na mesma
+    escrita das credenciais;
+  - `pedirAutorizacao` recusa antes de mandar o dono ao Moloni;
+  - `testarLigacao` dá a conta às ligações antigas, ou falha com a recusa.
+- **A pergunta à base:** escreve a conta num ponto de salvaguarda que se
+  desfaz sempre. O índice responde mesmo com o RLS a esconder as ligações dos
+  outros comerciantes, e não é preciso nenhuma função com poderes de dono.
+- **A recusa:** `invoices.account_in_use` (409), com o texto da Q1 «B»
+  (`CONTA_EM_USO`). No Hub, `moloniEmpresaEmUso` em PT, ES e EN, ao pedir e
+  ao voltar do Moloni.
+- **Desvio do desenho:** uma ligação antiga cuja empresa já está noutra fica
+  `com_erro` com o motivo `teste_falhou` e a recusa no erro. Não se criou um
+  motivo novo, porque a fila e o e-mail continuam iguais.
+- **Os testes:** 2 em `test/documentos-api.test.ts`. O Moloni simulado
+  (`test/moloni-falso.ts`) passa a dar uma empresa nova a cada
+  `credenciais()`, porque os testes ligavam várias lojas à mesma empresa.
+

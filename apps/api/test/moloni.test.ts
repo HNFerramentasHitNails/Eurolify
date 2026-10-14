@@ -31,7 +31,7 @@ function montar(porMinuto = 1000) {
   const a = new AdaptadorMoloni({
     clientId: "dev-eurolify",
     clientSecret: "segredo-do-developer",
-    empresasPermitidas: [String(m.empresa)],
+    empresasPermitidas: m.empresas,
     fetch: m.fetch,
     porMinuto,
   });
@@ -154,7 +154,7 @@ describe("o adaptador Moloni", () => {
     const b = new AdaptadorMoloni({
       clientId: "dev-eurolify",
       clientSecret: "segredo-do-developer",
-      empresasPermitidas: [String(m.empresa)],
+      empresasPermitidas: m.empresas,
       redirectUri: "https://api.exemplo.test/cb",
       fetch: m.fetch,
     });

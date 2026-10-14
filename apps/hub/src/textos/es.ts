@@ -1037,6 +1037,8 @@ export const es: Textos = {
   moloniRecusou: "Moloni ha rechazado: {erro} Pídalo de nuevo.",
   moloniOcupado:
     "Hay documentos a medias en Moloni; resuélvalos antes de cambiar la cuenta.",
+  moloniEmpresaEmUso:
+    "Esta empresa de Moloni ya está conectada a otra cuenta de Eurolify. Si es suya, desconéctela allí primero, o hable con el soporte de Eurolify.",
   moloniVoltar: "Volver a Facturación",
   ossTitulo: "Informe OSS",
   ossPeriodo: "Periodo",

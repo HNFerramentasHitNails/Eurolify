@@ -1873,6 +1873,8 @@ export interface TabelaLigacaoFaturacao {
   isencoes: ColumnType<IsencaoDoEmissor[], string, string>;
   /** Os ids do emissor por omissão (docs/29 §13.2; migração 0069). */
   config: ColumnType<ConfigDaLigacao, string | undefined, string>;
+  /** A conta no emissor, à vista (o `company_id` do Moloni; docs/29 §19; 0095). */
+  conta_emissor: ColumnType<string | null, never, string | null>;
   /** Os tokens que o emissor renova sozinho, cifrados (§13.4). */
   sessao: ColumnType<Buffer | null, never, Buffer | null>;
   sessao_versao_chave: ColumnType<string | null, never, string | null>;

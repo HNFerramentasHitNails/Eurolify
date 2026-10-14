@@ -1027,6 +1027,8 @@ export const pt = {
   moloniRecusou: "O Moloni recusou: {erro} Peça outra vez.",
   moloniOcupado:
     "Há documentos a meio no Moloni; resolva-os antes de mudar a conta.",
+  moloniEmpresaEmUso:
+    "Esta empresa do Moloni já está ligada a outra conta do Eurolify. Se é sua, desligue-a lá primeiro, ou fale com o apoio do Eurolify.",
   moloniVoltar: "Voltar à Faturação",
   ossTitulo: "Relatório OSS",
   ossPeriodo: "Período",

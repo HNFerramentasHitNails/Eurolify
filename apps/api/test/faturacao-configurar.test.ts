@@ -48,7 +48,7 @@ describe.skipIf(URL_BASE === undefined)(
         moloni: new AdaptadorMoloni({
           clientId: "dev-eurolify",
           clientSecret: "segredo-do-developer",
-          empresasPermitidas: [String(moloni.empresa)],
+          empresasPermitidas: moloni.empresas,
           redirectUri:
             "https://api.exemplo.test/invoicing-connections/moloni/callback",
           fetch: moloni.fetch,
@@ -713,7 +713,7 @@ describe("o limite de pedidos ao Moloni", () => {
     const a = new AdaptadorMoloni({
       clientId: "dev-eurolify",
       clientSecret: "segredo-do-developer",
-      empresasPermitidas: [String(m.empresa)],
+      empresasPermitidas: m.empresas,
       fetch: m.fetch,
       porMinuto: 12,
     });
