@@ -1557,7 +1557,7 @@ export interface TabelaExpedicao {
   peso_corrigido_g: ColumnType<number | null, never, number | null>;
   conta_escolhida_id: ColumnType<string | null, never, string | null>;
   servico_escolhido: ColumnType<string | null, never, string | null>;
-  // O peso de cada caixa (docs/36 §23, 0097); null = uma caixa.
+  // O peso de cada caixa (docs/36 §23, 0098); null = uma caixa.
   volumes_g: ColumnType<number[] | null, never, number[] | null>;
   etiqueta: ColumnType<EstadoEtiqueta, never, EstadoEtiqueta>;
   etiqueta_tentativa: ColumnType<number, never, number>;
@@ -1584,7 +1584,7 @@ export interface TabelaEtiquetaFicheiro {
   formato: ColumnType<"pdf" | "zpl", "pdf" | "zpl", never>;
   conteudo: ColumnType<Buffer, Buffer, never>;
   criado_em: ColumnType<Date, never, never>;
-  /** O volume (docs/36 §23, 0097): 1 numa expedição de uma caixa. */
+  /** O volume (docs/36 §23, 0098): 1 numa expedição de uma caixa. */
   volume: ColumnType<number, number | undefined, never>;
 }
 
@@ -1641,6 +1641,24 @@ export interface TabelaCorrecaoExpedicao {
   quem: ColumnType<string, never, never>;
   em: ColumnType<Date, never, never>;
 }
+
+/**
+ * Uma recusa da mesma empresa do emissor (docs/29 §19.7, 0097): só se
+ * acrescenta; o contexto do rasto põe-no a base.
+ */
+export interface TabelaRecusaContaEmissor {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, string, never>;
+  ligacao_id: ColumnType<string, string, never>;
+  adaptador: ColumnType<string, string, never>;
+  conta: ColumnType<string, string, never>;
+  passo: ColumnType<PassoDaRecusa, PassoDaRecusa, never>;
+  quem: ColumnType<string, string, never>;
+  em: ColumnType<Date, never, never>;
+}
+
+export type PassoDaRecusa =
+  "autorizar" | "credenciais" | "autorizacao" | "teste";
 
 /** Uma encomenda parada já avisada (docs/36 §18, 0085): só se acrescenta. */
 export interface TabelaEncomendaParada {
@@ -1822,6 +1840,7 @@ export interface BaseDados {
   linha_encomenda_folha: TabelaLinhaEncomendaFolha;
   ligacao_faturacao: TabelaLigacaoFaturacao;
   autorizacao_faturacao: TabelaAutorizacaoFaturacao;
+  recusa_conta_emissor: TabelaRecusaContaEmissor;
   documento_fiscal: TabelaDocumentoFiscal;
   documento_conteudo: TabelaDocumentoConteudo;
   documento_prova: TabelaDocumentoProva;

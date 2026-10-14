@@ -11,6 +11,7 @@ import type {
   EmissorFiscal,
   EstadoDocumento,
   IsencaoDoEmissor,
+  PassoDaRecusa,
   TaxaDoEmissor,
 } from "../base/esquema.js";
 import { comComerciante } from "../comerciante/repositorio.js";
@@ -27,7 +28,7 @@ import {
   type PedidoRascunho,
   type ResultadoNoEmissor,
 } from "./adaptador.js";
-import { CONTA_EM_USO, ErroDocumentos, traduzir } from "./erros.js";
+import { CONTA_EM_USO, ContaEmUso, ErroDocumentos, traduzir } from "./erros.js";
 
 // Os documentos fiscais (docs/29; migração 0050; issue #310; Diogo,
 // 10/10/2026: «sim, aprovo; avança com o código da fatia 10»).
@@ -314,6 +315,107 @@ async function contaEmUso(
   }
 }
 
+/**
+ * Escreve a conta nesta ligação e fica com ela, se nenhuma outra activa a
+ * tiver (docs/29 §19). Ao contrário da `contaEmUso`, o ponto de salvaguarda
+ * só se desfaz na recusa: com a conta escrita, outro pedido que a queira
+ * espera por esta transacção, e a recusa nunca sai depois sem registo
+ * (revisão do #452, P1-1).
+ */
+async function ficarComConta(
+  trx: Transaction<BaseDados>,
+  id: string,
+  conta: string,
+): Promise<boolean> {
+  await sql`savepoint conta_emissor`.execute(trx);
+  try {
+    await trx
+      .updateTable("ligacao_faturacao")
+      .set({ conta_emissor: conta })
+      .where("id", "=", id)
+      .execute();
+    await sql`release savepoint conta_emissor`.execute(trx);
+    return true;
+  } catch (e) {
+    const pg = e as { code?: string; constraint?: string };
+    if (
+      pg.code === "23505" &&
+      pg.constraint === "ligacao_faturacao_uma_por_conta"
+    ) {
+      await sql`rollback to savepoint conta_emissor`.execute(trx);
+      await sql`release savepoint conta_emissor`.execute(trx);
+      return false;
+    }
+    throw e;
+  }
+}
+
+/** Uma linha no registo das recusas (docs/29 §19.7, 0097). */
+async function acrescentarRecusa(
+  trx: Transaction<BaseDados>,
+  c: string,
+  l: { id: string; adaptador: string },
+  conta: string,
+  passo: PassoDaRecusa,
+  quem: string,
+) {
+  await trx
+    .insertInto("recusa_conta_emissor")
+    .values({
+      comerciante_id: c,
+      ligacao_id: l.id,
+      adaptador: l.adaptador,
+      conta,
+      passo,
+      quem,
+    })
+    .execute();
+}
+
+/**
+ * Regista a recusa numa transacção própria: a que a deu volta atrás com o
+ * erro (docs/29 §19.7). `db` é a base, nunca uma transacção.
+ */
+export async function registarRecusa(
+  db: Kysely<BaseDados>,
+  c: string,
+  recusa: ContaEmUso,
+  passo: PassoDaRecusa,
+  quem: string,
+) {
+  if (db.isTransaction) {
+    // Dentro da transacção que recusou, o registo voltava atrás com ela.
+    throw new Error("registarRecusa pede a base, não uma transacção");
+  }
+  await noDocumentos(db, c, async (trx) => {
+    await marcar(trx, quem);
+    const l = await trx
+      .selectFrom("ligacao_faturacao")
+      .select(["id", "adaptador"])
+      .where("id", "=", recusa.ligacaoId)
+      .executeTakeFirstOrThrow();
+    await acrescentarRecusa(trx, c, l, recusa.conta, passo, quem);
+  });
+}
+
+/** Corre `fn` e, se a empresa estiver noutra ligação, regista a recusa. */
+async function comRegistoDaRecusa<T>(
+  db: Kysely<BaseDados>,
+  c: string,
+  passo: PassoDaRecusa,
+  quem: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (erro) {
+    if (erro instanceof ContaEmUso) {
+      await registarRecusa(db, c, erro, passo, quem);
+    }
+    throw erro;
+  }
+}
+
 export async function definirCredenciais(
   trx: Transaction<BaseDados>,
   c: string,
@@ -328,25 +430,37 @@ export async function definirCredenciais(
     // A conta que as credenciais abrem fica à vista; a mesma noutra ligação
     // activa é recusada pelo índice (docs/29 §19).
     const conta = adaptadorDe(cfg, l.adaptador).contaDe?.(credenciais) ?? null;
-    await trx
-      .updateTable("ligacao_faturacao")
-      .set({
-        conta_emissor: conta,
-        credenciais: cifrar(
-          JSON.stringify(credenciais),
-          id,
-          "credenciais",
-          chave,
-        ),
-        credenciais_versao_chave: chave.versao,
-        credenciais_em: new Date(),
-        credenciais_por: quem,
-        estado: "por_testar",
-        erro: null,
-        versao: l.versao + 1,
-      })
-      .where("id", "=", id)
-      .execute();
+    try {
+      await trx
+        .updateTable("ligacao_faturacao")
+        .set({
+          conta_emissor: conta,
+          credenciais: cifrar(
+            JSON.stringify(credenciais),
+            id,
+            "credenciais",
+            chave,
+          ),
+          credenciais_versao_chave: chave.versao,
+          credenciais_em: new Date(),
+          credenciais_por: quem,
+          estado: "por_testar",
+          erro: null,
+          versao: l.versao + 1,
+        })
+        .where("id", "=", id)
+        .execute();
+    } catch (e) {
+      const pg = e as { code?: string; constraint?: string };
+      if (
+        conta !== null &&
+        pg.code === "23505" &&
+        pg.constraint === "ligacao_faturacao_uma_por_conta"
+      ) {
+        throw new ContaEmUso(id, conta, { cause: e });
+      }
+      throw e;
+    }
     // Credenciais novas fazem caducar as autorizações por concluir desta
     // ligação (revisão do #407, P3-1).
     await trx
@@ -559,13 +673,18 @@ export async function testarLigacao(
     const agora = await ligacaoParaMudar(trx, id, l.versao);
     // Uma ligação de antes da 0095 ganha aqui a conta; se a mesma conta já
     // está noutra ligação activa, o teste falha (docs/29 §19).
-    if (erro === null && conta !== null && (await contaEmUso(trx, id, conta))) {
+    if (
+      erro === null &&
+      conta !== null &&
+      !(await ficarComConta(trx, id, conta))
+    ) {
       erro = CONTA_EM_USO;
+      // A transacção do teste fica: a recusa regista-se nela (§19.7).
+      await acrescentarRecusa(trx, c, agora, conta, "teste", quem);
     }
     await trx
       .updateTable("ligacao_faturacao")
       .set({
-        ...(erro === null && conta !== null ? { conta_emissor: conta } : {}),
         estado: erro === null ? "pronta" : "com_erro",
         // Um teste falhado também põe o caso na fila, mas sem e-mail: quem
         // testou está a ver o resultado (docs/29 §18.3).
@@ -1043,57 +1162,59 @@ export async function pedirAutorizacao(
   quem: string,
 ): Promise<{ url: string; estado: string; expira_em: Date }> {
   exigirChave(cfg);
-  return noDocumentos(db, c, async (trx) => {
-    await marcar(trx, quem);
-    const l = await ligacaoParaMudar(trx, id, null);
-    if (!l.activa) {
-      throw new ErroDocumentos(
-        "invoices.invalid_transition",
-        "esta ligação está desligada",
-      );
-    }
-    const a = adaptadorDe(cfg, l.adaptador);
-    if (a.urlAutorizacao === undefined || a.trocarCodigo === undefined) {
-      throw new ErroDocumentos(
-        "invoices.invalid_field",
-        "este emissor não se liga por autorização: as credenciais entram pela API",
-      );
-    }
-    // A M8 antes de mandar o dono ao Moloni (revisão do #407, P3-2).
-    if (a.empresaPermitida !== undefined && !a.empresaPermitida(empresa)) {
-      throw new ErroDocumentos(
-        "invoices.invalid_field",
-        `a empresa ${empresa} não está na lista das contas de teste (M8): o modo real está fechado`,
-      );
-    }
-    // Antes de mandar o dono ao Moloni: a empresa noutra ligação activa não
-    // se liga (docs/29 §19, Q1 «B»).
-    const conta = a.contaDe?.({ company_id: empresa }) ?? empresa;
-    if (await contaEmUso(trx, id, conta)) {
-      throw new ErroDocumentos("invoices.account_in_use", CONTA_EM_USO);
-    }
-    const estado = randomBytes(32).toString("base64url");
-    const url = a.urlAutorizacao(estado);
-    if (url === null) {
-      throw new ErroDocumentos(
-        "invoices.not_configured",
-        "o endereço de resposta do emissor não está configurado neste servidor",
-      );
-    }
-    const expira_em = new Date(Date.now() + VALIDADE_AUTORIZACAO_MS);
-    await trx
-      .insertInto("autorizacao_faturacao")
-      .values({
-        comerciante_id: c,
-        ligacao_id: id,
-        empresa,
-        resumo: resumoDe(estado),
-        criada_por: quem,
-        expira_em,
-      })
-      .execute();
-    return { url, estado, expira_em };
-  });
+  return comRegistoDaRecusa(db, c, "autorizar", quem, () =>
+    noDocumentos(db, c, async (trx) => {
+      await marcar(trx, quem);
+      const l = await ligacaoParaMudar(trx, id, null);
+      if (!l.activa) {
+        throw new ErroDocumentos(
+          "invoices.invalid_transition",
+          "esta ligação está desligada",
+        );
+      }
+      const a = adaptadorDe(cfg, l.adaptador);
+      if (a.urlAutorizacao === undefined || a.trocarCodigo === undefined) {
+        throw new ErroDocumentos(
+          "invoices.invalid_field",
+          "este emissor não se liga por autorização: as credenciais entram pela API",
+        );
+      }
+      // A M8 antes de mandar o dono ao Moloni (revisão do #407, P3-2).
+      if (a.empresaPermitida !== undefined && !a.empresaPermitida(empresa)) {
+        throw new ErroDocumentos(
+          "invoices.invalid_field",
+          `a empresa ${empresa} não está na lista das contas de teste (M8): o modo real está fechado`,
+        );
+      }
+      // Antes de mandar o dono ao Moloni: a empresa noutra ligação activa não
+      // se liga (docs/29 §19, Q1 «B»).
+      const conta = a.contaDe?.({ company_id: empresa }) ?? empresa;
+      if (await contaEmUso(trx, id, conta)) {
+        throw new ContaEmUso(id, conta);
+      }
+      const estado = randomBytes(32).toString("base64url");
+      const url = a.urlAutorizacao(estado);
+      if (url === null) {
+        throw new ErroDocumentos(
+          "invoices.not_configured",
+          "o endereço de resposta do emissor não está configurado neste servidor",
+        );
+      }
+      const expira_em = new Date(Date.now() + VALIDADE_AUTORIZACAO_MS);
+      await trx
+        .insertInto("autorizacao_faturacao")
+        .values({
+          comerciante_id: c,
+          ligacao_id: id,
+          empresa,
+          resumo: resumoDe(estado),
+          criada_por: quem,
+          expira_em,
+        })
+        .execute();
+      return { url, estado, expira_em };
+    }),
+  );
 }
 
 /**
@@ -1173,19 +1294,21 @@ export async function concluirAutorizacao(
     }
     throw e;
   }
-  await noDocumentos(db, c, async (trx) => {
-    await marcar(trx, quem);
-    // A ligação pode ter mudado durante a troca (revisão do #407, P3-1).
-    const l = await ligacaoParaMudar(trx, id, null);
-    if (!l.activa) {
-      throw new ErroDocumentos(
-        "invoices.invalid_transition",
-        "esta ligação foi desligada durante a autorização",
-      );
-    }
-    await semDocumentosAMeio(trx, id);
-    await definirCredenciais(trx, c, id, credenciais, cfg, quem);
-  });
+  await comRegistoDaRecusa(db, c, "autorizacao", quem, () =>
+    noDocumentos(db, c, async (trx) => {
+      await marcar(trx, quem);
+      // A ligação pode ter mudado durante a troca (revisão do #407, P3-1).
+      const l = await ligacaoParaMudar(trx, id, null);
+      if (!l.activa) {
+        throw new ErroDocumentos(
+          "invoices.invalid_transition",
+          "esta ligação foi desligada durante a autorização",
+        );
+      }
+      await semDocumentosAMeio(trx, id);
+      await definirCredenciais(trx, c, id, credenciais, cfg, quem);
+    }),
+  );
 }
 
 /** Recusa se a ligação tem documentos a meio no emissor (R15). */
