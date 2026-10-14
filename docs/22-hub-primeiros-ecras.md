@@ -3067,27 +3067,36 @@ se a última foi há mais de 10 minutos)?**
 **Acrescentos de 14/10/2026 (Diogo: Q1 A, Q2 A, Q3 A, no desenho fechado no
 #463).** Mantêm a autenticação recente e os dois desvios acima.
 
-- **Q1 A, pagamento incerto.** O diálogo de resolver põe à vista o montante, a
-  referência e a data do pagamento. Ao escolher «Sim, foi pago» o campo da
+- **Q1 A, pagamento incerto.** O diálogo de resolver põe à vista o montante e
+  a data do pagamento (no fuso do comerciante), a referência **do
+  prestador** (a de Multibanco) só quando existe, e, à parte, o identificador
+  que enviámos ao prestador. Ao escolher «Sim, foi pago» o campo da
   resolução vem com a sugestão «Vi na conta da {prestador} o pagamento de
-  {montante} com a referência {referência}.» (para «Não, não foi pago»:
-  «… que o pagamento de … não entrou.»). Continua obrigatório e editável; o
-  que se grava é o que a pessoa deixar, e uma sugestão nunca substitui um
-  texto que ela já escreveu. Sem montante ou referência, não se sugere nada.
+  {montante} com a referência {referência}.» (para «Não, não foi pago»: «…
+  que o pagamento de … não entrou.»). **Sem referência do prestador** (o
+  normal num incerto), a sugestão leva só o montante e a data: «Vi na conta da
+  {prestador} o pagamento de {montante} de {data}.» A nossa referência nunca
+  entra na sugestão, porque a pessoa não a vê na conta dele. Continua
+  obrigatório e editável; o que se grava é o que a pessoa deixar; uma
+  sugestão nunca substitui um texto que ela já escreveu (`textoDepoisDaSugestao`),
+  e uma nota curta em `aria-live` («Preenchido com uma sugestão; pode
+  alterar.») avisa os leitores de ecrã. Sem montante ou sem prestador, não se
+  sugere nada.
   - **API:** `GET /hub/payment-issues` junta ao resumo do pagamento
-    `prestador`, `referencia` (a do prestador ou, se ele ainda não deu uma, a
-    nossa, a que lhe enviámos) e `criado_em`. Nunca as `instrucoes`.
-  - **Hub:** `pagamentoAConferir` e `sugestaoDaResolucao` em `pagamentos.ts`;
-    os textos `diferencaPagamentoAConferir`, `diferencaSugestaoPago` e
-    `diferencaSugestaoNaoPago` (pt, es, en).
-  - **Por verificar:** que a referência que o prestador mostra na conta é a
-    do prestador (Multibanco) ou a nossa (`identifier`); não verifiquei na
-    conta da Eupago.
+    `prestador`, `referencia_prestador` e `identificador` (o nosso), separados
+    e sem os fundir, e `criado_em`; e, à resposta, o `fuso` do comerciante.
+    Nenhuma referência é dado pessoal. As `instrucoes` (o telefone do MB WAY,
+    o resto) não saem; a referência de Multibanco sai, como
+    `referencia_prestador`.
+  - **Hub:** `pagamentoAConferir`, `sugestaoDaResolucao` e
+    `textoDepoisDaSugestao` em `pagamentos.ts`; os campos novos são opcionais
+    no tipo (uma API mais antiga não os dá).
 - **Q2 A, montante ou moeda diferentes.** No caso (coluna «O que se viu») e no
   diálogo, a frase «A encomenda não fica paga. Pode devolver ao cliente o que
   pagou, na conta do prestador, e pedir-lhe um pagamento novo, ou cancelar a
-  encomenda. Escreva aqui o que fez.», só nestes dois motivos
-  (`naoFicaPaga`, `diferencaNaoFicaPaga`).
+  encomenda.», só nestes dois motivos (`naoFicaPaga`). Na lista é essa frase
+  (`diferencaNaoFicaPaga`); no diálogo leva «Escreva aqui o que fez.» no fim
+  (`diferencaNaoFicaPagaDialogo`), porque só ali há campo.
 - **Q3 A, o reembolso uma vez só em «A decidir».** A migração
   `0106_pagamentos_fila_sem_reembolsos.sql` tira da fila `pagamento`
   (`pagamentos_casos_a_decidir()`) as diferenças `reembolso_incerto`: o

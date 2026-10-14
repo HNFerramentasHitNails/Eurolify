@@ -12,6 +12,7 @@ import {
   provaEmTexto,
   separadorDe,
   sugestaoDaResolucao,
+  textoDepoisDaSugestao,
 } from "../src/pagamentos";
 import { LINGUAS, TEXTOS } from "../src/textos";
 
@@ -31,7 +32,8 @@ function diferenca(
     moeda: "EUR",
     estado: "capturado",
     prestador: "eupago",
-    referencia: "123 456 789",
+    referencia_prestador: null,
+    identificador: "0123456789abcdef0123456789abcdef",
     criado_em: "2026-10-13T15:30:00Z",
   },
 ): DiferencaPagamento {
@@ -126,7 +128,8 @@ describe("o diálogo de resolver", () => {
             moeda: "EUR",
             estado: "incerto",
             prestador: "eupago",
-            referencia: "123 456 789",
+            referencia_prestador: null,
+            identificador: "0123456789abcdef0123456789abcdef",
             criado_em: "2026-10-13T15:30:00Z",
           },
         ),
@@ -149,7 +152,9 @@ describe("o diálogo de resolver", () => {
   });
 });
 
-const incerto = (): DiferencaPagamento =>
+const incerto = (
+  referenciaPrestador: string | null = null,
+): DiferencaPagamento =>
   diferenca(
     "incerto",
     {},
@@ -161,35 +166,84 @@ const incerto = (): DiferencaPagamento =>
       moeda: "EUR",
       estado: "incerto",
       prestador: "eupago",
-      referencia: "123 456 789",
-      criado_em: "2026-10-13T15:30:00Z",
+      referencia_prestador: referenciaPrestador,
+      identificador: "0123456789abcdef0123456789abcdef",
+      criado_em: "2026-10-13T23:30:00Z",
     },
   );
 
 describe("o pagamento incerto: o que se confere e o texto sugerido (Q1 A)", () => {
-  it("põe à vista o montante, a referência e a data", () => {
-    const v = pagamentoAConferir(incerto(), "pt-PT");
+  it("põe à vista o montante e a data no fuso do comerciante", () => {
+    const v = pagamentoAConferir(incerto(), "pt-PT", "Europe/Lisbon");
     expect(v?.prestador).toBe("EuPago");
     expect(v?.montante).toMatch(/^42,50\s€$/);
-    expect(v?.referencia).toBe("123 456 789");
-    expect(v?.data).toContain("2026");
+    // 23:30 UTC é já dia 14 em Lisboa (+1) e dia 13 em UTC.
+    expect(v?.data).toContain("14");
+    expect(pagamentoAConferir(incerto(), "pt-PT", "UTC")?.data).toContain("13");
   });
 
-  it("sugere o texto de «foi pago» com o prestador, o montante e a referência", () => {
-    expect(sugestaoDaResolucao(t, incerto(), "capturado", "pt-PT")).toMatch(
+  it("a referência é só a do prestador; o identificador nosso é outro campo", () => {
+    expect(pagamentoAConferir(incerto(), "pt-PT")?.referencia).toBeNull();
+    expect(pagamentoAConferir(incerto(), "pt-PT")?.identificador).toBe(
+      "0123456789abcdef0123456789abcdef",
+    );
+    expect(
+      pagamentoAConferir(incerto("123 456 789"), "pt-PT")?.referencia,
+    ).toBe("123 456 789");
+  });
+
+  it("com a referência do prestador, a sugestão leva-a", () => {
+    expect(
+      sugestaoDaResolucao(t, incerto("123 456 789"), "capturado", "pt-PT"),
+    ).toMatch(
       /^Vi na conta da EuPago o pagamento de 42,50\s€ com a referência 123 456 789\.$/,
     );
-  });
-
-  it("sugere o texto de «não foi pago»", () => {
-    expect(sugestaoDaResolucao(t, incerto(), "falhado", "pt-PT")).toMatch(
+    expect(
+      sugestaoDaResolucao(t, incerto("123 456 789"), "falhado", "pt-PT"),
+    ).toMatch(
       /^Vi na conta da EuPago que o pagamento de 42,50\s€ com a referência 123 456 789 não entrou\.$/,
     );
   });
 
-  it("sem montante ou referência não sugere nada (nada se inventa)", () => {
+  it("sem ela, só o montante e a data; nunca o identificador nosso", () => {
+    const sim = sugestaoDaResolucao(t, incerto(), "capturado", "pt-PT", "UTC");
+    expect(sim).toMatch(
+      /^Vi na conta da EuPago o pagamento de 42,50\s€ de .*13.*\.$/,
+    );
+    expect(sim).not.toContain("0123456789abcdef");
+    const nao = sugestaoDaResolucao(t, incerto(), "falhado", "pt-PT", "UTC");
+    expect(nao).toMatch(/não entrou\.$/);
+    expect(nao).not.toContain("referência");
+  });
+
+  it("nas três línguas, com e sem referência, nada fica por preencher", () => {
+    for (const lingua of LINGUAS) {
+      for (const pago of ["capturado", "falhado"] as const) {
+        const com = sugestaoDaResolucao(
+          TEXTOS[lingua],
+          incerto("123 456 789"),
+          pago,
+          "pt-PT",
+        );
+        expect(com, `${lingua} ${pago}`).toContain("123 456 789");
+        expect(com).not.toMatch(/\{\w+\}/);
+        const sem = sugestaoDaResolucao(
+          TEXTOS[lingua],
+          incerto(),
+          pago,
+          "pt-PT",
+        );
+        expect(sem, `${lingua} ${pago}`).not.toBe("");
+        expect(sem).not.toContain("0123456789abcdef");
+        expect(sem).not.toMatch(/\{\w+\}/);
+      }
+      expect(TEXTOS[lingua].diferencaSugestaoNota.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("sem montante, sem prestador ou sem pagamento não sugere nada; campos em falta (API mais antiga) não rebentam", () => {
     const d = incerto();
-    if (d.pagamento !== null) d.pagamento.referencia = null;
+    if (d.pagamento !== null) d.pagamento.montante = null;
     expect(sugestaoDaResolucao(t, d, "capturado", "pt-PT")).toBe("");
     expect(pagamentoAConferir(d, "pt-PT")).toBeNull();
     expect(
@@ -200,19 +254,34 @@ describe("o pagamento incerto: o que se confere e o texto sugerido (Q1 A)", () =
         "pt-PT",
       ),
     ).toBe("");
+    const velha = incerto();
+    if (velha.pagamento !== null) {
+      delete velha.pagamento.prestador;
+      delete velha.pagamento.identificador;
+      delete velha.pagamento.referencia_prestador;
+      delete velha.pagamento.criado_em;
+    }
+    expect(pagamentoAConferir(velha, "pt-PT")?.data).toBe("");
+    expect(sugestaoDaResolucao(t, velha, "capturado", "pt-PT")).toBe("");
+  });
+});
+
+describe("a sugestão não pisa o que a pessoa escreveu (Q1 A)", () => {
+  it("entra num campo vazio ou ainda com a sugestão anterior", () => {
+    expect(textoDepoisDaSugestao("", "", "nova")).toBe("nova");
+    expect(textoDepoisDaSugestao("  ", "", "nova")).toBe("nova");
+    expect(textoDepoisDaSugestao("antiga", "antiga", "nova")).toBe("nova");
   });
 
-  it("as sugestões existem nas três línguas, sem chaves por preencher", () => {
-    for (const lingua of LINGUAS) {
-      const x = sugestaoDaResolucao(
-        TEXTOS[lingua],
-        incerto(),
-        "capturado",
-        "pt-PT",
-      );
-      expect(x, lingua).toContain("123 456 789");
-      expect(x, lingua).not.toMatch(/\{\w+\}/);
-    }
+  it("não entra por cima de um texto escrito ou alterado", () => {
+    expect(textoDepoisDaSugestao("escrevi isto", "", "nova")).toBeNull();
+    expect(
+      textoDepoisDaSugestao("antiga alterada", "antiga", "nova"),
+    ).toBeNull();
+  });
+
+  it("sem sugestão, não mexe", () => {
+    expect(textoDepoisDaSugestao("", "", "")).toBeNull();
   });
 });
 
@@ -226,15 +295,23 @@ describe("montante ou moeda diferentes: a encomenda não fica paga (Q2 A)", () =
     }
   });
 
-  it("o texto diz as saídas, nas três línguas", () => {
+  it("na lista, sem «Escreva aqui» (não há campo); no diálogo, com ele", () => {
     expect(t.diferencaNaoFicaPaga).toBe(
-      "A encomenda não fica paga. Pode devolver ao cliente o que pagou, na conta do prestador, e pedir-lhe um pagamento novo, ou cancelar a encomenda. Escreva aqui o que fez.",
+      "A encomenda não fica paga. Pode devolver ao cliente o que pagou, na conta do prestador, e pedir-lhe um pagamento novo, ou cancelar a encomenda.",
+    );
+    expect(t.diferencaNaoFicaPagaDialogo).toBe(
+      `${t.diferencaNaoFicaPaga} Escreva aqui o que fez.`,
     );
     for (const lingua of LINGUAS) {
+      const x = TEXTOS[lingua];
+      expect(x.diferencaNaoFicaPaga.length, lingua).toBeGreaterThan(40);
       expect(
-        TEXTOS[lingua].diferencaNaoFicaPaga.length,
+        x.diferencaNaoFicaPagaDialogo.startsWith(x.diferencaNaoFicaPaga),
         lingua,
-      ).toBeGreaterThan(40);
+      ).toBe(true);
+      expect(x.diferencaNaoFicaPagaDialogo.length).toBeGreaterThan(
+        x.diferencaNaoFicaPaga.length,
+      );
     }
   });
 });

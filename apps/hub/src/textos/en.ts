@@ -1810,13 +1810,22 @@ export const en: Textos = {
     "Check the provider's back office before deciding. If you say it was paid, the order becomes paid and goes on to the invoice.",
   diferencaPagouSim: "Yes, it was paid",
   diferencaPagouNao: "No, it was not paid",
-  diferencaPagamentoAConferir:
-    "Payment to check: {montante}, reference {referencia}, from {data}.",
+  diferencaPagamentoAConferir: "Payment to check: {montante}, from {data}.",
+  diferencaPagamentoReferencia: "Provider reference: {referencia}.",
+  diferencaPagamentoIdentificador:
+    "Identifier sent to the provider: {identificador}.",
   diferencaSugestaoPago:
     "I saw in the {prestador} account the payment of {montante} with the reference {referencia}.",
   diferencaSugestaoNaoPago:
     "I saw in the {prestador} account that the payment of {montante} with the reference {referencia} did not arrive.",
+  diferencaSugestaoPagoSemReferencia:
+    "I saw in the {prestador} account the payment of {montante} from {data}.",
+  diferencaSugestaoNaoPagoSemReferencia:
+    "I saw in the {prestador} account that the payment of {montante} from {data} did not arrive.",
+  diferencaSugestaoNota: "Filled in with a suggestion; you can change it.",
   diferencaNaoFicaPaga:
+    "The order is not paid. You can refund the customer what they paid, in the provider account, and ask them for a new payment, or cancel the order.",
+  diferencaNaoFicaPagaDialogo:
     "The order is not paid. You can refund the customer what they paid, in the provider account, and ask them for a new payment, or cancel the order. Write here what you did.",
   diferencaReembolsoAviso:
     "The refund's status is decided through the integration (reconcile the refund), and an uncertain refund stays in the “Refund” queue of “To decide”. Here only what was done is recorded.",

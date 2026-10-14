@@ -7215,7 +7215,10 @@ try {
     moeda: "EUR",
     estado,
     prestador: "eupago",
-    referencia: "123 456 789",
+    // Num incerto, o prestador ainda não deu referência (revisão do #470,
+    // P2-1): só há o identificador que lhe enviámos.
+    referencia_prestador: estado === "incerto" ? null : "123 456 789",
+    identificador: "3f9c2a7e5b1d4c8f9a6e0b3d7c2f1a85",
     criado_em: "2026-10-13T15:30:00.000Z",
   });
   const diferencaSimulada = (i, motivo, prova, pagamento, resolvida) => ({

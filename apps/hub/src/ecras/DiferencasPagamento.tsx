@@ -25,6 +25,7 @@ import {
   provaEmTexto,
   separadorDe,
   sugestaoDaResolucao,
+  textoDepoisDaSugestao,
   TEXTO_DO_ERRO_DA_DIFERENCA,
 } from "../pagamentos";
 import { comRecente } from "../passkeys";
@@ -67,6 +68,7 @@ export function DiferencasPagamento({
     eu: Eu;
     lista: DiferencaPagamento[];
     limite: number;
+    fuso: string | undefined;
   } | null>(null);
   const [membros, setMembros] = useState<Membros["membros"]>([]);
   const [falha, setFalha] = useState<unknown>(null);
@@ -85,7 +87,7 @@ export function DiferencasPagamento({
       ]);
       if (este !== ultimo.current) return;
       setFalha(null);
-      setDados({ eu, lista: r.dados, limite: r.limite });
+      setDados({ eu, lista: r.dados, limite: r.limite, fuso: r.fuso });
     } catch (e) {
       if (este !== ultimo.current) return;
       if (semSessao(e)) {
@@ -301,6 +303,7 @@ export function DiferencasPagamento({
       {aResolver === null ? null : (
         <DialogoResolver
           comerciante={c}
+          fuso={dados?.fuso}
           diferenca={aResolver}
           reler={reler}
           aoFechar={(texto) => {
@@ -346,11 +349,14 @@ function Pagamento({ d, tag }: { d: DiferencaPagamento; tag: string }) {
 
 function DialogoResolver({
   comerciante,
+  fuso,
   diferenca: d,
   reler,
   aoFechar,
 }: {
   comerciante: string;
+  /** O fuso do comerciante, para a data do pagamento. */
+  fuso: string | undefined;
   diferenca: DiferencaPagamento;
   reler: () => Promise<DiferencaPagamento[] | null>;
   aoFechar: (texto: string | null) => void;
@@ -360,12 +366,15 @@ function DialogoResolver({
   const [resolucao, setResolucao] = useState("");
   // O último texto sugerido: só se troca enquanto a pessoa não lhe mexeu.
   const [sugerido, setSugerido] = useState("");
+  // A nota para leitores de ecrã: o campo foi preenchido por uma sugestão.
+  const [nota, setNota] = useState(false);
   const [pago, setPago] = useState<"capturado" | "falhado" | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aEnviar, setAEnviar] = useState(false);
   const idTexto = useId();
   const tag = TAG_LINGUA[lingua];
-  const aConferir = caso === "incerto" ? pagamentoAConferir(d, tag) : null;
+  const aConferir =
+    caso === "incerto" ? pagamentoAConferir(d, tag, fuso) : null;
 
   /**
    * Escolher «foi pago» ou «não foi pago» sugere o texto da resolução (Q1 A,
@@ -374,10 +383,12 @@ function DialogoResolver({
    */
   const escolher = (valor: "capturado" | "falhado") => {
     setPago(valor);
-    const novo = sugestaoDaResolucao(t, d, valor, tag);
-    if (novo !== "" && (resolucao.trim() === "" || resolucao === sugerido)) {
-      setResolucao(novo);
-      setSugerido(novo);
+    const novo = sugestaoDaResolucao(t, d, valor, tag, fuso);
+    const texto = textoDepoisDaSugestao(resolucao, sugerido, novo);
+    if (texto !== null) {
+      setResolucao(texto);
+      setSugerido(texto);
+      setNota(true);
     }
   };
 
@@ -461,10 +472,33 @@ function DialogoResolver({
           {provaEmTexto(t, d, tag)}
         </p>
         {naoFicaPaga(d) ? (
-          <p className="aviso">{t.diferencaNaoFicaPaga}</p>
+          <p className="aviso">{t.diferencaNaoFicaPagaDialogo}</p>
         ) : null}
         {aConferir === null ? null : (
-          <p>{preencher(t.diferencaPagamentoAConferir, aConferir)}</p>
+          <p>
+            {preencher(t.diferencaPagamentoAConferir, {
+              montante: aConferir.montante,
+              data: aConferir.data,
+            })}
+            {aConferir.referencia === null ? null : (
+              <>
+                <br />
+                {preencher(t.diferencaPagamentoReferencia, {
+                  referencia: aConferir.referencia,
+                })}
+              </>
+            )}
+            {aConferir.identificador === null ? null : (
+              <>
+                <br />
+                <span className="secundario" translate="no">
+                  {preencher(t.diferencaPagamentoIdentificador, {
+                    identificador: aConferir.identificador,
+                  })}
+                </span>
+              </>
+            )}
+          </p>
         )}
         {caso === "reembolso" ? (
           <p className="aviso">{t.diferencaReembolsoAviso}</p>
@@ -509,8 +543,13 @@ function DialogoResolver({
             required
             onChange={(e) => {
               setResolucao(e.target.value);
+              setNota(false);
             }}
           />
+          {/* Anuncia a sugestão a leitores de ecrã (revisão do #470, P3-4). */}
+          <p className="secundario" role="status" aria-live="polite">
+            {nota ? t.diferencaSugestaoNota : ""}
+          </p>
         </div>
         {erro === null ? null : <CaixaDeErro erro={{ texto: erro }} />}
         <div className="accoes-tarefa">

@@ -1770,8 +1770,9 @@ export async function diferencasParaOHub(
         "p.montante",
         "p.moeda",
         "p.estado as pagamento_estado",
-        // Para a pessoa conferir na conta do prestador (Q1 A, 14/10/2026):
-        // nunca as instruções (referência de Multibanco, telefone).
+        // Para a pessoa conferir na conta do prestador (Q1 A, 14/10/2026): as
+        // duas referências, que não são dados pessoais. Nunca as `instrucoes`
+        // (o telefone do MB WAY, o resto).
         "p.prestador",
         "p.referencia",
         "p.referencia_prestador",

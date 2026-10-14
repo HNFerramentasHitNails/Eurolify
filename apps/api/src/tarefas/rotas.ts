@@ -15,13 +15,13 @@ import { rastoActual } from "../base/rasto.js";
 import { ESPERA_MAXIMA } from "../catalogo/erros.js";
 import type { ContextoChave } from "../identidade/repositorio.js";
 import { ErroTarefas, ESTADO_DO_CODIGO, traduzir } from "./erros.js";
+import { fusoDo } from "../comerciante/repositorio.js";
 import { FILAS } from "./filas.js";
 import {
   atribuir,
   lerTarefa,
   listarTarefas,
   mudarPrazo,
-  fusoDo,
   podemSerResponsaveis,
   responsavelDe,
   type CasoAberto,
