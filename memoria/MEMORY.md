@@ -165,3 +165,4 @@
 - [VPS do ensaio actualizada e reiniciada pelo MCP a 13/10 às 22:51–22:55 de Lisboa: 45→0 actualizações, núcleo 7.0.0-38, cópia antes, API healthy, VIES sim; ficam 2 do ESM; o conector perdeu a autenticação 3 vezes — 13/10/2026](vps-actualizar-reiniciar-13out2026.md)
 - [Gatilhos ALWAYS e a reposição](gatilhos-always-reposicao-13out2026.md) — 161 ALWAYS; a cópia completa (pg_dump/pg_restore) não corre nenhum; não se mudam (#444, docs/28 §7); 0091 tirou 4 das notificações.
 - [Prazo dos pedidos do titular (EO, §15.14–15.15): regista a chegada, prazo legal de um mês na base (0092), prorrogação uma vez, três fins, nona fila no «A decidir»; parte 2, o aviso do prazo passado, por fazer](prazo-pedidos-do-titular-13out2026.md)
+- [Apagamento e textos livres (14/10): a resolução das diferenças de pagamento limpa-se quando a encomenda acaba (0104); a lista dos textos livres por ligar está na docs/23 §15.16](apagamento-textos-livres-14out2026.md)

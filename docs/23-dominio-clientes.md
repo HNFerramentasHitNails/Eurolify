@@ -1036,6 +1036,7 @@ os campos pessoais passam a marcador e os outros ficam.
 | `aviso_pagamento.corpo` | aviso em bruto do prestador; segundo o `docs/26` (V3), o MB WAY traz o telefone | quando o pagamento acabou: o corpo passa a resumo SHA-256 e aos campos que se sabem não pessoais (Q3) | não sai (técnico) |
 | `transicao_encomenda.motivo`, `transicao_pagamento.motivo` | texto livre escrito por uma pessoa | marcador, como na 0062 | passa a sair o histórico de estados (sem o motivo) |
 | `atribuicao_rasto.motivo` | texto livre do motivo de uma mudança de prazo numa fila (`docs/33` §6), que pode ter dados de um cliente | grupo C, **limpa-se já** (não espera que a encomenda acabe; a ligação ao titular é a encomenda, a ficha, o par de duplicados ou o pedido recebido): marcador, só a coluna `motivo`; uma mudança de prazo feita depois do pedido limpa-se quando a encomenda acabar. Fica de fora a fila `ligacao_faturacao`, sem titular (14/10/2026, migração 0102: `tarefas_casos_do_titular()`, `tarefas_limpar_motivos()`) | não sai (a atribuição não tem dados do cliente, `docs/33` §6) |
+| `diferenca_pagamento.resolucao` | texto livre (até 2000) com que uma pessoa resolve uma diferença de pagamento (`docs/26` §3.6); pode dizer «o cliente Ana Silva ligou do 912…» | grupo C: marcador **quando a encomenda acaba** (a ligação ao titular é o pagamento, `diferenca_pagamento.pagamento_id` → `pagamento.encomenda_id`); só as resolvidas, porque a encomenda só acaba sem diferenças abertas (`titular_encomenda_acabou`, 0072). Só a coluna `resolucao`; estado, quem e quando ficam. As diferenças sem pagamento (`aviso_sem_pagamento`) não têm titular e ficam (14/10/2026, migração 0104: `titular_limpar_encomenda()`, guarda `diferenca_pagamento_antes_de_gravar()`) | não sai |
 | `documento_conteudo`, `documento_prova` (com o PDF e a resposta em bruto) | comprador, NIF, morada | **fica** (grupo A) | passa a sair: tipo, número, data, totais e o comprador como está no documento; **sem os bytes do PDF** (Q4) |
 | `documento_rasto.motivo` | texto livre da correcção de um documento | **fica** (faz parte do rasto do documento fiscal; Q4) | não sai |
 | `pedido_livre_resolucao.contacto` | e-mail | grupo C: «sem e-mail»; grupo B: quando acabar | passa a sair (com a confirmação e o estado) |
@@ -1494,3 +1495,35 @@ O corpo em espanhol e em inglês foi traduzido do português aprovado; os
 assuntos são os aprovados. A tarefa e a contagem só vêem os comerciantes
 com um membro activo ou uma chave válida (`tarefas_comerciantes()`, 0066):
 sem nenhum, não há quem receba nem quem responda.
+
+### 15.16 Textos livres por ligar (varrimento de 14/10/2026)
+
+Varrimento das colunas de texto livre escritas por uma pessoa em tabelas
+ligadas a uma encomenda ou a uma ficha (migrações 0001–0102), cruzado com a
+§15.2 e com o que `cliente_pseudonimizar` e `titular_limpar_encomenda`
+(0102) limpam. Feito por leitura das migrações e de `src/` (14/10/2026); não
+se correu nenhuma consulta numa base com dados. **Por ligar** quer dizer: tem
+texto escrito por uma pessoa, ligado a um titular, e nenhum código o limpa
+hoje. A decisão de limpar (grupo C) é a mesma da §15.1; falta só ligá-las.
+
+| Coluna | Tabela (migração) | Ligação ao titular | Estado |
+|---|---|---|---|
+| `correcao_expedicao.motivo` | 0086 (texto até 500, do motivo da correcção do peso ou do serviço da expedição) | `expedicao_id` → `expedicao.encomenda_id` | **por ligar**; a tabela é só de acréscimo, pede a mesma abertura da guarda que a 0102 deu ao `atribuicao_rasto` |
+| `movimento_stock.motivo` | 0047 (texto até 500) | `encomenda_id` | **por ligar, a confirmar**: o ajuste de inventário não tem encomenda, mas `marcar()` em `src/stock/repositorio.ts` passa o motivo da acção aos movimentos; não verifiquei que acções com texto de pessoa chegam a movimentos com `encomenda_id` |
+| `duplicado_cliente.motivo` | 0046 (texto até 500) | `cliente_a`, `cliente_b` | **por ligar nos estados `fundido` e `fechado`** por decisão de uma pessoa: o apagamento só reescreve `por_decidir` e `descartado` |
+| `etiqueta_devolucao.motivo`, `etiqueta_devolucao_historico.motivo`, `expedicao.etiqueta_motivo` | 0093, 0079 (texto até 500) | `devolucao_id`, `encomenda_id` | **a confirmar**: vêm do texto de recusa da transportadora e da anulação (`devolucoes.ts`, `etiquetas.ts`); a anulação leva o texto que a pessoa escreve; não verifiquei se o da transportadora traz o nome do destinatário |
+| `pedido_titular.verificacao` | 0049 (texto até 500) | `cliente_id` | **decisão de fora desta lista**: a 0049 diz que é a prova de quem decidiu, não um dado novo; fica |
+| `diferenca_pagamento.resolucao` de uma diferença **resolvida depois de a encomenda ser limpa** | 0044 | `pagamento_id` | **por ligar**: uma diferença nova (ex.: pagamento duplicado depois) numa encomenda já limpa, resolvida com texto, não é apanhada: `titular_pendente` só tem as encomendas por acabar do pedido |
+| exportação (§15.2) | `diferenca_pagamento` | — | a exportação do titular não inclui as diferenças de pagamento (`src/clientes/repositorio.ts`); não verifiquei se devia |
+
+Estão tratadas na §15.2 (limpam-se ou ficam por obrigação fiscal):
+`transicao_encomenda.motivo`, `transicao_pagamento.motivo`,
+`atribuicao_rasto.motivo`, `alteracao_cliente.motivo`,
+`isencao_manual.motivo/nota/motivo_retirada` (nos perfis não usados),
+`pedido_livre_resolucao.motivo_decisao`, `devolucao.motivo`,
+`problema.descricao`, `expedicao.prova_entrega`,
+`evento_seguimento.estado_transportadora`, `documento_rasto.motivo` e
+`documento_conteudo` (grupo A). Sem titular: `transicao_estado.motivo`
+(estado do comerciante), `alteracao_catalogo.motivo`,
+`historico_preco.motivo`, `evento_conta.motivo`,
+`relatorio_oss_classificacao.motivo`, `recusa_conta_emissor.motivo`.
