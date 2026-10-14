@@ -2973,7 +2973,10 @@ da sessão, e quem escreve é `pessoa:per_…`.
   por pagar (Q2).
 - **Os reembolsos na mesma fila.** Os três motivos `reembolso_*` (0061) entram
   na fila `pagamento` e o reembolso tem também a fila `reembolso`: o mesmo
-  caso pode aparecer duas vezes em «A decidir» (não verificado com dados; Q3).
+  caso pode aparecer duas vezes em «A decidir»: um reembolso `incerto` está
+  na fila `reembolso` (`0066:258-262`) e a diferença `reembolso_incerto` dele
+  na fila `pagamento` (`pagamentos_casos_a_decidir` não filtra o motivo).
+  Lido no código, não visto com dados (Q3).
 - **O texto da resolução** é livre e não está no apagamento do titular
   (`docs/23` §15.2 não o lista): o mesmo problema do motivo das tarefas
   (`docs/33` §6). A frase no campo ajuda, não resolve: liga-se ao apagamento
@@ -2997,5 +3000,8 @@ palavra do dono. Ex.: a EuPago não respondeu a uma cobrança MB WAY de
 - **C:** «Foi pago» só depois de uma consulta ao prestador que o confirme (a
   consulta já existe por chave); sem ela, o botão não aparece.
 
-**Q2.** (depois da Q1) O que diz o ecrã num montante ou moeda diferentes.
+✅ **Q2: A** (Diogo, 14/10/2026, *«A»*): num montante ou moeda diferentes, o
+ecrã diz que a encomenda **não fica paga** e as saídas (devolver ao cliente o
+que pagou na conta do prestador e pedir um pagamento novo, ou cancelar a
+encomenda); a diferença fecha-se com o texto do que se fez. A base não muda.
 **Q3.** (depois da Q2) Os reembolsos: aqui, na fila deles, ou nas duas.
