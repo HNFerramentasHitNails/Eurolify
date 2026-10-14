@@ -1628,7 +1628,7 @@ export interface TabelaCorrecaoExpedicao {
 }
 
 /**
- * Uma recusa da mesma empresa do emissor (docs/29 §19.7, 0096): só se
+ * Uma recusa da mesma empresa do emissor (docs/29 §19.7, 0097): só se
  * acrescenta; o contexto do rasto põe-no a base.
  */
 export interface TabelaRecusaContaEmissor {

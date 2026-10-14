@@ -1001,7 +1001,7 @@ existir quando o modo real abrir.
     lista das contas de teste (M8) limita-o. **Decidido:** registam-se as
     recusas (§19.7).
 
-### 19.7 O registo das recusas (14/10/2026; migração 0096; EQ)
+### 19.7 O registo das recusas (14/10/2026; migração 0097; EQ)
 
 Decisão do Diogo, 14/10/2026: *«sim, regista cada recusa»* (P3-1 da revisão
 do #449). A recusa diz a quem pede que a empresa está ligada noutro sítio,

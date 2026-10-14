@@ -181,7 +181,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0092_clientes_pedidos_recebidos",
         "0093_envios_etiqueta_devolucao",
         "0095_faturacao_conta_emissor",
-        "0096_faturacao_recusas_da_conta",
+        "0097_faturacao_recusas_da_conta",
       ]);
     });
 
@@ -329,7 +329,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // das ligações de faturação (0081), as encomendas paradas avisadas
       // (0085), as correcções da expedição (0086), os pedidos do titular
       // recebidos (0092) e a etiqueta de devolução, o ficheiro e o
-      // histórico dela (0093) e as recusas da empresa do emissor (0096).
+      // histórico dela (0093) e as recusas da empresa do emissor (0097).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
       ).toHaveLength(99);

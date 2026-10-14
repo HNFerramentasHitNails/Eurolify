@@ -315,7 +315,7 @@ async function contaEmUso(
   }
 }
 
-/** Uma linha no registo das recusas (docs/29 §19.7, 0096). */
+/** Uma linha no registo das recusas (docs/29 §19.7, 0097). */
 async function acrescentarRecusa(
   trx: Transaction<BaseDados>,
   c: string,
