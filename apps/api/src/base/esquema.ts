@@ -1584,6 +1584,38 @@ export interface TabelaEtiquetaFicheiro {
   criado_em: ColumnType<Date, never, never>;
 }
 
+/** A etiqueta de devolução pela transportadora (docs/36 §22, 0093). */
+export interface TabelaEtiquetaDevolucao {
+  devolucao_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  conta_transportadora_id: ColumnType<string, string, string>;
+  transportadora: ColumnType<Transportadora, Transportadora, Transportadora>;
+  servico: ColumnType<string, string, string>;
+  estado: ColumnType<
+    "a_pedir" | "emitida" | "incerta" | "recusada" | "anulada",
+    never,
+    "a_pedir" | "emitida" | "incerta" | "recusada" | "anulada"
+  >;
+  tentativa: ColumnType<number, never, number>;
+  peso_g: ColumnType<number, number, number>;
+  motivo: ColumnType<string | null, never, string | null>;
+  seguimento: ColumnType<string | null, never, string | null>;
+  url_seguimento: ColumnType<string | null, never, string | null>;
+  em: ColumnType<Date, never, never>;
+  acabou_em: ColumnType<Date | null, never, never>;
+  criado_por: ColumnType<string, string, string>;
+}
+
+/** O ficheiro da etiqueta de devolução (docs/36 §22, 0093). */
+export interface TabelaEtiquetaDevolucaoFicheiro {
+  devolucao_id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  tentativa: ColumnType<number, number, never>;
+  formato: ColumnType<"pdf" | "zpl", "pdf" | "zpl", never>;
+  conteudo: ColumnType<Buffer, Buffer, never>;
+  criado_em: ColumnType<Date, never, never>;
+}
+
 /** O rasto das correcções de uma expedição (docs/36 §19, 0086). */
 export interface TabelaCorrecaoExpedicao {
   id: Generated<string>;
@@ -1763,6 +1795,8 @@ export interface BaseDados {
   movimento_stock: TabelaMovimentoStock;
   expedicao: TabelaExpedicao;
   etiqueta_ficheiro: TabelaEtiquetaFicheiro;
+  etiqueta_devolucao: TabelaEtiquetaDevolucao;
+  etiqueta_devolucao_ficheiro: TabelaEtiquetaDevolucaoFicheiro;
   encomenda_parada: TabelaEncomendaParada;
   correcao_expedicao: TabelaCorrecaoExpedicao;
   evento_seguimento: TabelaEventoSeguimento;
