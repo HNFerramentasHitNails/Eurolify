@@ -1889,3 +1889,90 @@ Sendcloud (memória `envios-parte-c-sendcloud-12out2026.md`). Pela regra 4 do
 `AGENTS.md`, só entra com decisão escrita do Diogo ou do Bruno e o acordo de
 transferência. Mesmo assim, o comerciante precisaria do contrato com os CTT:
 a ShippyPro não dispensa o §24.2.
+
+## 25. Trocar a chave das credenciais sem as pedir outra vez (desenho e código; §14, P3-7; issue #393)
+
+Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
+envios»*; aprovado no mesmo dia: *«sim, aprovo; avança com o código»*.
+
+### 25.1 O problema
+
+As credenciais de cada conta de transportadora e o segredo dos avisos estão
+cifrados com a `ENVIOS_CHAVE` (§3.1), fora da base. Se a chave puder ter
+sido exposta, troca-se primeiro (regra 7 de «Operar a VPS» do `AGENTS.md`).
+Até aqui, com a chave nova, **todas as contas deixavam de se ler** até o
+comerciante colar as credenciais outra vez (`credenciaisDe`: «defina-as
+outra vez»).
+
+Ex.: a chave da versão «1» pode ter saído num registo. Põe-se uma nova,
+versão «2», e a antiga passa a `ENVIOS_CHAVE_ANTERIOR` com
+`ENVIOS_CHAVE_ANTERIOR_VERSAO=1`. A volta seguinte dos envios passa as contas
+para a «2»; quando o registo diz `contasPorRecifrar: 0`, tira-se a anterior.
+
+### 25.2 O que entra
+
+| O quê | Regra | Onde |
+|---|---|---|
+| A chave anterior | `ENVIOS_CHAVE_ANTERIOR` e `ENVIOS_CHAVE_ANTERIOR_VERSAO` (obrigatória); só decifra, nunca cifra. Sem `ENVIOS_CHAVE`, ou com a mesma versão das duas, a API não arranca | `src/servidor.ts`, `ConfigEnvios.chaveAnterior` |
+| Ler uma conta | com a chave da versão dela: a actual ou, durante a troca, a anterior; noutra versão, como até aqui («defina-as outra vez») | `chaveDaVersao`, `credenciaisDe` (`src/envios/repositorio.ts`) |
+| O segredo dos avisos | o mesmo: um aviso de uma conta ainda na anterior continua válido | `receberAviso` (`src/envios/etiquetas.ts`) |
+| Passar para a actual | na volta dos envios (5 em 5 minutos), antes das etiquetas: até 100 contas da versão anterior por volta, cada uma na sua transacção, com a conta bloqueada; decifra com a anterior e cifra com a actual as credenciais e o segredo, e muda a versão. A conta pronta continua pronta; a arquivada também passa, porque ainda segue as expedições que já tinham etiqueta | `recifrarContas` (`src/envios/chave.ts`) |
+| Quantas faltam | o registo da volta diz `contasRecifradas` e `contasPorRecifrar`: **todas** as contas ainda noutra versão depois da volta (até 1000), também as que ficaram para a próxima. Uma cifra que a anterior não abre conta como falha (`shipping.key_rotation`) e fica como está; um erro da base conta à parte (`envios_chave.base`) | `correrTrabalho` |
+| Credenciais novas durante a troca | sem segredo dos avisos novo, o guardado passa para a chave actual com elas (a versão é uma só para os dois); se já não se lê, pede-se outra vez | `definirCredenciais` |
+| As variáveis | lidas por `lerChavesEnvios`: mal postas (anterior sem versão, versão sem anterior, anterior sem a actual, versões iguais, chave mal formada), a API não arranca e diz qual | `src/envios/chave.ts`, `src/servidor.ts` |
+| A base | o gatilho da conta só não a devolve a rascunho na troca da chave: outra versão com as mesmas `credenciais_em` e `credenciais_por`; numa arquivada só deixa mudar a cifra e a versão. A lista das contas por passar é uma função, comerciante a comerciante, que só devolve identificadores | migração `0103_envios_chave_anterior.sql` |
+
+### 25.3 O que fica de fora
+
+| Fica de fora | Porquê |
+|---|---|
+| Passar a conta no momento em que é usada | desvio ao que se propôs ao Diogo: escrever na conta a meio de uma etiqueta ou do checkout mistura duas coisas na mesma transacção; a volta passa-as em 5 minutos, e até lá a conta lê-se com a anterior |
+| Um ecrã no Hub com as que faltam | não há Hub do dono da plataforma; o número sai no registo da volta, que se lê pelo fluxo fixo de medir (ADR-0028) |
+| A chave dos pagamentos e a da faturação | o mesmo problema, noutros domínios: pedidos à parte |
+| Gerar e guardar a chave anterior na VPS | `infra/vps` (preparar.sh, publicar): pedido à parte, revisto, como manda o ADR-0028 |
+
+### 25.4 Por onde é que isto ainda pode sair errado
+
+- **A chave anterior com a versão errada:** as contas não abrem e contam como
+  falhas em cada volta; nada se perde (a cifra fica como está).
+- **Tirar a anterior antes de tempo:** as contas que faltam voltam ao
+  «defina-as outra vez»; por isso só se tira com `contasPorRecifrar: 0`.
+- **Credenciais novas ao mesmo tempo que a volta:** a conta está bloqueada;
+  quem chega depois vê a versão actual e não mexe (testado: as credenciais
+  novas sobrevivem).
+- **Uma cifra com o mesmo `credenciais_em` e outra versão** passa sem voltar
+  a rascunho: é a forma da troca, e só a API escreve estas colunas.
+
+### 25.5 Como se testou
+
+`test/envios-chave.test.ts` (14 testes, base local, 14/10/2026):
+- a conta na anterior lê-se e o aviso é válido; a volta passa-a para a
+  actual, pronta e com a mesma `testada_em`;
+- sem a anterior, só se conta; duas voltas ao mesmo tempo passam cada conta
+  uma vez;
+- credenciais novas na mesma versão, ou noutra versão com `credenciais_em`
+  novo, devolvem a conta a rascunho;
+- uma cifra que a anterior não abre fica e conta como ilegível;
+- com mais contas do que o limite, as que ficam contam nas que faltam até
+  passarem todas;
+- a conta arquivada passa e continua imutável no resto;
+- credenciais novas sem segredo, durante a troca, levam o segredo;
+- credenciais novas a meio da volta sobrevivem;
+- a função entre comerciantes deixa o comerciante da ligação como estava;
+- `lerChavesEnvios`: as variáveis certas e cinco formas de as pôr mal.
+
+### 25.6 Revisão do agente (#466)
+
+Sonnet 5.5, só leitura (ADR-0035), publicada no pedido: 0 P0, 3 P1, 5 P2,
+5 P3.
+- **Corrigidos:** P1-1 (as que faltam contam as que ficaram para a próxima
+  volta), P1-2 (o segredo passa com as credenciais novas), P1-3 (as
+  arquivadas também passam), P2-1 (a lista só traz as da versão anterior),
+  P2-2 (o gatilho olha também para `credenciais_em` e `credenciais_por`),
+  P2-3 e P2-5 (os testes em falta), P2-4 (`lerChavesEnvios`, com testes),
+  P3-1 (cifra ilegível e erro da base contam à parte), P3-2 e P3-3 (as
+  variáveis), P3-4 (uma cifra que não abre é `shipping.account_not_ready`,
+  não um erro sem código).
+- **Fica como está:** P3-5 (a contagem corre de 5 em 5 minutos sem
+  anterior): é o que diz quantas contas ficaram por ler, e são poucas linhas
+  por comerciante.
