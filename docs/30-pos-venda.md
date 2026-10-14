@@ -560,7 +560,10 @@ dizer **a quem e como**.
   (`docs/eurolify/implementation-plan.md`). Os eventos ficam na
   `evento_saida`, que os webhooks vão ler quando existirem. A confirmação por
   e-mail é da parte 2 do checkout, por fazer.
-- O Hub ainda não tem ecrãs da pós-venda.
+- O Hub ainda não tem ecrãs da pós-venda. *(Actualização, 14/10/2026: já
+  tem a lista e a página da devolução, só de leitura, e a etiqueta de
+  devolução — `docs/36` §22.10; a recepção, a inspecção e a decisão ainda
+  não.)*
 
 ### 14.2 Propostas
 

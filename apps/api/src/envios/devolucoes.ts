@@ -6,8 +6,10 @@ import {
   type ConfigEnvios,
   type MoradaEtiqueta,
   type ResultadoEtiqueta,
+  type ServicoTransportadora,
 } from "./adaptador.js";
 import { ErroEnvios } from "./erros.js";
+import { contasProntas } from "./correcoes.js";
 import { comTempo, codigoDe } from "./etiquetas.js";
 import {
   adaptadorDe,
@@ -184,6 +186,116 @@ export async function ficheiroEtiquetaDevolucao(
   return f;
 }
 
+/** As linhas a devolver, com a quantidade pedida (o peso e os perigosos). */
+function linhasDaDevolucao(trx: Transaction<BaseDados>, id: string) {
+  return trx
+    .selectFrom("linha_devolucao")
+    .innerJoin(
+      "linha_encomenda",
+      "linha_encomenda.id",
+      "linha_devolucao.linha_encomenda_id",
+    )
+    .select([
+      "linha_encomenda.variante_id",
+      "linha_devolucao.pedida as quantidade",
+    ])
+    .where("linha_devolucao.devolucao_id", "=", id)
+    .execute();
+}
+
+/**
+ * Porque é que um serviço não serve a volta, ou `null` se serve. A volta
+ * sai da morada do cliente: um serviço de pontos não serve (§21), tem de
+ * servir o país do cliente, e o telefone e o e-mail do cliente não vão
+ * (§22.3). Os perigosos e o peso, como na expedição (L9; revisão do #447,
+ * P2). Pedir e a lista do Hub usam esta mesma regra.
+ */
+function porQueNaoServe(
+  servico: ServicoTransportadora,
+  pais: string,
+  onu: ReadonlySet<string>,
+  pesoG: number,
+): { porque: string; detalhes?: Record<string, unknown> } | null {
+  if (
+    servico.ponto === true ||
+    !servico.paises.includes(pais) ||
+    servico.pedeTelefone ||
+    servico.pedeEmail
+  ) {
+    return {
+      porque:
+        "o serviço não serve esta devolução: tem de recolher no país do cliente, não ser de pontos de recolha nem pedir o telefone ou o e-mail do cliente",
+    };
+  }
+  const recusados = [...onu].filter((n) => !servico.aceitaOnu.includes(n));
+  if (recusados.length > 0) {
+    return {
+      porque: "o serviço não aceita uma mercadoria perigosa desta devolução",
+      detalhes: { onu: recusados },
+    };
+  }
+  if (servico.pesoMaxG !== null && pesoG > servico.pesoMaxG) {
+    return {
+      porque: "a caixa pesa mais do que o serviço aceita",
+      detalhes: { peso_g: pesoG, peso_max_g: servico.pesoMaxG },
+    };
+  }
+  return null;
+}
+
+/**
+ * Os serviços que servem a etiqueta desta devolução, das contas prontas
+ * cuja transportadora faz devoluções no Eurolify (docs/36 §22.10). Com a
+ * mesma regra de pedir: o Hub só mostra o que o servidor aceitaria.
+ */
+export async function servicosDaDevolucao(
+  db: Kysely<BaseDados>,
+  c: string,
+  id: string,
+  cfg: ConfigEnvios | undefined,
+) {
+  return noEnvios(db, c, async (trx) => {
+    const d = await trx
+      .selectFrom("devolucao")
+      .innerJoin("encomenda", "encomenda.id", "devolucao.encomenda_id")
+      .innerJoin("armazem", "armazem.id", "devolucao.armazem_id")
+      .select(["devolucao.estado", "encomenda.entrega", "armazem.embalagem_g"])
+      .where("devolucao.id", "=", id)
+      .executeTakeFirst();
+    if (d === undefined) {
+      throw new ErroEnvios("shipping.not_found", "esta devolução não existe");
+    }
+    const { pesoG, onu } = await conteudoDe(
+      trx,
+      await linhasDaDevolucao(trx, id),
+    );
+    const peso = pesoG === null ? null : Math.max(1, pesoG + d.embalagem_g);
+    const pais = linha((d.entrega as { pais?: unknown }).pais);
+    const opcoes = [];
+    if (peso !== null) {
+      for (const conta of await contasProntas(trx, cfg)) {
+        if (
+          adaptadorDe(cfg, conta.transportadora).adaptador
+            .pedirEtiquetaDevolucao === undefined
+        ) {
+          continue;
+        }
+        for (const s of conta.servicos) {
+          if (porQueNaoServe(s, pais, onu, peso) !== null) continue;
+          opcoes.push({
+            conta: conta.id,
+            conta_nome: conta.nome,
+            transportadora: conta.transportadora,
+            servico: s.codigo,
+            nome: s.nome,
+          });
+        }
+      }
+    }
+    return { estado: d.estado, peso_g: peso, opcoes };
+  });
+}
+
 interface Preparado {
   tentativa: number;
   adaptador: ReturnType<typeof adaptadorDe>["adaptador"];
@@ -304,44 +416,8 @@ async function preparar(
         "a transportadora não tem este serviço",
       );
     }
-    // A volta sai da morada do cliente: um serviço de pontos não serve
-    // (§21), e tem de servir o país do cliente.
-    if (
-      servico.ponto === true ||
-      !servico.paises.includes(pais) ||
-      // O telefone e o e-mail do cliente não vão (§22.3): um serviço que os
-      // pede não serve a volta.
-      servico.pedeTelefone ||
-      servico.pedeEmail
-    ) {
-      throw new ErroEnvios(
-        "shipping.invalid_field",
-        "o serviço não serve esta devolução: tem de recolher no país do cliente, não ser de pontos de recolha nem pedir o telefone ou o e-mail do cliente",
-      );
-    }
-    const linhas = await trx
-      .selectFrom("linha_devolucao")
-      .innerJoin(
-        "linha_encomenda",
-        "linha_encomenda.id",
-        "linha_devolucao.linha_encomenda_id",
-      )
-      .select([
-        "linha_encomenda.variante_id",
-        "linha_devolucao.pedida as quantidade",
-      ])
-      .where("linha_devolucao.devolucao_id", "=", id)
-      .execute();
+    const linhas = await linhasDaDevolucao(trx, id);
     const { pesoG, onu } = await conteudoDe(trx, linhas);
-    // Os perigosos, como na expedição (L9; revisão do #447, P2).
-    const recusados = [...onu].filter((n) => !servico.aceitaOnu.includes(n));
-    if (recusados.length > 0) {
-      throw new ErroEnvios(
-        "shipping.invalid_field",
-        "o serviço não aceita uma mercadoria perigosa desta devolução",
-        { onu: recusados },
-      );
-    }
     if (pesoG === null) {
       throw new ErroEnvios(
         "shipping.invalid_field",
@@ -349,11 +425,12 @@ async function preparar(
       );
     }
     const peso = Math.max(1, pesoG + d.embalagem_g);
-    if (servico.pesoMaxG !== null && peso > servico.pesoMaxG) {
+    const naoServe = porQueNaoServe(servico, pais, onu, peso);
+    if (naoServe !== null) {
       throw new ErroEnvios(
         "shipping.invalid_field",
-        "a caixa pesa mais do que o serviço aceita",
-        { peso_g: peso, peso_max_g: servico.pesoMaxG },
+        naoServe.porque,
+        naoServe.detalhes,
       );
     }
     const contacto = d.contacto as { nome?: unknown };

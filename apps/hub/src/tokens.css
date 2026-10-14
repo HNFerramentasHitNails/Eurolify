@@ -117,6 +117,12 @@
   --estado-etiqueta-problema: var(--estado-erro);
   --estado-etiqueta-espera: var(--estado-aviso);
   --estado-etiqueta-nenhuma: var(--texto-secundario);
+  /* As devoluções (docs/36 §22.10): à espera da encomenda, a meio (recebida,
+     inspeccionada, decidida), fechada e cancelada. */
+  --estado-devolucao-espera: var(--estado-aviso);
+  --estado-devolucao-em-curso: var(--texto);
+  --estado-devolucao-fechada: var(--estado-sucesso);
+  --estado-devolucao-cancelada: var(--texto-secundario);
   /* O vidro da entrada: uma cor, a opacidade (percentagem, para o
      color-mix) e o fundo estático com um gradiente muito leve. O teste de
      contraste mede as cores compostas. */

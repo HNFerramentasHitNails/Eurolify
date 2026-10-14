@@ -1531,3 +1531,76 @@ página, não na lista).
 **Testes:** o módulo só aparece com `returns:read`; sem `returns:write` não
 há botão; a lista diz quando chegou às 200; a incerta mostra o aviso e não o
 botão de pedir; as rotas do Hub isolam o comerciante e respeitam o papel.
+
+### 22.11 Em código (pedido 2; 14/10/2026)
+
+Diogo, 14/10/2026: *«sim, aprovo; avança com o código»*.
+
+| O quê | Onde |
+|---|---|
+| as rotas do Hub (`GET /hub/returns` com o limite, `GET /hub/returns/{id}`, `GET …/label/services`, `GET`/`POST …/label`, `GET …/label/file`, `POST …/label/void`), com as mesmas funções e o mesmo âmbito das rotas da chave | `apps/api/src/envios/rotas-hub-devolucoes.ts` |
+| os serviços que servem a volta: a mesma regra de pedir, numa função só (`porQueNaoServe`), para pedir e para a lista | `apps/api/src/envios/devolucoes.ts` |
+| a devolução passa a dar o SKU e o nome de cada linha (também pela chave) | `apps/api/src/posvenda/` |
+| o módulo «Devoluções», a lista com o filtro do estado e cartões no telemóvel, a página da devolução e a etiqueta (pedir, PDF, anular com motivo e a confirmação do painel) | `apps/hub/src/ecras/Devolucoes.tsx`, `apps/hub/src/devolucoes.ts` |
+| os textos em PT, ES e EN; um token por estado da devolução | `apps/hub/src/textos/`, `apps/hub/src/tokens.css` |
+| 4 testes da API pelo Hub; 8 do Hub; as capturas a 375, 768 e 1280 px, claro e escuro, com respostas simuladas | `apps/api/test/envios-hub-devolucoes.test.ts`, `apps/hub/test/devolucoes.test.ts`, `apps/hub/scripts/capturas.mjs` |
+
+**Desvios do desenho:**
+- **A lista dos serviços pede `returns:write`:** só quem pede a etiqueta a
+  vê.
+- **Numa devolução fechada ou cancelada, o ecrã não mostra o prazo do
+  reembolso.**
+- **«Anular» numa incerta recente** diz a partir de que hora se anula, mas
+  não desliga o botão: quem decide é a API.
+
+**Da revisão do agente (Sonnet 5.5):** a revisão ficou incompleta, porque a
+cópia de trabalho mudou de ramo a meio e ela leu do disco. Foi publicada no
+pedido tal como veio.
+- **Corrigido:**
+  - P2-1 e P2-2: o «não existe» e o «recusado» ficam com a mensagem da API,
+    que diz a causa (a conta, o peso, o serviço, as tentativas); em espanhol
+    sai a mensagem genérica;
+  - P2-3: a lista mostra o fim do número da encomenda, e a ligação diz-o;
+  - P2-4: testes de um estado inválido no filtro, e de ler e anular a
+    etiqueta de outro comerciante;
+  - P3-2: só a última leitura da etiqueta conta;
+  - P3-3: outro filtro mostra «a carregar»;
+  - P3-4: a caixa de erro da etiqueta tem «Tentar outra vez».
+- **Ficou como estava:**
+  - P2-4: o 403 de um papel sem `returns:read` ou `returns:write` não se
+    testa, porque hoje os quatro papéis têm os dois;
+  - P3-1: ler a etiqueta pode marcar uma que ficou a meio como incerta, como
+    no pedido 1;
+  - P3-5: a Sendcloud só dá PDF;
+  - P3-6: uma conta sem adaptador parte a lista, como na expedição.
+
+**Da segunda revisão do agente (Sonnet 5.5, completa, sobre 924ae71 e
+89d257d; publicada no pedido tal como veio):** sem P0 nem P1.
+- **Corrigido:**
+  - P2-1: «Tentar outra vez» tira o erro quando a leitura corre bem;
+  - P2-2: pedir uma etiqueta que fica incerta ou recusada dá um aviso com o
+    foco, porque pode haver uma etiqueta paga;
+  - P2-3: mudar o filtro já não desmonta o campo, e o foco fica nele;
+  - P2-4: a frase da contagem tem teste;
+  - P3-1: o limite da lista é uma constante só;
+  - P3-2: as contagens dos testes neste texto;
+  - P3-3: sem `returns:write`, o ecrã diz que o papel não pede a etiqueta;
+  - P3-5: «Pedida em» passou a «Neste estado desde» (a base muda a hora a
+    cada estado);
+  - P3-6: «Este pedido não desconta nada ao cliente» (o desconto continua
+    por desenhar, §22.2).
+- **Fica por testar:** o ecrã não tem testes de desenho no Hub (não há
+  biblioteca para isso). O aviso da incerta sem «Pedir» e o filtro
+  conferem-se no script das capturas. O 403 de um papel sem o âmbito fica
+  por testar, porque hoje nenhum papel o tem.
+- **Ficou como estava:**
+  - P3-4: o motivo de uma recusa é o texto da transportadora, e pode trazer
+    dados do cliente (V11 e V12);
+  - P3-7 a P3-10: o `caption` das tabelas, o contraste a 3:1 para texto a
+    negrito (a regra do teste é a do Hub), o `no-store` também no `fetch` e
+    as duas leituras por acção.
+- **Também (não declarado antes):** a lista dos serviços não confere o
+  estado da devolução; o ecrã só a pede quando se pode pedir, e pedir
+  confere-o.
+
+O aspecto vai ao Diogo com as capturas antes de se juntar.

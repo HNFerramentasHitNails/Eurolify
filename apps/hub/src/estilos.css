@@ -1115,6 +1115,15 @@ textarea {
 .impedimentos-oss {
   padding-left: var(--espaco-4);
 }
+/* A etiqueta de devolução (docs/36 §22.10): um cartão com os passos. */
+.etiqueta-devolucao > h2:first-child {
+  margin-top: 0;
+}
+.etiqueta-devolucao h3 {
+  font-size: var(--letra-base);
+  font-weight: 600;
+  margin: var(--espaco-4) 0 var(--espaco-2);
+}
 .a-parte-oss h3 {
   font-size: var(--letra-base);
   font-weight: 600;
@@ -1233,7 +1242,8 @@ textarea {
 /* Expedir (docs/22 §33.3): um estado, uma cor, por token. */
 .estado-encomenda,
 .estado-expedicao,
-.estado-etiqueta {
+.estado-etiqueta,
+.estado-devolucao {
   font-weight: 600;
 }
 .estado-encomenda[data-estado="paga"] {
@@ -1271,6 +1281,20 @@ textarea {
 .estado-etiqueta[data-estado="por_pedir"],
 .estado-etiqueta[data-estado="anulada"] {
   color: var(--estado-etiqueta-nenhuma);
+}
+.estado-devolucao[data-estado="a_aguardar"] {
+  color: var(--estado-devolucao-espera);
+}
+.estado-devolucao[data-estado="recebida"],
+.estado-devolucao[data-estado="inspeccionada"],
+.estado-devolucao[data-estado="decidida"] {
+  color: var(--estado-devolucao-em-curso);
+}
+.estado-devolucao[data-estado="fechada"] {
+  color: var(--estado-devolucao-fechada);
+}
+.estado-devolucao[data-estado="cancelada"] {
+  color: var(--estado-devolucao-cancelada);
 }
 .morada {
   font-style: normal;
