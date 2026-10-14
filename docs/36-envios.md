@@ -1861,3 +1861,31 @@ Outros que apareceram são empresas de fora da UE: receberiam dados de
 clientes fora da UE e ficam de fora sem decisão escrita (regra 4 do
 `AGENTS.md`). Um agregador só entra com decisão do Diogo ou do Bruno; a Q2
 fica como está até lá.
+
+### 24.4 A ShippyPro, mais de perto (pesquisa; 14/10/2026)
+
+Pedido do Diogo, 14/10/2026: *«depois avança com o próximo passo dos
+envios»*. Lido a 14/10/2026 (**W**): a política de privacidade da ShippyPro
+([ShippyPro, privacidade](https://www.shippypro.com/en/legal/privacy), sem data
+de actualização na página) e resumos de pesquisa da ajuda dela. A
+documentação técnica da API não foi lida.
+
+| O quê | O que se encontrou |
+|---|---|
+| Quem é | ShippyPro by Italian Valley S.r.l., Florença, Itália (responsável pelo tratamento **do site**) |
+| Papel nos dados dos clientes do comerciante | a política **não diz** se é subcontratante ou responsável (secção 3.5.2) |
+| Subcontratantes para os dados dos envios | Cloudflare Inc., Amazon Web Services EMEA SARL e Sentry, além das transportadoras e da origem da encomenda (secção 3.5.2.5); os países remetem para uma lista à parte, **não lida** |
+| Transferências para fora do EEE | a política diz que **podem** acontecer, e dá as cláusulas contratuais-tipo como exemplo de garantia; **não confirma** que estão em vigor (secção 6) |
+| Onde estão os dados | a política não diz |
+| API | segundo a ajuda (resumo de pesquisa): chamadas para tarifas, etiqueta («Ship») e seguimento; avisos «Order Shipped», «Order Error» e «Tracking Update», com autenticação básica opcional e até 10 novas tentativas ([ajuda, API](https://help.shippypro.com/en/collections/2319527-api); [avisos](https://help.shippypro.com/en/articles/4134207-how-do-i-connect-webhooks)) |
+| CTT | a página dela diz que liga a conta CTT do comerciante (etiquetas PDF A6 ou ZPL, seguimento, devoluções); **não diz** se é CTT Expresso nem que contrato pede |
+| Conta com faturação em Portugal | **não encontrado** |
+
+**O que isto quer dizer:** a ShippyPro é uma empresa da UE, mas, pelo que a
+política diz, pode passar dados dos clientes para fora do EEE, com
+subcontratantes que parecem ser empresas dos EUA (Cloudflare Inc., Sentry):
+**não verifiquei** a sede delas. É o mesmo ponto que ficou por decidir na
+Sendcloud (memória `envios-parte-c-sendcloud-12out2026.md`). Pela regra 4 do
+`AGENTS.md`, só entra com decisão escrita do Diogo ou do Bruno e o acordo de
+transferência. Mesmo assim, o comerciante precisaria do contrato com os CTT:
+a ShippyPro não dispensa o §24.2.
