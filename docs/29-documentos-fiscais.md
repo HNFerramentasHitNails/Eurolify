@@ -777,7 +777,8 @@ ser igual ao registado.
   no pedido e o dono conclui só com o valor; e a mesma empresa não se liga em
   dois comerciantes.
 - **P3-4 e P3-5, ficam:** a tabela não tem retenção, e quem conclui pode ser
-  outra chave de dono do mesmo comerciante.
+  outra chave de dono do mesmo comerciante. **O P3-4 fechou-se no §20**
+  (30 dias, migração 0099).
 
 **Por fazer:** o botão e o ecrã no Hub; registar `MOLONI_REDIRECT_URI` na
 conta de Developer e no ambiente `ensaio`; medir na conta trial se o `state`
@@ -1060,8 +1061,9 @@ empresa 401965, o passo `autorizar`, quem e quando.
 ## 20. A limpeza dos pedidos de autorização (desenho, 14/10/2026)
 
 Pedido do Diogo, 14/10/2026 (*«sim, avança com o desenho»*). Fecha o P3-4 da
-revisão do #407 (§17): «a tabela não tem retenção». **Por aprovar**, com a
-pergunta Q1 (§20.4).
+revisão do #407 (§17): «a tabela não tem retenção». **Aprovado e em código**
+(Diogo, 14/10/2026: *«sim, aprovo o desenho com a Q1 em a)»*, 30 dias;
+`docs/06`, ER; §20.7).
 
 ### 20.1 O caso
 
@@ -1146,4 +1148,29 @@ uma regra com prazo fixo. Fonte: `eur-lex`,
   ensaio. O `verificacao.sh` testa-a no Ubuntu do fluxo `verificar`.
 - O jurista confirma, com a Q4 do `docs/28`, que este prazo curto não choca
   com nenhuma obrigação de prova (**C**).
+
+### 20.7 Em código (14/10/2026; migração 0099; ER)
+
+- **Migração 0099:**
+  - `autorizacao_faturacao_apagavel` é a regra, num sítio: o fim (usada ou
+    expirada) mais 30 dias já passou;
+  - o gatilho da 0081 deixa apagar só o que ela deixa, a quem quer que
+    apague;
+  - `faturacao_autorizacoes_apagar()` apaga por comerciante, por causa do RLS
+    forçado, até 50 000 por corrida;
+  - `faturacao_autorizacoes_em_atraso()` conta o que passou o prazo há mais
+    de um dia;
+  - o `eurolify_limpeza` só recebe o `EXECUTE` destas duas.
+- **Os comerciantes percorridos** são os que têm ou tiveram um membro ou uma
+  chave: quem pede é sempre um deles (`criada_por`).
+- **VPS:**
+  - `eurolify-limpeza` chama a função e regista quantas apagou;
+  - `eurolify-verificacao` avisa se houver atraso;
+  - `preparar.sh` confere o `EXECUTE`;
+  - `testes/verificacao.sh` tem o caso 7.
+- **Testes:** `test/faturacao-autorizacoes-limpeza.test.ts`, 3 testes:
+  - as permissões;
+  - dentro dos 30 dias nem o dono da base apaga;
+  - a limpeza apaga o que passou o prazo, de dois comerciantes, e a contagem
+    volta a zero.
 
