@@ -32,6 +32,13 @@ recusar() {
 pedido=""
 IFS= read -r pedido || true
 
+# A troca da chave dos envios (docs/36 §25.7): «chave-envios trocar» ou
+# «chave-envios tirar-anterior», com a execução e a conta. Não leva segredos:
+# a chave nasce e fica na máquina.
+if [[ "$pedido" =~ ^chave-envios\ (trocar|tirar-anterior)\ (run:[0-9]{1,20})\ github:[0-9]{1,20}$ ]]; then
+  exec /usr/local/sbin/eurolify-chave-envios "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+fi
+
 # O e-mail de teste (docs/34 §13.1; Diogo, 12/10/2026: «A»): uma mensagem do
 # remetente para ele próprio, com o api-smtp.env que está na máquina, num
 # contentor de uma vez com a imagem da API que está no ar. Não muda nada.
@@ -49,9 +56,12 @@ if [[ "$pedido" =~ ^teste\ (run:[0-9]{1,20})\ github:[0-9]{1,20}$ ]]; then
   # linhas no ambiente do contentor, comparadas em memória; revisão do #410,
   # P2-1). Uma recriação que falhou num «configurar» não passa por verde.
   ambiente="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null || true)"
+  # Em memória, sem processos: um argumento lê-se no /proc, e a linha traz a
+  # palavra-passe (revisão do #466-VPS, P1-3).
+  ambiente=$'\n'"$ambiente"$'\n'
   while IFS= read -r linha; do
     [[ -z "$linha" ]] && continue
-    if ! grep -qxF -- "$linha" <<<"$ambiente"; then
+    if [[ "$ambiente" != *$'\n'"$linha"$'\n'* ]]; then
       echo "ATENÇÃO: a API não corre com o api-smtp.env desta máquina: lance a acção com «configurar» primeiro."
       registar "configurar: teste não enviado (a API não corre com o ficheiro)"
       exit 1
@@ -146,8 +156,10 @@ carregar_config
 le_o_ficheiro() {
   local ambiente linha
   ambiente="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' eurolify-api 2>/dev/null)" || return 1
+  # Em memória, sem processos: a linha traz a palavra-passe (P1-3).
+  ambiente=$'\n'"$ambiente"$'\n'
   while IFS= read -r linha; do
-    grep -qxF -- "$linha" <<<"$ambiente" || return 1
+    [[ "$ambiente" == *$'\n'"$linha"$'\n'* ]] || return 1
   done <<<"$desejado"
 }
 

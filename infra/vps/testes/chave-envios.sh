@@ -67,5 +67,50 @@ escreve 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=1\n'
 ln -s "$f" "$pasta/ligacao"
 confere nao "recusa uma ligação simbólica" chave_envios_valida "$pasta/ligacao"
 
+# A troca da chave (docs/36 §25.7): a anterior com outra versão.
+k2="$(openssl rand -base64 32)"
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=2\nENVIOS_CHAVE_ANTERIOR=%s\nENVIOS_CHAVE_ANTERIOR_VERSAO=1\n' "$k2" "$k" >"$f"
+confere sim "aceita a troca a meio (a anterior com outra versão)" chave_envios_valida "$f"
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=1\nENVIOS_CHAVE_ANTERIOR=%s\nENVIOS_CHAVE_ANTERIOR_VERSAO=1\n' "$k2" "$k" >"$f"
+confere nao "recusa a anterior com a mesma versão (a API não arranca)" chave_envios_valida "$f"
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=2\nENVIOS_CHAVE_ANTERIOR=%s\n' "$k2" "$k" >"$f"
+confere nao "recusa a anterior sem a versão" chave_envios_valida "$f"
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=2\nENVIOS_CHAVE_ANTERIOR=curta\nENVIOS_CHAVE_ANTERIOR_VERSAO=1\n' "$k2" >"$f"
+confere nao "recusa uma anterior que não dá 32 bytes" chave_envios_valida "$f"
+
+rm -f "$f" "$pasta/ligacao"
+gerar_chave_envios "$f"
+k1="$(sed -n 's/^ENVIOS_CHAVE=//p' "$f")"
+confere sim "trocar: a partir da versão 1" trocar_chave_envios "$f"
+confere sim "trocar: o ficheiro fica válido, 600 e de root" chave_envios_valida "$f"
+confere sim "trocar: 600 e de root" test "$(stat -c '%a %U' "$f")" == "600 root"
+confere sim "trocar: a nova é a versão 2" test "$(chave_envios_versao "$f")" == 2
+confere sim "trocar: a anterior é a versão 1" test "$(chave_envios_versao_anterior "$f")" == 1
+confere sim "trocar: a anterior é a chave que estava" test "$(sed -n 's/^ENVIOS_CHAVE_ANTERIOR=//p' "$f")" == "$k1"
+confere sim "trocar: a nova é outra" test "$(sed -n 's/^ENVIOS_CHAVE=//p' "$f")" != "$k1"
+confere sim "trocar: sem ficheiros temporários" so_ela 1
+antes="$(cat "$f")"
+confere nao "trocar outra vez com a troca a meio: recusa" trocar_chave_envios "$f"
+confere sim "e o ficheiro fica como estava" test "$(cat "$f")" == "$antes"
+k_nova="$(sed -n 's/^ENVIOS_CHAVE=//p' "$f")"
+confere sim "tirar a anterior" tirar_chave_anterior_envios "$f"
+confere sim "tirar: fica só a actual, válida" chave_envios_valida "$f"
+confere sim "tirar: duas linhas" test "$(wc -l <"$f")" == 2
+confere sim "tirar: a actual é a nova" test "$(sed -n 's/^ENVIOS_CHAVE=//p' "$f")" == "$k_nova"
+confere sim "tirar: versão 2" test "$(chave_envios_versao "$f")" == 2
+confere nao "tirar sem anterior: recusa" tirar_chave_anterior_envios "$f"
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=2026-10_a\n' "$k" >"$f"
+confere sim "trocar uma versão que não é número: a nova é a data" trocar_chave_envios "$f"
+confere sim "e o ficheiro fica válido" chave_envios_valida "$f"
+confere sim "a nova versão são 14 algarismos" grep -Eq '^ENVIOS_CHAVE_VERSAO=[0-9]{14}$' "$f"
+falsos="$(mktemp -d)"
+printf '#!/usr/bin/env bash\nexit 1\n' >"$falsos/openssl"
+chmod 755 "$falsos/openssl"
+printf 'ENVIOS_CHAVE=%s\nENVIOS_CHAVE_VERSAO=1\n' "$k" >"$f"
+antes="$(cat "$f")"
+confere nao "trocar com o openssl a falhar: recusa" env PATH="$falsos:$PATH" bash -c "source '$repo/infra/vps/ficheiros/lib/chave-envios.sh'; trocar_chave_envios '$f'"
+confere sim "e o ficheiro fica como estava" test "$(cat "$f")" == "$antes"
+rm -rf "$falsos"
+
 rm -rf "$pasta"
 ((falhas == 0))

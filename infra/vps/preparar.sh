@@ -262,7 +262,7 @@ instalar "$F/lib/comum.sh" /usr/local/lib/eurolify/comum.sh 644
 instalar "$F/lib/chave-totp.sh" /usr/local/lib/eurolify/chave-totp.sh 644
 instalar "$F/lib/chave-envios.sh" /usr/local/lib/eurolify/chave-envios.sh 644
 instalar "$F/bin/eurolify-pedido" /usr/local/bin/eurolify-pedido 755
-for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador configurar; do
+for p in trabalho publicar aplicar medir copia reposicao verificacao limpeza operar operador configurar chave-envios; do
   instalar "$F/sbin/eurolify-$p" "/usr/local/sbin/eurolify-$p" 700
 done
 unidades_mudaram=0
