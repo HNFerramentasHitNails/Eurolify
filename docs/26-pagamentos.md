@@ -414,7 +414,9 @@ a sandbox**, porque não há credenciais de teste.
 passa por aqui antes delas):
 - **A retenção dos avisos em bruto** (§7; revisão do #288, P2-8): a tabela não
   deixa apagar nem ao dono; os avisos válidos podem trazer o telefone do MB
-  WAY. Uma função de purga auditada entra com a porta P2-3 do `docs/25`.
+  WAY. Os avisos **sem** pagamento passam a resumo 90 dias depois de chegar
+  (§16, ET; em código, 0105). Os outros seguem a encomenda: a porta P2-3 do
+  `docs/25`.
 - **A fila de diferenças num ecrã do Hub**, pela sessão de uma pessoa (P2-6). Desenho no
   `docs/22` §34 (aprovado a 14/10/2026; ES).
 - **A sandbox da EuPago** (V1, V4, V5) e o registo do prestador (V6).
@@ -422,3 +424,190 @@ passa por aqui antes delas):
   segundo factor, e um caminho para a rodar (hoje: definir as credenciais
   outra vez).
 
+
+## 16. A retenção dos avisos sem pagamento (desenho, 14/10/2026; porta P2-8)
+
+Pedido do Diogo, 14/10/2026: *«sim, avança com o desenho»* (#287). Trata a
+parte da porta «A retenção dos avisos em bruto» (§15) que **não** depende do
+prazo das encomendas: os avisos que não ficaram ligados a nenhum pagamento.
+Os outros seguem a encomenda (§16.6).
+
+### 16.1 O problema
+
+Um aviso guarda-se em bruto para prova e investigação (§7; skill
+`payments-psd2-sca`, «Avisos», 2), e a base não o deixa apagar nem mudar
+(gatilho `aviso_pagamento_antes_de_gravar`, 0044 e 0072). Os que ficaram
+ligados a um pagamento passam a resumo quando o titular pede o apagamento
+(`titular_limpar_encomenda`, 0102: o corpo passa a
+`{"pseudonimizado": true, "resumo": …}` com a chave do rasto, 0054). Os que
+**não** têm pagamento nunca são apanhados por esse caminho, porque não
+pertencem a nenhuma encomenda, e ficam inteiros para sempre. Os casos, pelo
+código (`apps/api/src/pagamentos/repositorio.ts`, `receberAviso` e
+`aplicarAviso`, lidos a 14/10/2026):
+
+| `resultado` | Quando | O que fica no `corpo` |
+|---|---|---|
+| `sem_pagamento` | assinatura válida, referência que não é nossa; abre uma diferença `aviso_sem_pagamento` | o corpo inteiro (no MB WAY, o telefone — V3) |
+| `erro` | assinado mas ilegível; ou falhou ao aplicar (ex.: chegou antes de gravarmos a resposta da cobrança); ou **o segredo da conta não se lê** (`assinatura_valida = false`) | o corpo inteiro — no último caso, **sem a assinatura verificada** |
+| `null` | gravado e não chegou a ser tratado (o processo caiu entre gravar e aplicar) | o corpo inteiro |
+| `assinatura_invalida` | assinatura errada | já vazio (`''`, revisão do #288, P2-1): nada a fazer |
+
+Ex.: chega um aviso MB WAY de 12,00 € com uma referência que não é nossa e o
+telefone de alguém. Abre-se uma diferença, o dono resolve-a no Hub
+(«não é nosso»), e o telefone fica guardado sem prazo.
+
+### 16.2 A regra
+
+Um aviso **sem pagamento** (`pagamento_id` nulo), com o corpo ainda em bruto,
+recebido há mais de **N dias** (Q1) e **sem nenhuma diferença aberta que
+aponte para ele**, passa o corpo a resumo — a mesma forma da 0102, com a
+chave do rasto (0054), e a marca de que veio do prazo:
+`{"pseudonimizado": true, "motivo": "prazo", "resumo": …}`.
+
+- **Não se apaga** a linha: o `UNIQUE (conta_id, id_evento)` é a idempotência
+  (um reenvio tardio do prestador continua a contar como repetido, R6), e a
+  diferença e a transição apontam para ela (chaves estrangeiras da 0044).
+  Ficam o identificador do evento, a conta, a data, o resultado e o erro.
+- **Uma diferença aberta segura o aviso** (é o que o dono está a investigar);
+  resolvida, o aviso passa a resumo na limpeza seguinte, se o prazo já passou.
+- **O `erro` passa a resumo como os outros.** Um aviso com erro pode voltar a
+  ser aplicado se o prestador o reenviar; o reenvio traz o corpo de novo e
+  `aplicarAviso` usa o evento recebido, não o guardado. A EuPago reenvia daqui
+  a 2 minutos (§15, **W**); não verifiquei por quanto tempo continua a
+  reenviar, mas N dias depois não há reenvio a esperar.
+- **O texto do `erro`** é nosso (mensagem do adaptador ou da base, até 500
+  caracteres). Não verifiquei se alguma mensagem do adaptador copia valores
+  do corpo; verifica-se no código antes de o deixar ficar (§16.5).
+
+### 16.3 Como corre
+
+- **Uma função da base** (migração 0105; a 0103 é dos envios e a 0104 dos
+  clientes), `pagamentos_avisos_resumir()`, `SECURITY DEFINER`, comerciante a comerciante
+  (`set_config('eurolify.comerciante', c, true)`, como a
+  `faturacao_autorizacoes_apagar`, 0100), até **50 000 avisos por execução**,
+  devolve quantos passaram a resumo. Corre na limpeza diária das 05:00 UTC
+  (`eurolify-limpeza`), com o mesmo papel `eurolify_limpeza`.
+- **O gatilho do aviso** passa a aceitar esta mudança **só dentro da função**
+  (uma marca da transacção que só o dono escreve, como a da 0049), **só no
+  `corpo`**, e confirma ele próprio a regra (sem pagamento, prazo passado,
+  sem diferença aberta). Fora disso, continua a recusar tudo (a API e o dono
+  sem a marca).
+- **A verificação das 07:00** (`eurolify-verificacao`) avisa se houver avisos
+  que já deviam estar em resumo e não estão
+  (`pagamentos_avisos_em_atraso()`), como faz com as autorizações (0100).
+- **O registo do que fez**: a linha da limpeza no diário diz quantos passaram
+  a resumo, sem identificadores do aviso nem o corpo (skill `eu-gdpr-privacy`,
+  «Retenção e apagamento»: *«Uma tarefa diária aplica-a e regista o que
+  fez»*).
+
+### 16.4 Testes (antes de juntar)
+
+- um aviso sem pagamento com o prazo passado passa a resumo; com o prazo por
+  passar, fica; com pagamento, fica (não é desta regra);
+- uma diferença aberta segura-o; resolvida, deixa-o passar;
+- `assinatura_invalida` (corpo vazio) e um corpo já em resumo não mudam;
+- o resumo é igual ao da 0102 para o mesmo corpo (a mesma chave do rasto);
+- a API e o dono **sem** a marca continuam recusados ao mudar o corpo;
+- um comerciante não toca nos avisos de outro (o RLS forçado): a diferença
+  aberta de um segura só o aviso dele (a chave estrangeira da 0044 já não
+  deixa uma diferença apontar para o aviso de outro comerciante);
+- um reenvio do mesmo evento depois do resumo continua a contar como repetido;
+- a função dos atrasos; um aviso preso por outra transacção fica para a
+  corrida seguinte, sem a fazer falhar; **o limite de 50 000 por execução
+  fica por testar** (pedia 50 000 avisos num teste);
+- na VPS: a limpeza chama a função e a verificação avisa os atrasos
+  (`infra/vps/testes/verificacao.sh`).
+
+### 16.5 Por onde é que isto ainda pode sair errado
+
+- **O prazo é proposta** (**C**, Q1). O RGPD dá o princípio, não o número:
+  artigo 5.º, n.º 1, alínea c) («minimização dos dados») e alínea e)
+  («limitação da conservação») — RGPD, versão consolidada de 2016-05-04,
+  `eur-lex/corpus/dados-e-privacidade/32016R0679-rgpd.md`, `obtido_em`
+  2026-10-10. Em Portugal, a Lei n.º 58/2019, artigo 21.º, n.º 1: o prazo é
+  o fixado por norma legal ou, na falta dela, *«o que se revele necessário
+  para a prossecução da finalidade»*; e n.º 3: os dados que provam o
+  cumprimento de obrigações *«podem ser conservados enquanto não decorrer o
+  prazo de prescrição dos direitos correspetivos»*
+  (`eur-lex/legislacao-pt/lei-58-2019.md`, texto original do DRE, `obtido_em`
+  2026-10-10; alterações posteriores não incorporadas). Se o aviso for a
+  prova de que um cliente pagou a uma referência errada, o n.º 3 puxa para um
+  prazo mais longo — leitura nossa, **C**, para o jurista. Procurei com
+  `procurar.py texto "prazo de conservação de dados de operações de
+  pagamento"`. Não verifiquei se alguma regra obriga **o comerciante** a
+  guardar o aviso inteiro de um pagamento que não é seu (as obrigações de
+  conservação dos prestadores de pagamento são deles, não nossas — por
+  verificar com o jurista, como o resto do §13).
+- **Quem decide o prazo**: nos dados dos clientes o Eurolify é
+  subcontratante (`docs/17`, T2); o prazo por omissão vai para o acordo com o
+  comerciante (**C**, jurista).
+- **Um aviso nosso que não casou por erro nosso** (a referência existia mas o
+  código não a encontrou): a diferença `aviso_sem_pagamento` fica aberta até
+  uma pessoa a resolver, e enquanto estiver aberta o aviso não se toca.
+- **O texto do `erro`** (§16.2): a confirmar no código do adaptador; se
+  copiar valores do corpo, passa a resumo também.
+- **Um aviso com `erro` resumido e reenviado depois** (o prestador ainda a
+  reenviar ao fim de 90 dias) aplica-se pelo corpo do reenvio, mas a linha
+  fica com o resumo, sem o corpo original. Risco aceite: não verifiquei até
+  quando a EuPago reenvia (§16.2); revisão do #467, P3-2.
+- **As cópias de segurança** guardam o corpo inteiro até expirarem (14 dias,
+  `docs/17`); diz-se na política de privacidade (skill `eu-gdpr-privacy`).
+- **A resolução da diferença** (`diferenca_pagamento.resolucao`), num aviso
+  sem pagamento, é texto livre do dono e pode trazer o mesmo telefone. Fica
+  **fora** deste desenho: a sessão dos clientes está a tratar a resolução
+  das diferenças com encomenda no apagamento do titular (0104); a das sem
+  encomenda fica registada como ponto aberto aqui.
+
+### 16.6 O que fica de fora
+
+- **Os avisos com pagamento** seguem a encomenda: passam a resumo no
+  apagamento do titular (0102) e, quando houver, no prazo das encomendas
+  (porta P2-3 do `docs/25`, ainda sem desenho).
+
+### 16.7 Decisão
+
+**Q1 — ao fim de quantos dias um aviso sem pagamento passa a resumo?**
+**a) 90 dias** (Diogo, 14/10/2026: *«sim, aprovo o desenho com a Q1 em a)»*;
+`docs/06`, ET). Continua **C** até o jurista o ver (§16.5).
+
+### 16.8 Em código (14/10/2026; migração 0105; #467)
+
+| O quê | Onde |
+|---|---|
+| a regra num sítio (`aviso_pagamento_resumivel`): sem pagamento, mais de 90 dias, corpo por limpar, sem diferença aberta; o resumo (`aviso_pagamento_resumo`, a forma da 0102 com `"motivo": "prazo"`); o corpo já em resumo reconhece-se pelo conteúdo (`aviso_pagamento_em_resumo`) | migração 0105 |
+| a marca da transacção (`aviso_resumo_em_curso`, só do dono) e o gatilho do aviso, que dentro dela aceita só o corpo, só o resumo certo e só o que a regra deixa; fora dela, o de antes (a API nem tem o `UPDATE` do corpo) | migração 0105 |
+| `pagamentos_avisos_resumir()` (até 50 000 por corrida) e `pagamentos_avisos_em_atraso()`, só para o `eurolify_limpeza` | migração 0105; `infra/vps/preparar.sh` |
+| a limpeza das 05:00 chama-a e regista a contagem; a verificação das 07:00 avisa os atrasos | `eurolify-limpeza`, `eurolify-verificacao`; `infra/vps/testes/verificacao.sh` (caso 8) |
+| testes: o prazo dos dois lados, os três resultados sem pagamento, o corpo vazio, o corpo que não é JSON, o já em resumo pela 0102, a diferença aberta e a resolvida, outro comerciante, as recusas sem a marca e com a marca, o resumo igual ao da 0102, o reenvio repetido e o erro ainda tratável | `apps/api/test/pagamentos-avisos-retencao.test.ts` |
+
+**Duas formas de resumo:** o apagamento do titular (0072, 0102) grava
+`{"resumo", "pseudonimizado"}` e o prazo grava também `"motivo": "prazo"`.
+O filtro da 0072 e da 0102 (`NOT LIKE '{"pseudonimizado"%'`) não reconhece
+nenhuma das duas (o jsonb põe `resumo` antes de `pseudonimizado`), por isso
+o apagamento volta a resumir um corpo já resumido; a sessão dos clientes
+corrige-o na 0104 (revisão do #467, P3-3). A 0105 reconhece as duas pelo
+conteúdo (`aviso_pagamento_em_resumo`).
+
+**A revisão do agente** (Sonnet 5.5; sem P0 nem P1):
+- **P2-1** (um reenvio aplicado durante a limpeza fazia-a falhar inteira):
+  a limpeza salta as linhas presas (`FOR UPDATE SKIP LOCKED`) e repete a
+  regra na linha que escreve; testado;
+- **P2-2** (o índice não servia): a data passou para o `WHERE`, à vista do
+  planeador;
+- **P2-3** (testes prometidos no §16.4): o isolamento acrescentado; o limite
+  de 50 000 fica por testar e diz-se no §16.4;
+- **P2-4** (o gatilho com pagamento só se provava pela função): um aviso
+  com `pagamento_id` recusado pelo gatilho, com a marca; e as recusas com a
+  marca passaram a correr com o papel do dono das tabelas (antes, o teste
+  ligava com outro papel e a marca não contava: as recusas vinham do gatilho
+  da 0044), mais um caso que passa. O reenvio continua testado em SQL, sem
+  `receberAviso`;
+- **P3-1** (o nome da função no §16.3), **P3-2** e **P3-3** (§16.5 e acima),
+  **P3-4** (cada recusa do gatilho diz qual condição falhou): corrigidos;
+- **P3-5** (os testes dependem da ordem): fica, como o teste da 0100.
+
+**O texto do `erro`** (§16.2): as mensagens do adaptador da EuPago ao ler
+um aviso são textos fixos, sem valores do corpo (`eupago.ts`, `lerAviso`,
+lido a 14/10/2026). **Por verificar:** as mensagens de um erro ao aplicar o
+aviso (da base ou do repositório), que o `erro` guarda como vêm; e a
+resolução das diferenças sem encomenda (§16.5).
