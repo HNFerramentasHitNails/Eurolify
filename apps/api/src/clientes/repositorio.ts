@@ -4,6 +4,10 @@ import {
   CANAIS_CONSENTIMENTO,
   type TipoDeAnexo,
   type BaseDados,
+  type CanalPedidoRecebido,
+  type EstadoPedidoRecebido,
+  type MotivoProrrogacao,
+  type TipoPedidoRecebido,
   type CanalConsentimento,
   type EstadoDuplicado,
 } from "../base/esquema.js";
@@ -53,6 +57,8 @@ const CODIGOS_DA_BASE: readonly CodigoErroClientes[] = [
   // Da 0055: os anexos da isenção.
   "customers.exemption_attachments_full",
   "customers.exemption_attachments_quota",
+  // Da 0092: o pedido do titular recebido (as datas e o motivo).
+  "customers.invalid_field",
 ];
 
 /** As restrições da 0037 com código próprio. */
@@ -85,6 +91,7 @@ const TABELAS = new Set([
   "pedido_titular",
   "confirmacao_consentimento",
   "anexo_isencao",
+  "pedido_titular_recebido",
 ]);
 
 /** Exportada para os testes; o resto do código usa-a por `noClientes`. */
@@ -1650,6 +1657,126 @@ export async function listarPedidosTitular(
       ...p,
       encomendas_por_acabar: porAcabar.get(p.id) ?? 0,
     }));
+  });
+}
+
+// ---- O pedido do titular recebido e o prazo de resposta (§15.14; 0092)
+
+/** Um pedido do titular recebido; as datas em AAAA-MM-DD. */
+export interface PedidoRecebido {
+  id: string;
+  cliente_id: string;
+  tipo: TipoPedidoRecebido;
+  canal: CanalPedidoRecebido;
+  recebido_em: Date;
+  prazo_legal: string;
+  prorrogado_ate: string | null;
+  prorrogado_motivo: MotivoProrrogacao | null;
+  titular_informado_em: string | null;
+  estado: EstadoPedidoRecebido;
+  fechado_em: string | null;
+  pedido_titular_id: string | null;
+  quem: string;
+  criado_em: Date;
+}
+
+const COLUNAS_PEDIDO_RECEBIDO = sql`r.id, r.cliente_id, r.tipo, r.canal, r.recebido_em,
+  to_char(r.prazo_legal, 'YYYY-MM-DD') as prazo_legal,
+  to_char(r.prorrogado_ate, 'YYYY-MM-DD') as prorrogado_ate, r.prorrogado_motivo,
+  to_char(r.titular_informado_em, 'YYYY-MM-DD') as titular_informado_em, r.estado,
+  to_char(r.fechado_em, 'YYYY-MM-DD') as fechado_em, r.pedido_titular_id, r.quem,
+  r.criado_em`;
+
+/** Regista a chegada (pedido_recebido_registar): só numa ficha activa. */
+export async function registarPedidoRecebido(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+  tipo: TipoPedidoRecebido,
+  canal: CanalPedidoRecebido,
+  recebidoEm: string | null,
+): Promise<string> {
+  const { rows } = await noClientes(db, comercianteId, (trx) =>
+    sql<{ id: string }>`
+      select pedido_recebido_registar(${clienteId}::uuid, ${tipo}, ${canal},
+        ${recebidoEm}::timestamptz) as id`.execute(trx),
+  );
+  const id = rows[0]?.id;
+  if (id === undefined)
+    throw new Error("pedido_recebido_registar sem resposta");
+  return id;
+}
+
+/** Prorroga, uma vez, com o motivo e o dia em que o titular foi informado. */
+export async function prorrogarPedidoRecebido(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  ate: string,
+  motivo: MotivoProrrogacao,
+  informadoEm: string,
+): Promise<void> {
+  await noClientes(db, comercianteId, (trx) =>
+    sql`select pedido_recebido_prorrogar(${id}::uuid, ${ate}::date, ${motivo},
+      ${informadoEm}::date)`.execute(trx),
+  );
+}
+
+/** Fecha, uma vez: executado (com o pedido executado), respondido ou recusado. */
+export async function fecharPedidoRecebido(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+  fim: Exclude<EstadoPedidoRecebido, "aberto">,
+  em: string,
+  pedidoTitularId: string | null,
+): Promise<void> {
+  await noClientes(db, comercianteId, (trx) =>
+    sql`select pedido_recebido_fechar(${id}::uuid, ${fim}, ${em}::date,
+      ${pedidoTitularId}::uuid)`.execute(trx),
+  );
+}
+
+export async function obterPedidoRecebido(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+): Promise<PedidoRecebido> {
+  const { rows } = await noClientes(db, comercianteId, (trx) =>
+    sql<PedidoRecebido>`
+      select ${COLUNAS_PEDIDO_RECEBIDO} from pedido_titular_recebido r
+      where r.id = ${id}::uuid`.execute(trx),
+  );
+  const r = rows[0];
+  if (r === undefined) {
+    throw new ErroClientes(
+      "customers.not_found",
+      "pedido recebido inexistente",
+    );
+  }
+  return r;
+}
+
+/** Os pedidos recebidos da ficha e das fundidas nela, os mais recentes primeiro. */
+export async function listarPedidosRecebidos(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  clienteId: string,
+): Promise<PedidoRecebido[]> {
+  return noClientes(db, comercianteId, async (trx) => {
+    const ficha = await trx
+      .selectFrom("cliente")
+      .select("id")
+      .where("id", "=", clienteId)
+      .executeTakeFirst();
+    if (ficha === undefined) {
+      throw new ErroClientes("customers.not_found", "ficha inexistente");
+    }
+    const { rows } = await sql<PedidoRecebido>`
+      select ${COLUNAS_PEDIDO_RECEBIDO} from pedido_titular_recebido r
+      where r.cliente_id in (select clientes_do_grupo(${clienteId}::uuid))
+      order by r.recebido_em desc, r.id desc`.execute(trx);
+    return rows;
   });
 }
 

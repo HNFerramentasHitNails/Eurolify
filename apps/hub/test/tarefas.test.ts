@@ -22,7 +22,7 @@ import { MOTIVOS_RETENCAO } from "../../api/src/faturacao/motivos";
 // se uma muda sem a outra.
 
 describe("as filas e quem as decide", () => {
-  it("as sete filas são as da API, pela mesma ordem", () => {
+  it("as nove filas são as da API, pela mesma ordem", () => {
     expect([...FILAS_TAREFAS]).toEqual([...FILAS_DA_API]);
   });
 
@@ -93,6 +93,17 @@ describe("o motivo", () => {
         expect(textos[`motivoTarefa_${m}`]?.trim(), `${l} ${m}`).toBeTruthy();
       }
     }
+  });
+
+  it("os dois motivos do pedido do titular têm texto nas três línguas (docs/23 §15.14)", () => {
+    for (const l of ["pt", "es", "en"] as const) {
+      for (const m of ["por_responder", "prorrogado"]) {
+        expect(motivoDe(TEXTOS[l], m), `${l} ${m}`).not.toBe(m);
+      }
+    }
+    expect(motivoDe(TEXTOS.pt, "prorrogado")).toBe(
+      "prazo prorrogado; o cliente foi informado",
+    );
   });
 
   it("o identificador encurtado mostra o prefixo e os últimos 4", () => {
