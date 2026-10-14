@@ -312,7 +312,7 @@ contra um ambiente de teste.
 | V3 | Seguimento | se os CTT avisam (com que assinatura) ou se só se consulta; de quanto em quanto tempo se pode consultar |
 | V4 | Anular uma etiqueta | se e até quando se pode |
 | V5 | Formato da etiqueta | PDF, ZPL ou outro; tamanho (A6, A4) |
-| V6 | Sendcloud | os mesmos pontos, e onde trata os dados (regra 4 do `AGENTS.md`). A página da Sendcloud sobre a CTT Express diz que liga com o contrato do próprio comerciante e que pede uma empresa registada em Espanha ([Sendcloud, W, resumo](https://www.sendcloud.com/carriers/ctt-express/)): não confirmado na documentação técnica |
+| V6 | Sendcloud | os mesmos pontos, e onde trata os dados (regra 4 do `AGENTS.md`). A página da Sendcloud sobre a CTT Express diz que liga com o contrato do próprio comerciante e que pede uma empresa registada em Espanha ([Sendcloud, W, resumo](https://www.sendcloud.com/carriers/ctt-express/)): não confirmado na documentação técnica **14/10/2026 (W, resumo de pesquisa; a página de ajuda recusa o acesso automático, 403):** a Sendcloud **não aceita uma conta com morada de faturação em Portugal**; as faturações aceites são Áustria, Bélgica, França, Alemanha, Itália, Países Baixos, Espanha e Reino Unido, e o país fica fixo. Para expedir de Portugal, o comerciante precisa do seu próprio contrato com uma transportadora suportada (DHL Express, DHL Parcel Iberia, FedEx, GLS Spain, MRW, Paack, Tipsa, UPS), a partir da assinatura Lite ([Sendcloud, «How to ship from Portugal»](https://support.sendcloud.com/hc/en-us/articles/36317556679569-How-to-ship-from-Portugal-using-Sendcloud)). Não li a página; confirmar antes de decidir |
 
 ## 12. Para o jurista (no fim do desenvolvimento, ADR-0045)
 
