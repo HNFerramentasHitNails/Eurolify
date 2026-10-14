@@ -520,7 +520,17 @@ chave do rasto (0054), e a marca de que veio do prazo:
   artigo 5.º, n.º 1, alínea c) («minimização dos dados») e alínea e)
   («limitação da conservação») — RGPD, versão consolidada de 2016-05-04,
   `eur-lex/corpus/dados-e-privacidade/32016R0679-rgpd.md`, `obtido_em`
-  2026-10-10. Não verifiquei se alguma regra obriga **o comerciante** a
+  2026-10-10. Em Portugal, a Lei n.º 58/2019, artigo 21.º, n.º 1: o prazo é
+  o fixado por norma legal ou, na falta dela, *«o que se revele necessário
+  para a prossecução da finalidade»*; e n.º 3: os dados que provam o
+  cumprimento de obrigações *«podem ser conservados enquanto não decorrer o
+  prazo de prescrição dos direitos correspetivos»*
+  (`eur-lex/legislacao-pt/lei-58-2019.md`, texto original do DRE, `obtido_em`
+  2026-10-10; alterações posteriores não incorporadas). Se o aviso for a
+  prova de que um cliente pagou a uma referência errada, o n.º 3 puxa para um
+  prazo mais longo — leitura nossa, **C**, para o jurista. Procurei com
+  `procurar.py texto "prazo de conservação de dados de operações de
+  pagamento"`. Não verifiquei se alguma regra obriga **o comerciante** a
   guardar o aviso inteiro de um pagamento que não é seu (as obrigações de
   conservação dos prestadores de pagamento são deles, não nossas — por
   verificar com o jurista, como o resto do §13).
