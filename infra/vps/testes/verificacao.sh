@@ -2,7 +2,8 @@
 # Teste da verificação diária (eurolify-verificacao), só a parte das duas
 # tarefas da API que limpam dados pessoais (docs/23 §15.11; migração 0088):
 # a fila do titular e as sessões de checkout; e a do aviso do prazo legal dos
-# pedidos do titular (docs/23 §15.15; migração 0096). Corre como root num contentor
+# pedidos do titular (docs/23 §15.15; migração 0096); e a da limpeza dos pedidos
+# de autorização da faturação (docs/29 §20; migração 0100). Corre como root num contentor
 # Ubuntu descartável (fluxo verificar), sem docker a sério: um docker de
 # mentira responde às consultas do psql. Nunca correr numa máquina a sério.
 set -Eeuo pipefail
@@ -26,7 +27,8 @@ case "$1" in
     exit 0 ;;
   exec)
     sql="${*: -1}"
-    for f in titular_pendentes_em_atraso checkout_sessoes_em_atraso clientes_pedidos_sem_aviso_em_atraso; do
+    for f in titular_pendentes_em_atraso checkout_sessoes_em_atraso clientes_pedidos_sem_aviso_em_atraso \
+      faturacao_autorizacoes_em_atraso; do
       [[ "$sql" == *"$f"* ]] || continue
       estado="$(cat "/tmp/falso/$f" 2>/dev/null || echo ausente)"
       if [[ "$sql" == *to_regprocedure* ]]; then
@@ -69,11 +71,12 @@ contem() { [[ "$1" == *"$2"* ]]; }
 sem_texto() { [[ "$1" != *"$2"* ]]; }
 
 saida=""
-verificar() { # verificar <titular> <checkout> [<avisos>]: «-» é a função que não existe
+verificar() { # verificar <titular> <checkout> [<avisos>] [<autorizações>]: «-» é a função que não existe
   rm -f /tmp/falso/*
   [[ "$1" == - ]] || printf '%s' "$1" >/tmp/falso/titular_pendentes_em_atraso
   [[ "$2" == - ]] || printf '%s' "$2" >/tmp/falso/checkout_sessoes_em_atraso
   [[ "${3:--}" == - ]] || printf '%s' "$3" >/tmp/falso/clientes_pedidos_sem_aviso_em_atraso
+  [[ "${4:--}" == - ]] || printf '%s' "$4" >/tmp/falso/faturacao_autorizacoes_em_atraso
   saida="$(PATH="$falsos:$PATH" bash "$repo/infra/vps/ficheiros/sbin/eurolify-verificacao" 2>&1 || true)"
 }
 
@@ -116,6 +119,16 @@ confere "com atraso só nos avisos, a fila do titular não aparece" sem_texto "$
 verificar 0 0 falha
 confere "a falha da contagem dos avisos avisa só a categoria" contem "$saida" \
   "não consegui contar os pedidos do titular por avisar: a consulta falhou"
+
+# 7. Os pedidos de autorização da faturação (0100): sem atraso, nada; com
+# atraso, a linha com o número e a limpeza; sem a função, nada.
+verificar 0 0 0 0
+confere "sem atraso, as autorizações não aparecem" sem_texto "$saida" "autorização"
+verificar 0 0 0 2
+confere "a limpeza das autorizações parada avisa com o número" contem "$saida" \
+  "2 pedido(s) de autorização da faturação por apagar há mais de um dia: a limpeza diária (eurolify-limpeza) não os está a apagar"
+verificar 0 0 0 -
+confere "sem a função (0100 por publicar), as autorizações não aparecem" sem_texto "$saida" "autorização"
 
 if ((falhas)); then
   echo "$falhas verificação(ões) falharam"

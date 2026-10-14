@@ -8,7 +8,7 @@ especificação (§11, V1).
 ## O que se fez
 
 - **Os volumes:** uma expedição pode ter 2 a 15 caixas, cada uma com o seu
-  peso (migração 0099; a 0097 é da faturação e a 0098 dos clientes). Mudam como o peso corrigido: só antes da etiqueta,
+  peso (migração 0101; a 0097 e a 0100 são da faturação e a 0098 dos clientes). Mudam como o peso corrigido: só antes da etiqueta,
   com motivo, e ficam no rasto.
 - **O serviço** tem de os levar (`maxVolumes` no contrato; na Sendcloud,
   `functionalities.multicollo`), e o peso máximo é por caixa.

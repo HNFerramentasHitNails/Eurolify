@@ -13,7 +13,7 @@ import { eupagoFalso } from "./eupago-falso.js";
 import { hubDeTeste } from "./hub-de-teste.js";
 import { transportadoraFalsa } from "./transportadora-falsa.js";
 
-// Vários volumes numa expedição (docs/36 §23; migração 0099): o peso de
+// Vários volumes numa expedição (docs/36 §23; migração 0101): o peso de
 // cada caixa, com motivo, só antes da etiqueta e só num serviço que leve
 // tantos volumes; uma etiqueta e um seguimento por volume; a expedição só
 // fica entregue com todos os volumes entregues (L13); um volume perdido

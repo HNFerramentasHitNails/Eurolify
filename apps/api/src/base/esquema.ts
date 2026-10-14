@@ -1557,7 +1557,7 @@ export interface TabelaExpedicao {
   peso_corrigido_g: ColumnType<number | null, never, number | null>;
   conta_escolhida_id: ColumnType<string | null, never, string | null>;
   servico_escolhido: ColumnType<string | null, never, string | null>;
-  // O peso de cada caixa (docs/36 §23, 0099); null = uma caixa.
+  // O peso de cada caixa (docs/36 §23, 0101); null = uma caixa.
   volumes_g: ColumnType<number[] | null, never, number[] | null>;
   etiqueta: ColumnType<EstadoEtiqueta, never, EstadoEtiqueta>;
   etiqueta_tentativa: ColumnType<number, never, number>;
@@ -1584,7 +1584,7 @@ export interface TabelaEtiquetaFicheiro {
   formato: ColumnType<"pdf" | "zpl", "pdf" | "zpl", never>;
   conteudo: ColumnType<Buffer, Buffer, never>;
   criado_em: ColumnType<Date, never, never>;
-  /** O volume (docs/36 §23, 0099): 1 numa expedição de uma caixa. */
+  /** O volume (docs/36 §23, 0101): 1 numa expedição de uma caixa. */
   volume: ColumnType<number, number | undefined, never>;
 }
 

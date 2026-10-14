@@ -115,7 +115,7 @@ const FUNCOES_DA_API = [
   // Os envios (0079): a porta dos avisos e o trabalho da API.
   // O aviso da tentativa falhada (0087): a conferência no envio.
   "envios_aviso_espera",
-  // Com o volume (docs/36 §23, 0099): a mesma função, por volume.
+  // Com o volume (docs/36 §23, 0101): a mesma função, por volume.
   "envios_aviso_espera",
   "envios_avisos_resumir",
   // As encomendas paradas (0085): a volta de todos e a de um comerciante.

@@ -1705,16 +1705,16 @@ conta a última; dentro de uma expedição passa a contar o último volume.
 
 ### 23.8 Como entra no código
 
-Dois pedidos: (1) a API e a base (migração nova, a 0099; o
+Dois pedidos: (1) a API e a base (migração nova, a 0101; o
 contrato do adaptador, a Sendcloud, os testes e a revisão do agente); (2) o
 Hub (os volumes em «Expedir»), com capturas.
 
-### 23.9 Em código (pedido 1; 14/10/2026; migração 0099)
+### 23.9 Em código (pedido 1; 14/10/2026; migração 0101)
 
 | O quê | Onde |
 |---|---|
-| `expedicao.volumes_g` (2 a 15 pesos, ou NULL = uma caixa); muda pelo gatilho das correcções da 0086 (criada, sem etiqueta viva, com motivo, no rasto como `volumes`) | migração 0099 |
-| o ficheiro da etiqueta ganha o volume (o que apaga pela expedição apaga todos); `volume_seguimento` com o número de cada volume; `evento_seguimento.volume` | migração 0099 |
+| `expedicao.volumes_g` (2 a 15 pesos, ou NULL = uma caixa); muda pelo gatilho das correcções da 0086 (criada, sem etiqueta viva, com motivo, no rasto como `volumes`) | migração 0101 |
+| o ficheiro da etiqueta ganha o volume (o que apaga pela expedição apaga todos); `volume_seguimento` com o número de cada volume; `evento_seguimento.volume` | migração 0101 |
 | o contrato: `maxVolumes` no serviço, `volumesG` no pedido, `volumes` na etiqueta emitida | `src/envios/adaptador.ts` |
 | `PUT /shipments/{id}/volumes` e `PUT /hub/shipments/{id}/volumes` (`fulfilment:write`); `GET …/label/file?volume=`; a etiqueta e os serviços mostram os volumes | `src/envios/correcoes.ts` (`mudarVolumes`), `rotas.ts`, `rotas-hub-expedir.ts` |
 | a etiqueta: o máximo do serviço por volume; menos etiquetas do que volumes ⇒ incerta; anular leva todos | `src/envios/etiquetas.ts` |
