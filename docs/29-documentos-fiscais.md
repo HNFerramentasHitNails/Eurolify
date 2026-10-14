@@ -755,7 +755,7 @@ ser igual ao registado.
 
 | O quê | Onde |
 |---|---|
-| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás e apagar); RLS forçado | migração 0081 |
+| `autorizacao_faturacao`: o resumo do valor, a empresa, 10 minutos, usada uma vez (a base recusa voltar atrás; apagar, só 30 dias depois do fim, desde a 0100, §20); RLS forçado | migração 0081 |
 | `urlAutorizacao` e `trocarCodigo` no contrato do adaptador; no Moloni, com `MOLONI_REDIRECT_URI` | `src/faturacao/adaptador.ts`, `src/faturacao/moloni.ts`, `src/servidor.ts` |
 | `pedirAutorizacao` e `concluirAutorizacao` (marca usada antes de trocar; grava só depois de conferir a empresa) | `src/faturacao/repositorio.ts` |
 | as três rotas; a página do endereço de resposta (sem nada de fora, sem cache, o texto escapado) e o reencaminhamento com `MOLONI_RETORNO_URL` | `src/faturacao/rotas.ts` |
@@ -777,7 +777,8 @@ ser igual ao registado.
   no pedido e o dono conclui só com o valor; e a mesma empresa não se liga em
   dois comerciantes.
 - **P3-4 e P3-5, ficam:** a tabela não tem retenção, e quem conclui pode ser
-  outra chave de dono do mesmo comerciante.
+  outra chave de dono do mesmo comerciante. **O P3-4 fechou-se no §20**
+  (30 dias, migração 0100).
 
 **Por fazer:** o botão e o ecrã no Hub; registar `MOLONI_REDIRECT_URI` na
 conta de Developer e no ambiente `ensaio`; medir na conta trial se o `state`
@@ -1056,3 +1057,124 @@ empresa 401965, o passo `autorizar`, quem e quando.
   apoio lê-o na base. Não há limite de ritmo, porque a decisão foi registar.
   Um aviso automático, por exemplo ao fim de N recusas, fica para quando
   houver comerciantes de fora.
+
+## 20. A limpeza dos pedidos de autorização (desenho, 14/10/2026)
+
+Pedido do Diogo, 14/10/2026 (*«sim, avança com o desenho»*). Fecha o P3-4 da
+revisão do #407 (§17): «a tabela não tem retenção». **Aprovado e em código**
+(Diogo, 14/10/2026: *«sim, aprovo o desenho com a Q1 em a)»*, 30 dias;
+`docs/06`, ER; §20.7).
+
+### 20.1 O caso
+
+Cada vez que o dono carrega em «Ligar ao Moloni», fica uma linha em
+`autorizacao_faturacao` (0081). A linha tem:
+
+- a ligação;
+- a empresa pedida;
+- o resumo do valor dado ao dono (`state`);
+- quem pediu (`per_…` ou `key_…`);
+- quando foi criada, quando expira e quando foi usada.
+
+Uma autorização só vale 10 minutos e uma vez. Depois disso a linha já não serve
+para ligar nada, mas fica para sempre: o gatilho da 0081 recusa o `DELETE`.
+
+Ex.: a «Loja Exemplo» pede a autorização às 10:00 de 14/10/2026 e conclui às
+10:02. A linha deixa de servir às 10:10 e, sem limpeza, ainda lá está em 2036.
+
+### 20.2 Para que serve a linha depois de gasta
+
+| Para quê | Já está noutro sítio? |
+|---|---|
+| Saber quem ligou a conta do emissor | Sim: `ligacao_faturacao.credenciais_por` e `credenciais_em` (0050) |
+| Saber quem tentou uma empresa já ligada noutra conta | Sim: `recusa_conta_emissor` (0097, §19.7), que não se apaga |
+| Investigar um abuso (P2-1 do §17: alguém que conclui com o código de outro) | Em parte: a linha diz quem pediu e para que empresa. É a razão de não apagar logo |
+| Os documentos fiscais | Não dependem dela: nenhuma tabela aponta para `autorizacao_faturacao` (procurado com `grep -rn autorizacao_faturacao apps/api/migracoes`) |
+
+### 20.3 O desenho
+
+- **Uma função da base, `faturacao_autorizacoes_apagar()`:**
+  - `SECURITY DEFINER`, como a `contas_aplicar_prazos()` (0026);
+  - apaga as linhas cujo fim já passou há mais do que o prazo da Q1. O fim é
+    `usada_em` se a linha foi usada, senão `expira_em`;
+  - apaga em lotes de até 50 000, como a 0026, e devolve quantas apagou.
+- **O gatilho da 0081** passa a deixar apagar só o que tem mais de 30 dias
+  desde o fim, a quem quer que apague, dono da base incluído; o resto
+  continua recusado. A regra fica numa função só, que o gatilho, a limpeza e
+  a contagem usam. A API não tem `DELETE` na tabela, nem passa a ter.
+  (O desenho previa uma variável local que só a função punha; uma regra pelo
+  tempo é mais simples e não depende de quem apaga.)
+- **Quem a chama:**
+  - a limpeza diária da VPS (`eurolify-limpeza`, 05:00 UTC), com o papel
+    `eurolify_limpeza`, que só recebe o `EXECUTE` desta função;
+  - a função escreve no registo da máquina quantas linhas apagou, como as
+    outras limpezas.
+  - A alteração ao script entra por pedido revisto e é o GitHub que a aplica
+    (ADR-0028).
+- **A verificação diária** (`eurolify-verificacao`, 07:00) ganha uma linha:
+  - `faturacao_autorizacoes_em_atraso()` conta as linhas com o prazo passado
+    há mais de um dia;
+  - se houver alguma, a limpeza não está a correr, e a verificação avisa.
+- **Sem rasto:** apagar é a regra de guarda, não uma alteração de alguém. A
+  contagem fica no registo da máquina.
+
+### 20.4 Pergunta para o Diogo ou o Bruno
+
+**Q1. Quanto tempo se guarda um pedido de autorização depois de gasto ou
+expirado?**
+
+- **a) 30 dias** ⭐: chega para investigar uma ligação estranha no mês em que
+  aconteceu. O que tem de ficar mais tempo já fica noutro sítio (§20.2).
+- **b) 90 dias:** o mesmo prazo das credenciais de uma pessoa que sai da
+  equipa (`docs/17`, CD).
+- **c) 1 dia:** só o tempo de a limpeza correr.
+
+Não verifiquei nenhum prazo legal para este registo. É uma escolha de
+minimização (RGPD, artigo 5.º, n.º 1, alínea e), «limitação da
+conservação»: só «durante o período necessário para as finalidades»), não
+uma regra com prazo fixo. Fonte: `eur-lex`,
+`corpus/dados-e-privacidade/32016R0679-rgpd.md`, artigo 5.º, versão de
+2016-05-04, obtido em 2026-10-10.
+
+### 20.5 Testes (no código)
+
+- uma linha usada ou expirada há mais do que o prazo é apagada; uma dentro do
+  prazo e uma ainda válida ficam;
+- dentro dos 30 dias, o `DELETE` directo continua recusado, também ao dono da
+  base; depois deles, o dono apaga; a API nunca;
+- o papel da limpeza só tem o `EXECUTE`;
+- a contagem do atraso conta só o que passou o prazo há mais de um dia;
+- um pedido de autorização a decorrer não é tocado.
+
+### 20.6 O que fica por verificar
+
+- A linha a mais no script da limpeza e na verificação corre na VPS do
+  ensaio. O `verificacao.sh` testa-a no Ubuntu do fluxo `verificar`.
+- O jurista confirma, com a Q4 do `docs/28`, que este prazo curto não choca
+  com nenhuma obrigação de prova (**C**).
+
+### 20.7 Em código (14/10/2026; migração 0100; ER)
+
+- **Migração 0100:**
+  - `autorizacao_faturacao_apagavel` é a regra, num sítio: o fim (usada ou
+    expirada) mais 30 dias já passou;
+  - o gatilho da 0081 deixa apagar só o que ela deixa, a quem quer que
+    apague;
+  - `faturacao_autorizacoes_apagar()` apaga por comerciante, por causa do RLS
+    forçado, até 50 000 por corrida;
+  - `faturacao_autorizacoes_em_atraso()` conta o que passou o prazo há mais
+    de um dia;
+  - o `eurolify_limpeza` só recebe o `EXECUTE` destas duas.
+- **Os comerciantes percorridos** são os que têm ou tiveram um membro ou uma
+  chave: quem pede é sempre um deles (`criada_por`).
+- **VPS:**
+  - `eurolify-limpeza` chama a função e regista quantas apagou;
+  - `eurolify-verificacao` avisa se houver atraso;
+  - `preparar.sh` confere o `EXECUTE`;
+  - `testes/verificacao.sh` tem o caso 7.
+- **Testes:** `test/faturacao-autorizacoes-limpeza.test.ts`, 3 testes:
+  - as permissões;
+  - dentro dos 30 dias nem o dono da base apaga;
+  - a limpeza apaga o que passou o prazo, de dois comerciantes, e a contagem
+    volta a zero.
+

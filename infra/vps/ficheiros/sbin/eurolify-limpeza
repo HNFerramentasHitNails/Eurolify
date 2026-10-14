@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Limpeza diária da base do ensaio (docs/18 §4; docs/17 §3): apaga as
 # respostas guardadas da idempotência que já expiraram (24 h) e aplica os
-# prazos das contas de pessoas (migração 0026; docs/21 §13), e regista
+# prazos das contas de pessoas (migração 0026; docs/21 §13) e os pedidos de
+# autorização da faturação com mais de 30 dias (0100; docs/29 §20), e regista
 # quantas linhas tratou. Corre como root, pelo eurolify-limpeza.timer, depois
 # da cópia. Uma falha fica no registo e a verificação diária avisa (unidade
 # falhada, ou linhas com o prazo passado há mais de um dia).
@@ -50,4 +51,21 @@ if [[ "$existe" == t ]]; then
   resumo="$(paste -sd ' ' <<<"$prazos")"
   registar "prazos das contas: $resumo"
   echo "Prazos das contas: $resumo."
+fi
+
+# Os pedidos de autorização do emissor de faturação (0100; docs/29 §20): os
+# usados ou expirados há mais de 30 dias apagam-se. A função é SECURITY
+# DEFINER e o papel da limpeza só tem o EXECUTE dela. Antes da 0100
+# publicada, não há nada a fazer.
+existe="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
+  -v ON_ERROR_STOP=1 -qAt -c "select to_regprocedure('public.faturacao_autorizacoes_apagar()') is not null")" ||
+  falhar "a limpeza não conseguiu ver se a função das autorizações existe"
+if [[ "$existe" == t ]]; then
+  autorizacoes="$(docker exec eurolify-postgres psql -U eurolify_limpeza -d "$BASE_NOME" \
+    -v ON_ERROR_STOP=1 -qAt -c "SET statement_timeout = '5min'" \
+    -c 'select faturacao_autorizacoes_apagar()')" ||
+    falhar "a limpeza das autorizações da faturação falhou"
+  [[ "$autorizacoes" =~ ^[0-9]+$ ]] || falhar "a limpeza das autorizações devolveu '$autorizacoes', não um número"
+  registar "limpeza: $autorizacoes pedido(s) de autorização da faturação apagado(s)"
+  echo "Limpeza: $autorizacoes pedido(s) de autorização da faturação apagado(s)."
 fi
