@@ -1773,5 +1773,7 @@ Hub (os volumes em «Expedir»), com capturas.
 | os textos em PT, ES e EN | `apps/hub/src/textos/` |
 | os testes das regras do formulário e as capturas a 375, 768 e 1280 px, claro e escuro, com respostas simuladas | `apps/hub/test/expedir.test.ts`, `apps/hub/scripts/capturas.mjs` |
 
-O aspecto vai ao Diogo com as capturas antes de se juntar.
+O Diogo aprovou o aspecto depois de ver as capturas (14/10/2026,
+*«aprovado»*). Desde as capturas, com várias caixas o peso diz «Peso das
+caixas, juntas».
 
