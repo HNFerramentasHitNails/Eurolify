@@ -63,6 +63,12 @@ const FUNCOES_DA_API = [
   // pseudonimização, a régua por contacto e o pedido e a confirmação.
   "cliente_pseudonimizado_sem_confirmacoes",
   "cliente_pseudonimizar",
+  // O aviso do prazo legal do pedido do titular (0096): a tarefa e a
+  // conferência no envio.
+  "clientes_aviso_espera",
+  "clientes_aviso_prazo_comerciantes",
+  "clientes_aviso_prazo_marcar",
+  "clientes_aviso_prazo_pendentes",
   // As tarefas das filas (0066; docs/33): os casos abertos de cada domínio,
   // a lista, atribuir, o prazo e o aviso; e o «na fila desde» do documento.
   "clientes_casos_a_decidir",
@@ -357,6 +363,7 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
         "atribuicao_vencida_notificacao",
         "devolucao_prazo_notificacao",
         "ligacao_faturacao_com_erro_notificacao",
+        "pedido_titular_recebido_aviso_notificacao",
       ]),
     );
     expect(rows.filter((r) => r.ligado === "A")).toEqual([]);
@@ -367,7 +374,8 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
       select t.tgname as nome, t.tgenabled as ligado from pg_trigger t
       where t.tgname in ('atribuicao_vencida_notificacao', 'devolucao_prazo_notificacao',
                          'ligacao_faturacao_com_erro_notificacao', 'notificacao_tarefa',
-                         'evento_seguimento_aviso')
+                         'evento_seguimento_aviso',
+                         'pedido_titular_recebido_aviso_notificacao')
       order by 1`.execute(base.dono);
     expect(fixos).toEqual(
       [
@@ -376,6 +384,7 @@ describe.skipIf(URL_BASE === undefined)("segurança da base (0008)", () => {
         "evento_seguimento_aviso",
         "ligacao_faturacao_com_erro_notificacao",
         "notificacao_tarefa",
+        "pedido_titular_recebido_aviso_notificacao",
       ].map((nome) => ({ nome, ligado: "O" })),
     );
   });

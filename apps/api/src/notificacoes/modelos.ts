@@ -69,9 +69,31 @@ export interface DadosDoEnvio {
   fuso: string | null;
 }
 
+/**
+ * O aviso do prazo legal de um pedido do titular que passou com o pedido
+ * aberto (docs/23 §15.15, A3; migração 0096). Só os identificadores, o tipo e
+ * os dias; nunca o nome, o e-mail nem o NIF do cliente.
+ */
+export interface DadosDoTitular {
+  loja?: string;
+  /** O pedido recebido (`prq_…` sem o prefixo). */
+  pedido: string;
+  /** A ficha (`cus_…` sem o prefixo). */
+  cliente: string;
+  /** O tipo do pedido (a lista da 0092). */
+  tipo: string;
+  /** O dia em que chegou, AAAA-MM-DD, no fuso do comerciante. */
+  recebido: string | null;
+  /** O prazo legal em vigor (o prorrogado, se houver), AAAA-MM-DD. */
+  prazo: string | null;
+}
+
 type TipoDoReembolso = Exclude<
   TipoNotificacao,
-  "task.overdue" | "invoicing.connection_error" | "shipment.needs_attention"
+  | "task.overdue"
+  | "invoicing.connection_error"
+  | "shipment.needs_attention"
+  | "privacy.deadline_passed"
 >;
 
 const data = (iso: string | null, l: Lingua) => {
@@ -486,14 +508,123 @@ function textoDoEnvio(
   return { assunto: t.assunto, texto: t.texto.join("\n") };
 }
 
+/** O tipo do pedido do titular em linguagem comum (docs/23 §15.14, T1). */
+const TIPOS_DO_PEDIDO: Record<Lingua, Record<string, string>> = {
+  pt: {
+    acesso: "acesso",
+    apagamento: "apagamento",
+    limitacao: "limitação",
+    rectificacao: "rectificação",
+    portabilidade: "portabilidade",
+    oposicao: "oposição",
+    outro: "outro",
+  },
+  es: {
+    acesso: "acceso",
+    apagamento: "supresión",
+    limitacao: "limitación",
+    rectificacao: "rectificación",
+    portabilidade: "portabilidad",
+    oposicao: "oposición",
+    outro: "otro",
+  },
+  en: {
+    acesso: "access",
+    apagamento: "erasure",
+    limitacao: "restriction",
+    rectificacao: "rectification",
+    portabilidade: "portability",
+    oposicao: "objection",
+    outro: "other",
+  },
+};
+
+/** Um identificador: só o UUID, ou «?». */
+const uuid = (t: unknown) =>
+  typeof t === "string" && /^[0-9a-f-]{36}$/.test(t) ? t : "?";
+
+function textoDoTitular(
+  d: DadosDoTitular,
+  l: Lingua,
+  loja: string,
+): Omit<Mensagem, "para"> {
+  // Só as chaves da lista (nunca as herdadas, como `constructor`).
+  const nomes = TIPOS_DO_PEDIDO[l];
+  const tipo = Object.hasOwn(nomes, d.tipo) ? nomes[d.tipo] : undefined;
+  if (tipo === undefined) {
+    throw new Error("tipo desconhecido no aviso do pedido do titular");
+  }
+  const prq = `prq_${uuid(d.pedido)}`;
+  const cus = `cus_${uuid(d.cliente)}`;
+  const prazo = data(d.prazo, l);
+  const recebido = data(d.recebido, l);
+  const fechar = `POST /privacy-requests/received/${prq}/close`;
+  const t = {
+    pt: {
+      assunto: `Pedido de dados pessoais: o prazo legal passou (${prazo})`,
+      texto: [
+        "Olá,",
+        "",
+        `Na loja «${loja}», o pedido ${prq} (ficha ${cus}) — ${tipo} — chegou a ${recebido} e ainda não tem resposta.`,
+        `O prazo legal para responder era ${prazo} (RGPD, art. 12.º, n.º 3).`,
+        "",
+        `Responda ao cliente e feche o pedido: ${fechar}.`,
+        "",
+        "Este aviso vai para os donos da loja. Não leva dados do cliente.",
+        "Eurolify",
+      ],
+    },
+    es: {
+      assunto: `Solicitud de datos personales: el plazo legal ha vencido (${prazo})`,
+      texto: [
+        "Hola:",
+        "",
+        `En la tienda «${loja}», la solicitud ${prq} (ficha ${cus}) — ${tipo} — llegó el ${recebido} y aún no tiene respuesta.`,
+        `El plazo legal para responder era el ${prazo} (RGPD, art. 12, apartado 3).`,
+        "",
+        `Responda al cliente y cierre la solicitud: ${fechar}.`,
+        "",
+        "Este aviso se envía a los propietarios de la tienda. No incluye datos del cliente.",
+        "Eurolify",
+      ],
+    },
+    en: {
+      assunto: `Personal data request: the legal deadline has passed (${prazo})`,
+      texto: [
+        "Hello,",
+        "",
+        `In the shop "${loja}", request ${prq} (customer record ${cus}) — ${tipo} — arrived on ${recebido} and has not been answered yet.`,
+        `The legal deadline to respond was ${prazo} (GDPR, Art. 12(3)).`,
+        "",
+        `Respond to the customer and close the request: ${fechar}.`,
+        "",
+        "This notice goes to the shop's owners. It carries no customer data.",
+        "Eurolify",
+      ],
+    },
+  }[l];
+  return { assunto: t.assunto, texto: t.texto.join("\n") };
+}
+
 /** O e-mail de uma notificação, para uma pessoa. */
 export function mensagemDe(
   tipo: TipoNotificacao,
   lingua: Lingua,
-  dados: DadosDoAviso | DadosDaTarefa | DadosDaLigacao | DadosDoEnvio,
+  dados:
+    | DadosDoAviso
+    | DadosDaTarefa
+    | DadosDaLigacao
+    | DadosDoEnvio
+    | DadosDoTitular,
   para: { email: string },
 ): Mensagem {
   const loja = linha(dados.loja) || "?";
+  if (tipo === "privacy.deadline_passed") {
+    return {
+      ...textoDoTitular(dados as DadosDoTitular, lingua, loja),
+      para: para.email,
+    };
+  }
   if (tipo === "shipment.needs_attention") {
     return {
       ...textoDoEnvio(dados as DadosDoEnvio, lingua, loja),

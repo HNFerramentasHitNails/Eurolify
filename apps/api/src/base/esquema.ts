@@ -978,6 +978,8 @@ export interface TabelaPedidoTitularRecebido {
   pedido_titular_id: ColumnType<string | null, never, never>;
   quem: ColumnType<string, never, never>;
   criado_em: ColumnType<Date, never, never>;
+  /** Quando se avisou que o prazo legal passou (uma vez; migração 0096). */
+  aviso_prazo_em: ColumnType<Date | null, never, never>;
 }
 
 export interface TabelaIsencaoManual {
@@ -1684,13 +1686,14 @@ export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
-// Notificações (migrações 0067 e 0071; docs/34).
+// Notificações (migrações 0067 e 0071; docs/34; o aviso do titular, 0096).
 export const TIPOS_NOTIFICACAO = [
   "refund.deadline_approaching",
   "refund.deadline_passed",
   "task.overdue",
   "invoicing.connection_error",
   "shipment.needs_attention",
+  "privacy.deadline_passed",
 ] as const;
 export type TipoNotificacao = (typeof TIPOS_NOTIFICACAO)[number];
 export const ESTADOS_NOTIFICACAO = [
