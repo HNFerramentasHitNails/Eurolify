@@ -604,5 +604,40 @@ describe.skipIf(URL_BASE === undefined)(
         ),
       ).toThrow();
     });
+
+    it("a fila pedido_titular: o pedido sem resposta vence 7 dias antes do prazo legal e o aviso vai só ao dono, sem dados do cliente (docs/23 §15.14)", async () => {
+      const cliente = randomUUID();
+      const pedido = randomUUID();
+      // Chegou há 30 dias: o prazo legal (um mês) passou ou está a passar e o
+      // da tarefa (7 dias antes) já venceu.
+      await comoDono(async (t) => {
+        await sql`insert into cliente (id, comerciante_id, nome, emails)
+          values (${cliente}, ${a}, 'Ana Cliente', ${[CLIENTE]})`.execute(t);
+        await sql`insert into pedido_titular_recebido (id, comerciante_id, cliente_id,
+            tipo, canal, recebido_em, recebido_dia, quem, criado_em)
+          values (${pedido}, ${a}, ${cliente}, 'apagamento', 'email',
+            now() - interval '30 days', (now() - interval '30 days')::date,
+            'pessoa:per_teste', now() - interval '30 days')`.execute(t);
+      });
+      const r = await correrAvisosDeTarefas(base.api);
+      expect(r.erros).toEqual([]);
+      const l = (await notificacoes()).filter(
+        (n) => n.fila === "pedido_titular",
+      );
+      // Só quem tem customers:privacy: o dono; nem o gestor nem o apoio.
+      expect(
+        por(l, (n) => `${n.caso}:${String(nomeDe.get(n.pessoa_id))}`),
+      ).toEqual([`${pedido}:dono`]);
+      const correio = new CorreioDeEnsaio();
+      const envio = await correrNotificacoes(base.api, correio);
+      expect(envio.erros).toEqual([]);
+      const m = correio.enviados.find((x) => x.assunto.includes("prq_"));
+      expect(m?.para).toBe(`${pessoas.dono}@exemplo.pt`);
+      expect(m?.assunto).toBe(
+        `Tarefa vencida: pedido de um cliente sobre os seus dados prq_${pedido}`,
+      );
+      expect(`${m?.assunto ?? ""}\n${m?.texto ?? ""}`).not.toContain(CLIENTE);
+      expect(m?.texto).not.toContain("Ana Cliente");
+    });
   },
 );
