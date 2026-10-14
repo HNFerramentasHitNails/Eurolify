@@ -1511,7 +1511,7 @@ hoje. A decisão de limpar (grupo C) é a mesma da §15.1; falta só ligá-las.
 | `correcao_expedicao.motivo` | 0086 (texto até 500, do motivo da correcção do peso ou do serviço da expedição) | `expedicao_id` → `expedicao.encomenda_id` | **por ligar**; a tabela é só de acréscimo, pede a mesma abertura da guarda que a 0102 deu ao `atribuicao_rasto` |
 | `movimento_stock.motivo` | 0047 (texto até 500) | `encomenda_id` | **por ligar, a confirmar**: o ajuste de inventário não tem encomenda, mas `marcar()` em `src/stock/repositorio.ts` passa o motivo da acção aos movimentos; não verifiquei que acções com texto de pessoa chegam a movimentos com `encomenda_id` |
 | `duplicado_cliente.motivo` | 0046 (texto até 500) | `cliente_a`, `cliente_b` | **por ligar nos estados `fundido` e `fechado`** por decisão de uma pessoa: o apagamento só reescreve `por_decidir` e `descartado` |
-| `etiqueta_devolucao.motivo`, `etiqueta_devolucao_historico.motivo`, `expedicao.etiqueta_motivo` | 0093, 0079 (texto até 500) | `devolucao_id`, `encomenda_id` | **a confirmar**: vêm do texto de recusa da transportadora e da anulação (`devolucoes.ts`, `etiquetas.ts`); a anulação leva o texto que a pessoa escreve; não verifiquei se o da transportadora traz o nome do destinatário |
+| `reembolso.prova` → `motivo` | 0061 (jsonb; `src/posvenda/prestador.ts:314-320`) | `encomenda_id` | **por ligar**: a reconciliação de um reembolso por uma pessoa grava nela o mesmo texto livre que vai para a `resolucao` da diferença (`fecharDiferencas`); a 0104 limpa a resolução, mas esta cópia fica. A §15.2 diz que o reembolso fica como registo financeiro: limpa-se só a chave `motivo`, com a guarda do `reembolso` (0061) por ver (revisão do #469, P2-1) |
 | `pedido_titular.verificacao` | 0049 (texto até 500) | `cliente_id` | **decisão de fora desta lista**: a 0049 diz que é a prova de quem decidiu, não um dado novo; fica |
 | `diferenca_pagamento.resolucao` de uma diferença **resolvida depois de a encomenda ser limpa** | 0044 | `pagamento_id` | **por ligar**: uma diferença nova (ex.: pagamento duplicado depois) numa encomenda já limpa, resolvida com texto, não é apanhada: `titular_pendente` só tem as encomendas por acabar do pedido |
 | exportação (§15.2) | `diferenca_pagamento` | — | a exportação do titular não inclui as diferenças de pagamento (`src/clientes/repositorio.ts`); não verifiquei se devia |
@@ -1523,7 +1523,16 @@ Estão tratadas na §15.2 (limpam-se ou ficam por obrigação fiscal):
 `pedido_livre_resolucao.motivo_decisao`, `devolucao.motivo`,
 `problema.descricao`, `expedicao.prova_entrega`,
 `evento_seguimento.estado_transportadora`, `documento_rasto.motivo` e
-`documento_conteudo` (grupo A). Sem titular: `transicao_estado.motivo`
+`documento_conteudo` (grupo A). Limpos também, por gatilhos `AFTER UPDATE OF
+entrega` da `encomenda` com a marca da pseudonimização (revisão do #469,
+P2-2): `expedicao.etiqueta_motivo` (`encomenda_titular_envios`, 0079:405-407),
+`etiqueta_devolucao.motivo` e o histórico dela (`encomenda_titular_devolucoes`,
+0093:214-217). Procurei limpezas de `correcao_expedicao` e de
+`movimento_stock` em todas as migrações (`grep` por `UPDATE
+public.correcao_expedicao` e `UPDATE public.movimento_stock`, 14/10/2026): não
+há. O `motivo` da prova de uma diferença `reembolso_incerto` vem do adaptador
+do prestador (`ficarIncerto`, `src/posvenda/prestador.ts:205-227`), não de uma
+pessoa. Sem titular: `transicao_estado.motivo`
 (estado do comerciante), `alteracao_catalogo.motivo`,
 `historico_preco.motivo`, `evento_conta.motivo`,
 `relatorio_oss_classificacao.motivo`, `recusa_conta_emissor.motivo`.
