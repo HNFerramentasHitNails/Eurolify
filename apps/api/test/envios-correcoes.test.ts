@@ -178,6 +178,7 @@ describe.skipIf(URL_BASE === undefined)("Envios: corrigir a expedição", () => 
     expect(opcoes).toEqual([
       ["EXPRESSO_48", true],
       ["COM_TELEFONE", false],
+      ["MULTI_48", false],
     ]);
     const conta = s.conta;
     const mudar = (
@@ -624,9 +625,21 @@ describe("porQueNaoServeACaixa (docs/36 §19)", () => {
     temTelefone: true,
     pesoG: 500,
     onu: new Set<string>(),
+    volumes: 1,
   };
   it("o país, o peso, os perigosos e o telefone", () => {
     expect(porQueNaoServeACaixa(servico, caixa)).toBeNull();
+    // Vários volumes (docs/36 §23): só um serviço que os leve, e o peso
+    // máximo é por volume.
+    expect(porQueNaoServeACaixa(servico, { ...caixa, volumes: 2 })).toMatch(
+      /2 volumes/,
+    );
+    expect(
+      porQueNaoServeACaixa(
+        { ...servico, maxVolumes: 3 },
+        { ...caixa, volumes: 3 },
+      ),
+    ).toBeNull();
     expect(porQueNaoServeACaixa(servico, { ...caixa, pais: "ES" })).toMatch(
       /país/,
     );

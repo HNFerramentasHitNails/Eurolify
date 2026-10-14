@@ -1952,7 +1952,22 @@ export async function exportarCliente(
           "expedida_em",
           "entregue_em",
           "prova_entrega",
+          // As caixas (docs/36 §23): o peso de cada uma.
+          "volumes_g",
         ]),
+        // O seguimento de cada caixa de uma expedição com várias (docs/36
+        // §23; revisão do #453, P3-2).
+        seguimento_dos_volumes:
+          idsEncomendas.length === 0
+            ? []
+            : (
+                await sql<Record<string, unknown>>`
+                select v.expedicao_id, v.volume, v.seguimento, v.url_seguimento
+                from volume_seguimento v
+                join expedicao x on x.id = v.expedicao_id
+                where x.encomenda_id = any(${idsEncomendas}::uuid[])
+                order by v.expedicao_id, v.volume`.execute(trx)
+              ).rows,
         // O seguimento da transportadora: o estado que ela deu (pode trazer
         // quem recebeu, como a prova de entrega) e o normalizado; sem o id
         // do evento dela nem o aviso em bruto (Diogo, 13/10/2026; revisão do
@@ -1962,7 +1977,7 @@ export async function exportarCliente(
             ? []
             : (
                 await sql<Record<string, unknown>>`
-                select s.id, s.expedicao_id, s.estado_transportadora,
+                select s.id, s.expedicao_id, s.volume, s.estado_transportadora,
                        s.estado_normalizado, s.em
                 from evento_seguimento s
                 join expedicao x on x.id = s.expedicao_id

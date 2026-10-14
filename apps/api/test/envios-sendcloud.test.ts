@@ -490,4 +490,54 @@ describe("adaptador da Sendcloud (docs/36 §16)", () => {
     ).toMatchObject({ estado: "recusada" });
     expect(f.estado.devolucoes.length).toBe(antes);
   });
+
+  it("vários volumes (§23): `multicollo` dá até 15 caixas; o anúncio leva o peso de cada uma; volta uma etiqueta e um seguimento por caixa; uma caixa anulada deixa o envio sem etiqueta", async () => {
+    expect(
+      servicoDe(opcao(SERVICO_DE_TESTE, { multicollo: true }), "PT"),
+    ).toMatchObject({ maxVolumes: 15 });
+    expect(
+      servicoDe(opcao(SERVICO_DE_TESTE, { multicollo: false }), "PT")
+        ?.maxVolumes,
+    ).toBeUndefined();
+    expect(
+      servicoDe(opcao(SERVICO_DE_TESTE), "PT")?.maxVolumes,
+    ).toBeUndefined();
+    const f = sendcloudFalsa();
+    const a = adaptadorSendcloud(f.buscar);
+    const r = await a.pedirEtiqueta(CRED, {
+      ...pedido("exp-v"),
+      pesoG: 4000,
+      volumesG: [1200, 2800],
+    });
+    expect((f.estado.envios[0]?.corpo as { parcels: unknown }).parcels).toEqual(
+      [
+        { weight: { value: "1.200", unit: "kg" } },
+        { weight: { value: "2.800", unit: "kg" } },
+      ],
+    );
+    if (r.estado !== "emitida") throw new Error("devia estar emitida");
+    expect(r.volumes?.map((v) => v.seguimento)).toEqual([
+      "SC00000001",
+      "SC00000001-2",
+    ]);
+    expect(r.seguimento).toBe("SC00000001");
+    expect(r.volumes?.[1]?.ficheiro.conteudo.toString()).toBe(
+      "%PDF-sendcloud exp-v caixa 2",
+    );
+    // A consulta pela referência traz as duas.
+    const c = await a.consultarEtiqueta(CRED, "exp-v");
+    expect(c?.volumes).toHaveLength(2);
+    // Todas as caixas anuladas: o envio fica sem etiqueta.
+    const e = f.estado.envios[0];
+    if (e === undefined) throw new Error("sem envio");
+    e.estado = "CANCELLED";
+    expect(await a.consultarEtiqueta(CRED, "exp-v")).toBeNull();
+    // Uma caixa anulada e outra viva: não se sabe, fica incerta (#453,
+    // P1-2) — nunca «sem etiqueta», que deixaria pedir outra e pagar duas.
+    e.estado = "READY_TO_SEND";
+    f.estado.caixaFalhada = 2;
+    await expect(a.consultarEtiqueta(CRED, "exp-v")).rejects.toBeInstanceOf(
+      ErroDeRede,
+    );
+  });
 });

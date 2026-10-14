@@ -3,6 +3,7 @@ import {
   ErroDeRede,
   type AdaptadorTransportadora,
   type CredenciaisTransportadora,
+  type EtiquetaDoVolume,
   type EtiquetaEmitida,
   type EventoSeguimento,
   type MoradaEtiqueta,
@@ -34,6 +35,10 @@ import {
 //   /service-points (país, código postal, transportadora) e POST
 //   /service-points/{id}/check-availability antes de criar o envio; na
 //   etiqueta, `to_service_point.id`.
+// - Vários volumes (docs/36 §23, lida a 14/10/2026, **W**): «multicollo»,
+//   um envio com várias caixas em `parcels`; só os serviços com
+//   `functionalities.multicollo`; até 15 caixas no anúncio síncrono; uma
+//   etiqueta e um seguimento por caixa (V15, V16 por verificar).
 
 const BASE = "https://panel.sendcloud.sc/api/v3";
 
@@ -42,6 +47,9 @@ const BASE = "https://panel.sendcloud.sc/api/v3";
  * duas chamadas: juntas cabem nos 30 s do núcleo (revisão do #406, P3-4).
  */
 export const TEMPO_DA_CHAMADA_MS = 12_000;
+
+/** O máximo de caixas no anúncio síncrono (docs/36 §23). */
+export const MAX_VOLUMES = 15;
 
 /** O serviço sem custo para as etiquetas de teste (D2). */
 export const SERVICO_DE_TESTE = "sendcloud:letter";
@@ -169,9 +177,13 @@ const morada = (m: MoradaEtiqueta) => ({
   ...(m.email ? { email: m.email } : {}),
 });
 
-/** O volume único de um envio, com o seguimento (ou `null`). */
-function volumeDe(envio: Record<string, unknown> | null) {
-  const v = objecto(lista(envio?.["parcels"])[0]);
+/** Os volumes de um envio, pela ordem da Sendcloud (docs/36 §23). */
+function volumesDe(envio: Record<string, unknown> | null) {
+  return lista(envio?.["parcels"]).map((x) => volumeDoObjecto(objecto(x)));
+}
+
+/** Um volume, com o seguimento (ou `null`). */
+function volumeDoObjecto(v: Record<string, unknown> | null) {
   if (v === null) return null;
   const estado = objecto(v["status"]);
   const url = texto(v["tracking_url"]);
@@ -198,30 +210,53 @@ async function etiquetaDoEnvio(
   c: CredenciaisTransportadora,
   envio: Record<string, unknown> | null,
 ): Promise<EtiquetaEmitida | "sem_etiqueta"> {
-  const v = volumeDe(envio);
-  if (v === null) {
+  const vs = volumesDe(envio);
+  if (vs.length === 0 || vs.some((v) => v === null)) {
     throw new ErroDeRede("a resposta da Sendcloud não traz o volume");
   }
-  if (v.codigo.includes("CANCEL") || v.codigo.includes("FAILED")) {
-    return "sem_etiqueta";
-  }
-  if (v.seguimento === null || v.id === null) {
+  // Sem etiqueta só quando todas as caixas foram anuladas ou falharam. Uma
+  // parte viva (e paga) e outra não: não se sabe, fica incerta e decide uma
+  // pessoa; nunca se pede outra sozinha (docs/36 §23.5; revisão do #453,
+  // P1-2).
+  const sem = vs.filter(
+    (v) =>
+      v !== null &&
+      (v.codigo.includes("CANCEL") || v.codigo.includes("FAILED")),
+  ).length;
+  if (sem === vs.length) return "sem_etiqueta";
+  if (sem > 0) {
     throw new ErroDeRede(
-      `o envio existe mas ainda não tem etiqueta (${v.codigo || "sem estado"})`,
+      `${String(sem)} de ${String(vs.length)} caixas sem etiqueta na Sendcloud`,
     );
   }
-  const conteudo =
-    v.ficheiro !== null
-      ? Buffer.from(v.ficheiro, "base64")
-      : await ficheiroDoVolume(buscar, c, v.id);
-  if (!conteudo.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
-    throw new ErroDeRede("o ficheiro da etiqueta não é um PDF");
+  const etiquetas: EtiquetaDoVolume[] = [];
+  for (const v of vs) {
+    if (v === null) continue;
+    if (v.seguimento === null || v.id === null) {
+      throw new ErroDeRede(
+        `o envio existe mas ainda não tem etiqueta (${v.codigo || "sem estado"})`,
+      );
+    }
+    const conteudo =
+      v.ficheiro !== null
+        ? Buffer.from(v.ficheiro, "base64")
+        : await ficheiroDoVolume(buscar, c, v.id);
+    if (!conteudo.subarray(0, 5).equals(Buffer.from("%PDF-"))) {
+      throw new ErroDeRede("o ficheiro da etiqueta não é um PDF");
+    }
+    etiquetas.push({
+      seguimento: v.seguimento.slice(0, 200),
+      urlSeguimento: v.url,
+      ficheiro: { formato: "pdf", conteudo },
+    });
   }
-  return {
-    seguimento: v.seguimento.slice(0, 200),
-    urlSeguimento: v.url,
-    ficheiro: { formato: "pdf", conteudo },
-  };
+  const [primeira] = etiquetas;
+  if (primeira === undefined) {
+    throw new ErroDeRede("a resposta da Sendcloud não traz o volume");
+  }
+  return etiquetas.length === 1
+    ? primeira
+    : { ...primeira, volumes: etiquetas };
 }
 
 /** O estado da Sendcloud no estado do Eurolify (D6). */
@@ -318,6 +353,11 @@ export function servicoDe(
     // A Sendcloud só diz «sim ou não» aos perigosos, sem números ONU (D3).
     aceitaOnu: [],
     ...(ponto ? { ponto: true } : {}),
+    // Vários volumes só com `multicollo` (docs/36 §23); na dúvida, um.
+    // Num ponto de recolha, uma caixa (docs/36 §23.4).
+    ...(objecto(o["functionalities"])?.["multicollo"] === true && !ponto
+      ? { maxVolumes: MAX_VOLUMES }
+      : {}),
   };
 }
 
@@ -413,8 +453,14 @@ export function adaptadorSendcloud(
           if (ja === undefined) {
             porCodigo.set(s.codigo, s);
           } else {
+            // Vários volumes só se todos os países os aceitarem (revisão do
+            // #453, P2-4).
+            const maxVolumes = Math.min(ja.maxVolumes ?? 1, s.maxVolumes ?? 1);
+            const semMax: ServicoTransportadora = { ...ja };
+            delete semMax.maxVolumes;
             porCodigo.set(s.codigo, {
-              ...ja,
+              ...semMax,
+              ...(maxVolumes > 1 ? { maxVolumes } : {}),
               paises: [...new Set([...ja.paises, destino])],
               pesoMaxG:
                 ja.pesoMaxG === null || s.pesoMaxG === null
@@ -503,9 +549,10 @@ export function adaptadorSendcloud(
         ...(p.ponto === undefined
           ? {}
           : { to_service_point: { id: idDoPonto(p.ponto) } }),
-        parcels: [
-          { weight: { value: (p.pesoG / 1000).toFixed(3), unit: "kg" } },
-        ],
+        // Uma caixa por volume, com o peso de cada uma (docs/36 §23).
+        parcels: (p.volumesG ?? [p.pesoG]).map((g) => ({
+          weight: { value: (g / 1000).toFixed(3), unit: "kg" },
+        })),
       });
       if (r.estado === 201 || r.estado === 200 || r.estado === 409) {
         // 409: a mesma referência já tinha um envio, e vem ele (R2).
