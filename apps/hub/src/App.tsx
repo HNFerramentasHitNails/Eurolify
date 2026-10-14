@@ -23,6 +23,7 @@ import {
   MetodosEntrega,
 } from "./ecras/EnviosMetodos";
 import { DevolucaoPagina, Devolucoes } from "./ecras/Devolucoes";
+import { DiferencasPagamento } from "./ecras/DiferencasPagamento";
 import { Expedir, ExpedirEncomenda } from "./ecras/Expedir";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
@@ -437,6 +438,15 @@ function Ecra({
     case "devolucao":
       return (
         <DevolucaoPagina key={chave} comerciante={comerciante} devolucao={p1} />
+      );
+    case "diferencas":
+      return (
+        <DiferencasPagamento
+          // Outro comerciante ou outro separador: outra lista.
+          key={consulta}
+          comerciante={comerciante}
+          consulta={consulta}
+        />
       );
     case "chaves":
       // Outro comerciante, outro ecrã (revisão do #183, P3-9).
