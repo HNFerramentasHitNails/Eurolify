@@ -12,6 +12,8 @@ interface Envio {
   seguimento: string;
   estado: string;
   corpo: Record<string, unknown>;
+  /** Quantas caixas o anúncio pediu (docs/36 §23). */
+  caixas: number;
 }
 
 const json = (estado: number, corpo: unknown) =>
@@ -47,6 +49,8 @@ export function sendcloudFalsa() {
       auth: string | null;
     }[],
     numero: 0,
+    /** A caixa (1, 2, …) que aparece falhada num envio com várias (§23). */
+    caixaFalhada: null as number | null,
   };
   const autorizado = (auth: string | null) =>
     auth === `Basic ${Buffer.from(`${PUBLICA}:${SECRETA}`).toString("base64")}`;
@@ -59,27 +63,33 @@ export function sendcloudFalsa() {
           parcels: [{ id: e.volume, status: { code: e.estado } }],
         }
       : respostaPronta(e, comFicheiro);
+  // Uma caixa por volume (docs/36 §23): a 1.ª com o número de sempre.
   const respostaPronta = (e: Envio, comFicheiro: boolean) => ({
     id: e.id,
     external_reference_id: e.referencia,
-    parcels: [
-      {
-        id: e.volume,
+    parcels: Array.from({ length: e.caixas }, (_, i) => {
+      const seguimento =
+        i === 0 ? e.seguimento : `${e.seguimento}-${String(i + 1)}`;
+      return {
+        id: e.volume + i * 100_000,
         status: {
-          code: e.estado,
+          code:
+            estado.caixaFalhada === i + 1 ? "ANNOUNCEMENT_FAILED" : e.estado,
           message: e.estado,
         },
-        tracking_number: e.seguimento,
-        tracking_url: `https://tracking.exemplo/${e.seguimento}`,
+        tracking_number: seguimento,
+        tracking_url: `https://tracking.exemplo/${seguimento}`,
         ...(comFicheiro
           ? {
               label_file: Buffer.from(
-                `%PDF-sendcloud ${e.referencia}`,
+                i === 0
+                  ? `%PDF-sendcloud ${e.referencia}`
+                  : `%PDF-sendcloud ${e.referencia} caixa ${String(i + 1)}`,
               ).toString("base64"),
             }
           : {}),
-      },
-    ],
+      };
+    }),
   });
 
   const atender = (entrada: string | URL, init?: RequestInit): Response => {
@@ -142,6 +152,7 @@ export function sendcloudFalsa() {
               ? "ANNOUNCING"
               : "READY_TO_SEND",
         corpo: b,
+        caixas: Array.isArray(b["parcels"]) ? b["parcels"].length : 1,
       };
       estado.envios.push(e);
       if (estado.anunciar === "falha_no_volume") {
@@ -241,7 +252,15 @@ export function sendcloudFalsa() {
     }
     const doc = /^\/parcels\/(\d+)\/documents\/label$/.exec(caminho);
     if (metodo === "GET" && doc !== null) {
-      const e = estado.envios.find((x) => String(x.volume) === doc[1]);
+      // A caixa n de um envio tem o id do volume + (n − 1) × 100 000 (§23).
+      const n = Number(doc[1]);
+      const e = estado.envios.find(
+        (x) =>
+          n >= x.volume &&
+          (n - x.volume) % 100_000 === 0 &&
+          (n - x.volume) / 100_000 < x.caixas,
+      );
+      const caixa = e === undefined ? 1 : (n - e.volume) / 100_000 + 1;
       const d = estado.devolucoes.find((x) => String(x.id + 1) === doc[1]);
       if (d !== undefined) {
         return new Response(Buffer.from(`%PDF-devolucao ${d.referencia}`), {
@@ -250,10 +269,17 @@ export function sendcloudFalsa() {
         });
       }
       if (e === undefined) return new Response("", { status: 404 });
-      return new Response(Buffer.from(`%PDF-sendcloud ${e.referencia}`), {
-        status: 200,
-        headers: { "content-type": "application/pdf" },
-      });
+      return new Response(
+        Buffer.from(
+          caixa === 1
+            ? `%PDF-sendcloud ${e.referencia}`
+            : `%PDF-sendcloud ${e.referencia} caixa ${String(caixa)}`,
+        ),
+        {
+          status: 200,
+          headers: { "content-type": "application/pdf" },
+        },
+      );
     }
     const seg = /^\/parcels\/tracking\/(.+)$/.exec(caminho);
     if (metodo === "GET" && seg !== null) {
@@ -280,10 +306,14 @@ export const opcao = (
     servicePoint?: boolean;
     exportDocs?: boolean;
     maxKg?: string;
+    multicollo?: boolean;
   } = {},
 ) => ({
   code,
   name: `Serviço ${code}`,
+  ...(extra.multicollo === undefined
+    ? {}
+    : { functionalities: { multicollo: extra.multicollo } }),
   requirements: {
     fields: extra.fields ?? [],
     export_documents: extra.exportDocs ?? false,

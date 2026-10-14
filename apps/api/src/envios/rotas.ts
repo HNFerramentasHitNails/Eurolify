@@ -22,6 +22,7 @@ import {
 import {
   correcoesDaExpedicao,
   corrigirPeso,
+  mudarVolumes,
   mudarServico,
   servicosDaExpedicao,
 } from "./correcoes.js";
@@ -228,6 +229,10 @@ export const paraEtiqueta = (e: Awaited<ReturnType<typeof lerEtiqueta>>) => ({
   url_seguimento: e.url_seguimento,
   peso_g: e.peso_g,
   ficheiro: e.ficheiro,
+  // Os volumes (docs/36 §23): o peso de cada um e, com a etiqueta emitida,
+  // o seguimento e o ficheiro de cada um. Uma caixa: `volumes_g` null.
+  volumes_g: e.volumes_g,
+  volumes: e.volumes,
   // Corrigidos por uma pessoa, com motivo (docs/36 §19).
   peso_corrigido_g: e.peso_corrigido_g,
   escolhido:
@@ -247,6 +252,8 @@ export const paraEvento = (
   estado: e.estado_normalizado,
   em: e.em.toISOString(),
   recebido_em: e.recebido_em.toISOString(),
+  // O volume do evento (docs/36 §23); null numa expedição de uma caixa.
+  volume: e.volume,
 });
 
 export function rotasDosEnvios(
@@ -478,8 +485,9 @@ export function rotasDosEnvios(
       config: { ambito: "fulfilment:read" },
       schema: {
         description:
-          "O ficheiro da etiqueta (PDF ou ZPL), enquanto existir: apaga-se 30 dias depois de a expedição acabar, ou logo num apagamento do titular (docs/36 Q7).",
+          "O ficheiro da etiqueta (PDF ou ZPL), enquanto existir: apaga-se 30 dias depois de a expedição acabar, ou logo num apagamento do titular (docs/36 Q7). Com vários volumes, `?volume=` escolhe o volume (por omissão o 1).",
         params: Expedicao,
+        querystring: VolumeDoFicheiro,
         response: {
           200: {
             description: "A etiqueta",
@@ -500,6 +508,7 @@ export function rotasDosEnvios(
           base,
           chaveDo(pedido).comercianteId,
           semPrefixo(pedido.params.id),
+          Number(pedido.query.volume ?? "1"),
         );
         return resposta
           .header(
@@ -795,6 +804,36 @@ export function rotasDosEnvios(
   );
 
   rotas.put(
+    "/shipments/:id/volumes",
+    {
+      config: { ambito: "fulfilment:write" },
+      schema: {
+        description:
+          "Os volumes da expedição (docs/36 §23), com motivo, na versão lida: o peso de cada caixa (2 a 15), ou `volumes_g: null` para voltar a uma caixa. Só com a expedição criada e sem etiqueta viva, e só se o serviço da etiqueta levar tantos volumes. O peso corrigido sai: o peso é o de cada volume.",
+        params: Expedicao,
+        body: CorpoMudarVolumes,
+        response: {
+          200: Type.Object({ versao: Type.Integer() }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    (pedido, resposta) =>
+      escrever(base, pedido, resposta, 200, (trx, chave) =>
+        emEnvios(resposta, async () => ({
+          versao: await mudarVolumes(
+            trx,
+            chave.comercianteId,
+            semPrefixo(pedido.params.id),
+            pedido.body,
+            cfg,
+            `chave:key_${chave.chaveId}`,
+          ),
+        })),
+      ),
+  );
+
+  rotas.put(
     "/shipments/:id/service",
     {
       config: { ambito: "shipping:write" },
@@ -924,6 +963,28 @@ export const CorpoCorrigirPeso = Type.Object(
   { additionalProperties: false },
 );
 
+/** Os volumes da expedição (docs/36 §23): 2 a 15 pesos, ou null (uma caixa). */
+export const CorpoMudarVolumes = Type.Object(
+  {
+    versao: Type.Integer({ minimum: 1 }),
+    volumes_g: Type.Union([
+      Type.Array(Type.Integer({ minimum: 1, maximum: 1_000_000 }), {
+        minItems: 2,
+        maxItems: 15,
+      }),
+      Type.Null(),
+    ]),
+    motivo: Motivo,
+  },
+  { additionalProperties: false },
+);
+
+/** O volume do ficheiro (docs/36 §23); sem ele, o 1. */
+export const VolumeDoFicheiro = Type.Object(
+  { volume: Type.Optional(Type.String({ pattern: "^([1-9]|1[0-5])$" })) },
+  { additionalProperties: false },
+);
+
 export const CorpoMudarServico = Type.Object(
   {
     versao: Type.Integer({ minimum: 1 }),
@@ -966,6 +1027,7 @@ export function paraServicosDaExpedicao(
     versao: r.versao,
     peso_calculado_g: r.peso_calculado_g,
     peso_corrigido_g: r.peso_corrigido_g,
+    volumes_g: r.volumes_g,
     vendido: servico(r.vendido),
     escolhido: servico(r.escolhido),
     escolhido_nao_serve: r.escolhido_nao_serve,

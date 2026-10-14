@@ -294,18 +294,24 @@ async function envioEspera(
   trx: Transaction<BaseDados>,
   dados: unknown,
 ): Promise<string | null> {
-  const { expedicao, estado } = (dados ?? {}) as {
+  const { expedicao, estado, volume } = (dados ?? {}) as {
     expedicao?: unknown;
     estado?: unknown;
+    volume?: unknown;
   };
   if (typeof expedicao !== "string" || typeof estado !== "string") {
     return "dados_invalidos";
   }
-  const { rows } = await sql<{
-    motivo: string | null;
-  }>`select envios_aviso_espera(${expedicao}::uuid, ${estado}) as motivo`.execute(
-    trx,
-  );
+  // Com vários volumes, só os eventos do volume do aviso (docs/36 §23).
+  const { rows } = await (
+    typeof volume === "number"
+      ? sql<{
+          motivo: string | null;
+        }>`select envios_aviso_espera(${expedicao}::uuid, ${estado}, ${volume}::smallint) as motivo`
+      : sql<{
+          motivo: string | null;
+        }>`select envios_aviso_espera(${expedicao}::uuid, ${estado}) as motivo`
+  ).execute(trx);
   return rows[0]?.motivo ?? null;
 }
 
