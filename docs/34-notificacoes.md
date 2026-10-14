@@ -277,7 +277,8 @@ mudar o fornecedor nem as regras N4 a N11:
 - **A quem:** quem tem `customers:privacy` (só o dono), lido outra vez no
   envio (`notificacao_destino()`).
 - **No envio:** fica cancelada, com `pedido_ja_fechado`, se o pedido já
-  fechou.
+  fechou, ou com `prazo_prorrogado`, se o prazo em vigor deixou de estar
+  passado (prorrogação registada depois do aviso).
 - **O que diz:** a loja, o pedido (`prq_…`), a ficha (`cus_…`), o tipo e os
   dias da chegada e do prazo. Nunca o nome, o e-mail nem o NIF do cliente.
 - **O gatilho não fica `ALWAYS`** (regra da 0053 e da 0091).

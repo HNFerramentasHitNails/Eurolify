@@ -310,17 +310,18 @@ async function envioEspera(
 }
 
 /**
- * Nada, se o pedido do titular continua aberto (docs/23 §15.15); senão, o
- * código: fechado entretanto, o e-mail diria o contrário da realidade.
+ * Nada, se o pedido do titular continua aberto e com o prazo em vigor
+ * passado (docs/23 §15.15); senão, o código (`pedido_ja_fechado` ou
+ * `prazo_prorrogado`): o e-mail diria o contrário da realidade.
  */
 async function pedidoDoTitularEspera(
   trx: Transaction<BaseDados>,
   pedido: string,
 ): Promise<string | null> {
   const { rows } = await sql<{
-    espera: boolean;
-  }>`select clientes_aviso_espera(${pedido}::uuid) as espera`.execute(trx);
-  return rows[0]?.espera === true ? null : "pedido_ja_fechado";
+    motivo: string | null;
+  }>`select clientes_aviso_espera(${pedido}::uuid) as motivo`.execute(trx);
+  return rows[0] === undefined ? "pedido_ja_fechado" : rows[0].motivo;
 }
 
 /** Nada, se o caso do aviso ainda espera; senão, o código. */

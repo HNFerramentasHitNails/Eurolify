@@ -548,7 +548,9 @@ function textoDoTitular(
   l: Lingua,
   loja: string,
 ): Omit<Mensagem, "para"> {
-  const tipo = TIPOS_DO_PEDIDO[l][d.tipo];
+  // Só as chaves da lista (nunca as herdadas, como `constructor`).
+  const nomes = TIPOS_DO_PEDIDO[l];
+  const tipo = Object.hasOwn(nomes, d.tipo) ? nomes[d.tipo] : undefined;
   if (tipo === undefined) {
     throw new Error("tipo desconhecido no aviso do pedido do titular");
   }

@@ -15,14 +15,16 @@
 --   conferi-lo). Prorrogar depois não volta a avisar (A1).
 -- - As funções da tarefa (A4): os comerciantes com pedidos por avisar, os
 --   pedidos por avisar no comerciante do contexto (abertos, sem aviso, com o
---   dia de hoje no fuso do comerciante depois do prazo em vigor) e a que marca
---   um. A tarefa só marca; a base cria a notificação.
+--   dia de hoje no fuso do comerciante depois do prazo em vigor e com quem
+--   receba o aviso) e a que marca um. A tarefa só marca; a base cria a
+--   notificação.
 -- - O tipo `privacy.deadline_passed`: uma notificação por pessoa que pode
 --   receber (A2: membro activo, pessoa activa e `customers:privacy` pela
 --   régua `papel_ambitos()`, hoje só o dono), na língua do Hub, com a loja,
 --   os identificadores do pedido e da ficha, o tipo e os dois dias (A3).
 --   Nunca o nome, o e-mail nem o NIF do cliente. No envio, confere-se que o
---   pedido ainda está aberto e que a pessoa ainda pode receber.
+--   pedido ainda está aberto, que o prazo em vigor continua passado e que a
+--   pessoa ainda pode receber.
 -- - A contagem para a verificação diária da VPS (A4; padrão da 0088): os
 --   pedidos abertos com o prazo passado há mais de um dia e sem aviso, de
 --   todos os comerciantes; só o número.
@@ -83,16 +85,43 @@ $$;
 
 -- ------------------------------------------------------- A tarefa (A1, A4)
 
+-- A pessoa pode receber o aviso (A2): membro activo, pessoa activa, e o papel
+-- responde aos pedidos do titular (`customers:privacy`, a régua única
+-- `papel_ambitos()`; hoje só o dono).
+CREATE FUNCTION clientes_aviso_pode_receber(p_comerciante uuid, p_pessoa uuid)
+  RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.membro m
+    JOIN public.pessoa p ON p.id = m.pessoa_id
+    WHERE m.comerciante_id = p_comerciante AND m.pessoa_id = p_pessoa
+      AND m.ate IS NULL AND p.estado = 'activa'
+      AND 'customers:privacy' = ANY (public.papel_ambitos(m.papel)))
+$$;
+
+-- Há quem receba o aviso no comerciante (revisão do #450, P2-1): sem
+-- ninguém, o aviso não se gasta; o pedido fica por avisar e entra na
+-- contagem da verificação diária, que é um atraso que ela deve apanhar.
+CREATE FUNCTION clientes_aviso_tem_destino(p_comerciante uuid) RETURNS boolean
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.membro m
+    WHERE m.comerciante_id = p_comerciante
+      AND public.clientes_aviso_pode_receber(p_comerciante, m.pessoa_id))
+$$;
+
 -- A regra, num sítio: o pedido do contexto está por avisar — aberto, sem
--- aviso e com o dia de hoje (fuso do comerciante) depois do prazo em vigor
--- (o prorrogado, se houver). A tarefa, a marca e a contagem lêem-na.
--- Do dono: a API não chama a `clientes_hoje()` (0092).
+-- aviso, com o dia de hoje (fuso do comerciante) depois do prazo em vigor
+-- (o prorrogado, se houver) e com quem o receba. A tarefa e a marca lêem-na;
+-- a contagem diária lê as três primeiras condições (sem destino também é
+-- atraso). Do dono: a API não chama a `clientes_hoje()` (0092).
 CREATE FUNCTION clientes_aviso_prazo_pendentes(p_limite integer) RETURNS SETOF uuid
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
   SELECT r.id FROM public.pedido_titular_recebido r
   WHERE r.comerciante_id = public.comerciante_actual() AND r.estado = 'aberto'
     AND r.aviso_prazo_em IS NULL
     AND public.clientes_hoje(r.comerciante_id) > coalesce(r.prorrogado_ate, r.prazo_legal)
+    AND public.clientes_aviso_tem_destino(r.comerciante_id)
   ORDER BY coalesce(r.prorrogado_ate, r.prazo_legal), r.id
   LIMIT greatest(p_limite, 0)
 $$;
@@ -122,7 +151,8 @@ $$;
 
 -- Marca um pedido do contexto como avisado, se ainda estiver por avisar (a
 -- mesma regra, conferida outra vez depois do bloqueio da linha: um pedido
--- fechado ou avisado entretanto não marca). Só uma tarefa do sistema
+-- fechado ou avisado entretanto, ou sem ninguém que o receba, não marca). Só
+-- uma tarefa do sistema
 -- (`eurolify.quem` = `sistema:…`). Devolve se marcou.
 CREATE FUNCTION clientes_aviso_prazo_marcar(p_id uuid) RETURNS boolean
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
@@ -137,7 +167,8 @@ BEGIN
   UPDATE public.pedido_titular_recebido r SET aviso_prazo_em = now()
   WHERE r.comerciante_id = public.comerciante_actual() AND r.id = p_id
     AND r.estado = 'aberto' AND r.aviso_prazo_em IS NULL
-    AND public.clientes_hoje(r.comerciante_id) > coalesce(r.prorrogado_ate, r.prazo_legal);
+    AND public.clientes_hoje(r.comerciante_id) > coalesce(r.prorrogado_ate, r.prazo_legal)
+    AND public.clientes_aviso_tem_destino(r.comerciante_id);
   GET DIAGNOSTICS n = ROW_COUNT;
   RETURN n > 0;
 END
@@ -149,20 +180,6 @@ ALTER TABLE notificacao DROP CONSTRAINT notificacao_tipo_check;
 ALTER TABLE notificacao ADD CONSTRAINT notificacao_tipo_check
   CHECK (tipo IN ('refund.deadline_approaching', 'refund.deadline_passed', 'task.overdue',
     'invoicing.connection_error', 'shipment.needs_attention', 'privacy.deadline_passed'));
-
--- A pessoa pode receber o aviso (A2): membro activo, pessoa activa, e o papel
--- responde aos pedidos do titular (`customers:privacy`, a régua única
--- `papel_ambitos()`; hoje só o dono).
-CREATE FUNCTION clientes_aviso_pode_receber(p_comerciante uuid, p_pessoa uuid)
-  RETURNS boolean
-  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.membro m
-    JOIN public.pessoa p ON p.id = m.pessoa_id
-    WHERE m.comerciante_id = p_comerciante AND m.pessoa_id = p_pessoa
-      AND m.ate IS NULL AND p.estado = 'activa'
-      AND 'customers:privacy' = ANY (public.papel_ambitos(m.papel)))
-$$;
 
 -- Ao marcar (`aviso_prazo_em` de nulo para um valor): uma notificação por
 -- pessoa que pode receber, na língua do Hub (N4). A `referencia` é o pedido:
@@ -199,14 +216,21 @@ CREATE TRIGGER pedido_titular_recebido_aviso_notificacao
   WHEN (OLD.aviso_prazo_em IS NULL AND NEW.aviso_prazo_em IS NOT NULL)
   EXECUTE FUNCTION pedido_recebido_aviso_notificacao();
 
--- O aviso ainda faz sentido, lido no envio: o pedido continua aberto (se
--- entretanto fechou, o e-mail não sai).
-CREATE FUNCTION clientes_aviso_espera(p_pedido uuid) RETURNS boolean
-  LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.pedido_titular_recebido r
-    WHERE r.comerciante_id = public.comerciante_actual() AND r.id = p_pedido
-      AND r.estado = 'aberto')
+-- O aviso ainda faz sentido, lido no envio: nada, se sim; senão, o código.
+-- O pedido continua aberto (`pedido_ja_fechado`) e o prazo em vigor continua
+-- passado no fuso do comerciante (`prazo_prorrogado`: a prorrogação foi
+-- registada depois de o aviso ser criado; revisão do #450, P3-3). Do dono:
+-- a API não chama a `clientes_hoje()`.
+CREATE FUNCTION clientes_aviso_espera(p_pedido uuid) RETURNS text
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+  SELECT CASE
+    WHEN r.id IS NULL OR r.estado <> 'aberto' THEN 'pedido_ja_fechado'
+    WHEN coalesce(r.prorrogado_ate, r.prazo_legal) >= public.clientes_hoje(r.comerciante_id)
+      THEN 'prazo_prorrogado'
+  END
+  FROM (SELECT 1) u
+  LEFT JOIN public.pedido_titular_recebido r
+    ON r.comerciante_id = public.comerciante_actual() AND r.id = p_pedido
 $$;
 
 -- Quem recebe, lido no envio (N9): como na 0087, e quem ainda responde aos
@@ -265,7 +289,8 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION clientes_aviso_prazo_pendentes(integer),
   clientes_aviso_prazo_comerciantes(), clientes_aviso_prazo_marcar(uuid),
-  clientes_aviso_pode_receber(uuid, uuid), pedido_recebido_aviso_notificacao(),
+  clientes_aviso_pode_receber(uuid, uuid), clientes_aviso_tem_destino(uuid),
+  pedido_recebido_aviso_notificacao(),
   clientes_aviso_espera(uuid), clientes_pedidos_sem_aviso_em_atraso() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION clientes_aviso_prazo_pendentes(integer),
   clientes_aviso_prazo_comerciantes(), clientes_aviso_prazo_marcar(uuid),
