@@ -808,7 +808,25 @@ describe.skipIf(URL_BASE === undefined)("API das tarefas das filas", () => {
           trx,
         );
       }
+      // O rasto da pós-venda (0110) pede a encomenda verdadeira, e estes
+      // casos têm uma inventada: não é isso que aqui se testa.
+      const rasto = (
+        await sql<{ nome: string }>`
+          select t.tgname as nome from pg_trigger t join pg_class c on c.oid = t.tgrelid
+          where not t.tgisinternal and t.tgenabled = 'O' and c.relname = ${tabela}
+            and t.tgname = 'posvenda_transicao'`.execute(trx)
+      ).rows;
+      for (const g of rasto) {
+        await sql`alter table ${sql.id(tabela)} disable trigger ${sql.id(g.nome)}`.execute(
+          trx,
+        );
+      }
       await fn(trx);
+      for (const g of rasto) {
+        await sql`alter table ${sql.id(tabela)} enable trigger ${sql.id(g.nome)}`.execute(
+          trx,
+        );
+      }
       for (const g of sempre) {
         await sql`alter table ${sql.id(tabela)} enable always trigger ${sql.id(g.nome)}`.execute(
           trx,

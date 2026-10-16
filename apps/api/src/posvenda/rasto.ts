@@ -54,7 +54,7 @@ export async function rastoDaPosVenda(
   return noPosVenda(db, c, async (trx) => {
     const { rows } = await sql<{
       existe: number;
-    }>`select 1 as existe from ${sql.table(a.tabela)} where id = ${id}::uuid`.execute(
+    }>`select 1 as existe from ${sql.table(a.tabela)} where id = ${id}::uuid and comerciante_id = ${c}::uuid`.execute(
       trx,
     );
     if (rows.length === 0) {
@@ -77,6 +77,7 @@ export async function rastoDaPosVenda(
         "autorizado_por",
         "a_pedido_de",
       ])
+      .where("comerciante_id", "=", c)
       .where("entidade", "in", [...a.entidades])
       .where("entidade_id", "=", id)
       .orderBy("em")

@@ -4803,6 +4803,17 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     await expect(
       naBaseComReembolso("reembolsar", [String(l1?.["id"])], "decidida"),
     ).rejects.toThrow(/desfazer/);
+    // Sem quem, a decisão de higiene não se grava (0110, docs/30 §16.1).
+    await expect(
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', '', true)`.execute(trx);
+        await sql`update linha_devolucao set decisao_higiene = 'excepcao_higiene'
+          where devolucao_id = ${rma.slice(4)}::uuid
+            and linha_encomenda_id = ${String(l1?.["id"]).slice(4)}::uuid`.execute(
+          trx,
+        );
+      }),
+    ).rejects.toThrow(/returns\.change_without_who/);
     // A excepção na linha aberta: reembolsa-se só a do selo intacto.
     const r = await ok(
       s.adm("POST", `/returns/${rma}/decide`, {
@@ -5493,6 +5504,25 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       expect(String(t["quem"])).toMatch(/^chave:key_/);
     }
 
+    // O dono dos testes é superutilizador (vê as linhas sem o RLS): por isso
+    // as recusas abaixo são dos gatilhos, não de ele não as ver. O `ALWAYS`
+    // só trava quem não desliga gatilhos; o dono pode (docs/30 §16.5).
+    expect(
+      (
+        await sql<{ rolsuper: boolean }>`select rolsuper from pg_roles
+          where rolname = current_user`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ rolsuper: true }]);
+    expect(
+      Number(
+        (
+          await sql<{ n: string }>`select count(*) as n from transicao_posvenda
+            where encomenda_id = ${e.encomenda.slice(4)}::uuid`.execute(
+            base.dono,
+          )
+        ).rows[0]?.n,
+      ),
+    ).toBeGreaterThan(0);
     // Só se acrescenta, também para o dono da base (os gatilhos são ALWAYS).
     await expect(
       sql`delete from transicao_posvenda`.execute(base.dono),
@@ -5525,9 +5555,9 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         sql`insert into transicao_posvenda (comerciante_id, encomenda_id,
             entidade, entidade_id, para, quem)
           values (comerciante_actual(), ${e.encomenda.slice(4)}::uuid,
-            'devolucao', ${rma.slice(4)}::uuid, 'fechada', '  ')`.execute(trx),
+            'devolucao', ${rma.slice(4)}::uuid, 'fechada', null)`.execute(trx),
       ),
-    ).rejects.toThrow(/check constraint/);
+    ).rejects.toThrow(/not-null constraint/);
     await expect(
       comComerciante(base.dono, s.c, async (trx) => {
         // A ligação de teste do dono traz um quem de sessão: tira-se.
@@ -5712,5 +5742,68 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
         (await ok(s.adm("GET", `/returns/${rui.rma}/timeline`)))["dados"],
       ),
     ).toContain("o Rui Costa desistiu");
+  }, 60_000);
+
+  it("uma encomenda ainda em curso no pedido de apagamento: o motivo da pós-venda limpa-se quando a fila dos pendentes a vê acabar (docs/30 §16.4)", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 2]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const w = await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    const rma = String(
+      (await ok(s.adm("GET", `/withdrawals/${String(w["pedido"])}`)))[
+        "devolucao"
+      ],
+    );
+    await ok(
+      s.adm("POST", `/returns/${rma}/cancel`, {
+        versao: 1,
+        motivo: "a Ana Silva desistiu por telefone",
+      }),
+    );
+    const id = e.encomenda.slice(4);
+    const motivos = async () =>
+      (
+        await sql<{
+          motivo: string | null;
+        }>`select motivo from transicao_posvenda
+          where encomenda_id = ${id}::uuid and motivo is not null
+          order by id`.execute(base.dono)
+      ).rows.map((m) => m.motivo);
+    const cliente = (
+      await sql<{ cliente_id: string }>`select cliente_id from encomenda
+        where id = ${id}::uuid`.execute(base.dono)
+    ).rows[0]?.cliente_id;
+    const r = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{
+          r: Json;
+        }>`select cliente_pseudonimizar(${cliente}::uuid,
+          ${`pseudonimizar cus_${String(cliente)}`}, 'teste') as r`.execute(trx)
+      ).rows[0]?.r;
+    });
+    // Entregue há pouco: ainda se pode devolver, fica na fila e nada se limpa.
+    expect(r).toMatchObject({ encomendas_limpas: 0, encomendas_por_acabar: 1 });
+    expect(await motivos()).toContain("a Ana Silva desistiu por telefone");
+    // Concluída: a fila (titular_pendentes_aplicar) limpa-a.
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
+        trx,
+      );
+      await sql`update encomenda set estado = 'concluida' where id = ${id}::uuid`.execute(
+        trx,
+      );
+    });
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    const depois = await motivos();
+    expect(depois.length).toBeGreaterThan(0);
+    expect(depois.every((m) => m === "(pseudonimizado)")).toBe(true);
   }, 60_000);
 });

@@ -756,8 +756,10 @@ comum (`canal`, `pedido`, `ia`, `autorizado_por`, `a_pedido_de`), postas por
 `rasto_completar()` a partir do contexto da transacção. Só se acrescenta
 (gatilhos `ALWAYS`, também ao dono, e o `TRUNCATE`); a única excepção é o
 apagamento do titular (§16.4). Sem `eurolify.quem` a escrita é recusada
-(`returns.change_without_who`), também no pedido de livre resolução, que
-antes não o exigia.
+(`returns.change_without_who`). Três escritas que antes não exigiam o quem
+passam a exigi-lo: o pedido de livre resolução, a etiqueta de devolução
+(mudar de estado) e a decisão de higiene de uma linha; a devolução, o
+problema e o reembolso já o exigiam. Cada uma tem o seu teste de recusa.
 
 ### 16.2 Quem lê, e a rota
 
@@ -811,7 +813,11 @@ fica como está (teste).
 | uma mudança que não muda o estado não deixa linha | os avisos do prazo (§14), o fim da etiqueta (`acabou_em`) e a limpeza do titular não escrevem; a `via` e a `prova` de um reembolso só ficam se mudarem com o estado — **não verifiquei** se há caminhos que as mudem sozinhas |
 | texto livre que o rasto guarda | o `motivo` limpa-se (§16.4); a `ia` declarada vem do cabeçalho de quem chama e não se limpa, como nas outras tabelas do rasto |
 | uma transição com motivo escrita depois de a encomenda estar limpa | fica por limpar até novo apagamento; uma encomenda «acabada» não tem nada aberto, mas **não verifiquei** todos os caminhos |
-| `entidade_id` e `encomenda_id` sem chave estrangeira | só os gatilhos escrevem, copiando de uma linha que já tem a chave para a encomenda; os testes das filas (0066) criam casos sem encomenda verdadeira. A API confere que o registo existe antes de ler |
+| `entidade_id` sem chave estrangeira | a `encomenda_id` tem a chave `(comerciante_id, encomenda_id)`; o `entidade_id` aponta para cinco tabelas e só os gatilhos o escrevem. A API confere que o registo existe (do comerciante) antes de ler. Os testes das filas (0066), que escrevem casos com encomenda inventada em modo `replica`, desligam este gatilho nas suas escritas seguintes |
+| ler a etiqueta pode escrever no rasto | `lerEtiquetaDevolucao` chama `soltarSeAMeio`, que pode mudar o estado da etiqueta; a linha leva o quem de quem leu |
+| o motivo é o da transacção inteira | o `rasto_completar()` copia o `eurolify.motivo` para a linha; um passo automático na mesma transacção que uma acção com motivo herda o texto dela (limpa-se no apagamento, como os outros) |
+| o pedido de livre resolução depende de `contexto_do_rasto()` | passa a sofrer as validações do contexto (por exemplo o `quem` conferido com o autenticado, 0062); uma escrita com um contexto inválido é recusada em vez de ficar sem rasto (**não verifiquei** todos os caminhos) |
+| «também ao dono» só em parte | o dono da base pode desligar os gatilhos (`DISABLE TRIGGER`), como em todas as tabelas do rasto; só uma migração revista o faz (docs/28, 0008) |
 | um agente decide um reembolso sem pessoa | visível (§16.3), não recusado |
 
 ### 16.6 Em código e o que não se verificou

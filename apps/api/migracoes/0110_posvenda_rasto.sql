@@ -17,7 +17,9 @@
 --   (a 0065 só guardava o valor final); com as colunas do rasto comum,
 --   preenchidas por `rasto_completar()` (0053, 0060);
 -- - os gatilhos que a escrevem, um por tabela (recusam a escrita sem
---   `eurolify.quem`; não ficam `ALWAYS`, escrevem: regra da 0053 e da 0091);
+--   `eurolify.quem`; não ficam `ALWAYS`, escrevem: regra da 0053 e da 0091).
+--   Passam a exigir o quem três escritas que não o exigiam: o pedido de
+--   livre resolução, a etiqueta de devolução e a decisão de higiene;
 -- - só se acrescenta (gatilhos `ALWAYS`, também ao dono): a única excepção é a
 --   do apagamento do titular, que passa o motivo a marcador (como as
 --   transições da encomenda, 0072);
@@ -44,7 +46,7 @@ CREATE TABLE transicao_posvenda (
   linha_encomenda_id uuid,
   de text,
   para text NOT NULL,
-  quem text NOT NULL CHECK (length(btrim(quem)) BETWEEN 1 AND 200),
+  quem text NOT NULL,
   motivo text CHECK (motivo IS NULL OR length(motivo) <= 500),
   em timestamptz NOT NULL DEFAULT clock_timestamp(),
   canal text,
@@ -52,11 +54,8 @@ CREATE TABLE transicao_posvenda (
   ia jsonb,
   autorizado_por text,
   a_pedido_de jsonb,
-  -- Sem chave estrangeira para a encomenda, de propósito: só os gatilhos
-  -- escrevem, copiando o comerciante e a encomenda de uma linha que já a
-  -- tem (as cinco tabelas, 0058 e 0093), e os testes das filas (0066)
-  -- criam casos sem encomenda verdadeira.
-  CHECK ((campo = 'decisao_higiene') = (linha_encomenda_id IS NOT NULL))
+  CHECK ((campo = 'decisao_higiene') = (linha_encomenda_id IS NOT NULL)),
+  FOREIGN KEY (comerciante_id, encomenda_id) REFERENCES encomenda (comerciante_id, id)
 );
 CREATE INDEX transicao_posvenda_por_entidade ON transicao_posvenda (entidade, entidade_id, em);
 CREATE INDEX transicao_posvenda_por_encomenda ON transicao_posvenda (encomenda_id, em);
@@ -267,7 +266,8 @@ BEGIN
     'dados_fiscais_mantidos', fiscal,
     'sessoes_de_checkout', n_sessoes,
     'expedicoes', n_expedicoes,
-    'transicoes', n_transicoes + n_transicoes_pagamento + n_posvenda,
+    'transicoes', n_transicoes + n_transicoes_pagamento,
+    'transicoes_da_posvenda', n_posvenda,
     'avisos_de_pagamento', n_avisos,
     'pedidos_de_livre_resolucao', n_pedidos,
     'devolucoes', n_devolucoes,

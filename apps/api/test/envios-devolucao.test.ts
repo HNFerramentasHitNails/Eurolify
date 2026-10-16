@@ -171,6 +171,21 @@ describe.skipIf(URL_BASE === undefined)(
       ]);
     });
 
+    it("sem quem, a etiqueta de devolução não muda de estado (rasto da pós-venda, 0110)", async () => {
+      const rma = await devolucao();
+      await ok(pedir(rma));
+      await expect(
+        base.dono.transaction().execute(async (trx) => {
+          await sql`select set_config('eurolify.comerciante', ${s.c}, true),
+            set_config('eurolify.quem', '', true)`.execute(trx);
+          await sql`update etiqueta_devolucao set estado = 'anulada'
+            where devolucao_id = ${rma.replace(/^rma_/, "")}::uuid`.execute(
+            trx,
+          );
+        }),
+      ).rejects.toThrow(/returns\.change_without_who/);
+    });
+
     it("serviços que não servem a volta: de pontos, de outro país, ou que pedem o telefone", async () => {
       const rma = await devolucao();
       for (const servico of ["PONTO_48", "SO_ESPANHA", "COM_TELEFONE"]) {
