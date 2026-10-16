@@ -294,6 +294,9 @@ também para os mercados e os canais (§10.1; `docs/06`, CW).
 | Mercados da loja | `GET /store/markets` | países, moeda, línguas — para o visitante escolher (R8) |
 | Preço de variantes | `GET /store/prices?market=…&variants=…` | o preço **a mostrar** (com o IVA do Motor de IVA), o preço por unidade, a redução e o preço de referência, a quantidade mínima e o múltiplo; o aviso de preço personalizado quando houver (R9) |
 
+**Em código** (#481, 16/10/2026): as duas rotas, com a chave pública
+(`storefront`) e os pormenores que o desenho deixava por decidir, em §10.7.
+
 ### 7.3 MCP de leitura (Fase 1)
 
 | Ferramenta | O que dá |
@@ -425,7 +428,8 @@ Regras:
 
 ### 10.4 Fora desta parte
 
-- A API da Loja (§7.2) e o MCP de leitura (§7.3): pedem o Motor de IVA.
+- A API da Loja (§7.2): pedia o Motor de IVA, que já existe; entrou em
+  16/10/2026 (§10.7). O MCP de leitura (§7.3) continua de fora.
 - Reduções marcadas para o futuro, reduções progressivas e o que o art.
   6.º-A diz de produtos perecíveis ou novos: **C**, à espera do jurista.
 - Códigos de desconto e regras de carrinho (Q3, decidido: depois).
@@ -486,3 +490,71 @@ Regras:
     lista de base» (dizia que o mercado existia), e pôr um preço numa lista
     de outro dava 500. Os dois dão agora 404 (a 0036 refaz o gatilho das
     listas; `definirPreco` confere a lista antes de escrever).
+
+### 10.7 A API da Loja (§7.2; #481, 16/10/2026)
+
+Código em `apps/api/src/precos/loja.ts` (leituras) e `rotas.ts` (rotas); sem
+migração. O desenho de §7.2 está aprovado (Diogo, 06/10/2026); o que segue é
+o que ele deixou por decidir, escolhido do lado seguro e **à espera do OK do
+Diogo**.
+
+**Regra de ouro:** o preço vem de `precosParaVenda` (o mesmo caminho do
+carrinho e do resumo do checkout) e o IVA de `decidirIva`, com os mesmos
+parâmetros do resumo (`calcularResumo`: bem, finalidade «consumo», sem perfil,
+dia no fuso do comerciante). Nenhuma regra nova de preço ou de IVA.
+
+| Rota | O que dá |
+|---|---|
+| `GET /store/markets[?channel=chn_…]` | os mercados **activos** da loja da chave (os de um canal, se se der): `id`, `nome`, `paises`, `moeda`, `linguas`, `lingua_principal`, `preco_inclui_iva`; lista por cursor com o total. Rascunhos e arquivados não aparecem |
+| `GET /store/prices?channel=chn_…&market=mkt_…&variants=var_…,var_…[&country=PT][&postal_code=…]` | por variante: `montante` (o que a lista cobra, o da redução se houver), `preco_a_mostrar`, `iva`, `reducao` (preço de referência e fim), `preco_por_unidade`, `quantidade_minima`, `multiplo`, `preco_personalizado`; mais `indisponiveis` |
+
+Autenticação, erros e limite como os carrinhos: chave pública `eul_pk_…` com o
+âmbito `storefront` (uma chave de servidor ou sem chave não passa: 403/401),
+só a loja da chave, erros RFC 9457, limite por IP das rotas da loja,
+`Cache-Control: no-store`. Um canal, mercado ou variante de outra loja (ou de
+outro comerciante) é o mesmo que não existir (404 `prices.not_found`, ou
+variante em `indisponiveis`).
+
+Propostas minhas, **à espera do OK do Diogo**:
+
+1. **`channel` obrigatório nos preços** (§7.2 só dizia `market`): o checkout só
+   vende o que está publicado no par canal × mercado, e mostrar o preço de uma
+   variante que o checkout recusaria quebrava a regra «nunca mostrar um preço
+   que o checkout não respeite». Nos mercados é opcional.
+2. **O país do comprador** (R8) vem do pedido (`country`, mais o `postal_code`
+   onde o Motor o pede, como a Madeira), nunca do IP. **Sem `country`**:
+   num mercado com IVA no preço (o padrão, Q1), `preco_a_mostrar` é o
+   montante e `iva.resultado` é `por_decidir` (o cliente paga isso, salvo uma
+   isenção que a morada decida e que só o baixa); num mercado **sem IVA no
+   preço**, `preco_a_mostrar` é **nulo** — não se mostra um preço sem IVA
+   como se fosse final.
+3. **Com `country`**, `preco_a_mostrar` é o total do Motor (`base + iva`) para
+   uma unidade. Se o Motor bloqueia (ex.: `territorio_por_validar`,
+   `codigo_postal_em_falta`), é nulo e o `iva` traz o motivo: o checkout
+   também bloquearia. Um país que o mercado não serve dá 422
+   `prices.country_not_in_market` (o checkout mudaria de mercado pela
+   morada; a Loja não adivinha: pede-se `GET /store/markets` e o preço no
+   mercado desse país).
+4. **O preço de uma linha com várias unidades** decide-se no checkout sobre a
+   linha toda (arredondamento ao nível da linha, `docs/24`); num mercado sem
+   IVA no preço pode diferir de N × o preço de uma unidade em cêntimos. Não
+   há `quantity` na Fase 1.
+5. **Preço por unidade** (§3.7) recalculado sobre o `preco_a_mostrar`, ou seja,
+   com o IVA do Motor (`inclui_iva: true`); sem preço a mostrar, nulo (não
+   se mostra um por unidade sem IVA). As quatro casas e o arredondamento
+   continuam **C**.
+6. **Redução**: `preco_referencia` é o do servidor (30 dias, §10.2, **C**) e
+   `preco_referencia_a_mostrar` passa pelo mesmo Motor, para o riscado e o
+   preço virem na mesma base de IVA.
+7. **`preco_personalizado`** é sempre `false` até haver extensões que
+   personalizem preços (R9); o campo existe para o contrato não mudar.
+8. **Variantes que o checkout não venderia** (não publicadas no par, inactivas,
+   sem preço na lista de base, serviços e artigos sem categoria fiscal)
+   vêm em `indisponiveis`, sem dizer porquê; de 1 a 100 variantes por pedido.
+9. **Só a lista de base** (as listas B2B esperam por contas no checkout,
+   `docs/25` Q6), como o carrinho.
+
+Por onde pode ainda sair errado: o frontend somar `preco_a_mostrar` × N em vez
+de usar o resumo do checkout (ponto 4); o regime de IVA do comerciante «por
+declarar» (o Motor bloqueia a venda à distância e o preço vem nulo, como no
+checkout); as regras do Motor são todas **C** até validadas (`docs/24`).
