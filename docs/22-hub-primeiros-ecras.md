@@ -1,7 +1,7 @@
 # Hub: os primeiros ecrãs — desenho antes do código
 
-> **Versão de 07/10/2026 — desenho.** Decisão do Diogo, 07/10/2026: *«sim,
-> concordo, fica a a)»* — primeiro os ecrãs mínimos do Hub, depois a
+> **Versão de 07/10/2026 — desenho.** Decisão do Diogo, 07/10/2026: _«sim,
+> concordo, fica a a)»_ — primeiro os ecrãs mínimos do Hub, depois a
 > publicação em `hub.eurolify.eu`, só com contas de teste enquanto a VPS
 > estiver no Reino Unido (ADR-0019). Issue #156. Skills: `eurolify-design`,
 > `observability-security`, `eu-gdpr-privacy`, `eu-localization`.
@@ -13,13 +13,13 @@
 
 ## 1. O que entra e o que fica de fora
 
-| Entra (esta parte) | Fica para depois |
-|---|---|
-| Entrar com passkey; com palavra-passe + TOTP (B3b, §9.2) | — |
-| Aceitar um convite e criar a conta (nome + passkey); com uma conta que já existe (§10) | — |
-| Escolher o comerciante (quem é membro de vários); mudar de papel, tirar da equipa, sair (§10) | — |
-| Equipa: ver membros e convites em aberto; convidar; cancelar um convite | Palavra-passe e autenticador, chaves de API (B3b e B3c: desenho na §9, 08/10/2026). A minha conta e recuperar a conta entraram na B3a (§9.1, pedido #174) |
-| Sair | A montra, o checkout e o resto do Hub. O Catálogo começa pela lista de artigos (desenho na §11) |
+| Entra (esta parte)                                                                            | Fica para depois                                                                                                                                          |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entrar com passkey; com palavra-passe + TOTP (B3b, §9.2)                                      | —                                                                                                                                                         |
+| Aceitar um convite e criar a conta (nome + passkey); com uma conta que já existe (§10)        | —                                                                                                                                                         |
+| Escolher o comerciante (quem é membro de vários); mudar de papel, tirar da equipa, sair (§10) | —                                                                                                                                                         |
+| Equipa: ver membros e convites em aberto; convidar; cancelar um convite                       | Palavra-passe e autenticador, chaves de API (B3b e B3c: desenho na §9, 08/10/2026). A minha conta e recuperar a conta entraram na B3a (§9.1, pedido #174) |
+| Sair                                                                                          | A montra, o checkout e o resto do Hub. O Catálogo começa pela lista de artigos (desenho na §11)                                                           |
 
 Cada ecrã só mostra o que o servidor decide: o papel, o que se pode fazer e
 os erros vêm da API (`eurolify-design`, regra 8). O Hub não guarda nada no
@@ -30,14 +30,14 @@ do #174, P3-1).
 
 ## 2. Onde vive
 
-| O quê | Proposta |
-|---|---|
-| Código | `apps/hub`: React + Vite, ficheiros estáticos (ADR-0025) |
-| Anfitrião | `hub.eurolify.eu` (decidido com a publicação, §7): o nginx serve os ficheiros estáticos e encaminha `/hub/*` para a API — o mesmo anfitrião, por isso o cookie `__Host-` e o `SameSite=Strict` funcionam sem CORS (`docs/21` §3) |
-| Caminhos das páginas | `/entrar`, `/recuperar`, `/convite`, `/equipa`, `/conta`; nunca debaixo de `/hub/`, que é da API |
-| Passkeys no navegador | `@simplewebauthn/browser` (a mesma família do `@simplewebauthn/server` da API); sem suporte de passkey, o ecrã diz isso e não oferece nada que não funcione |
-| Letra | a do sistema (`system-ui`): nada se vai buscar à Internet |
-| Fora do repositório | nenhuma chamada a outro domínio; nem análise de tráfego, nem tipos de letra, nem CDN |
+| O quê                 | Proposta                                                                                                                                                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Código                | `apps/hub`: React + Vite, ficheiros estáticos (ADR-0025)                                                                                                                                                                         |
+| Anfitrião             | `hub.eurolify.eu` (decidido com a publicação, §7): o nginx serve os ficheiros estáticos e encaminha `/hub/*` para a API — o mesmo anfitrião, por isso o cookie `__Host-` e o `SameSite=Strict` funcionam sem CORS (`docs/21` §3) |
+| Caminhos das páginas  | `/entrar`, `/recuperar`, `/convite`, `/equipa`, `/conta`; nunca debaixo de `/hub/`, que é da API                                                                                                                                 |
+| Passkeys no navegador | `@simplewebauthn/browser` (a mesma família do `@simplewebauthn/server` da API); sem suporte de passkey, o ecrã diz isso e não oferece nada que não funcione                                                                      |
+| Letra                 | a do sistema (`system-ui`): nada se vai buscar à Internet                                                                                                                                                                        |
+| Fora do repositório   | nenhuma chamada a outro domínio; nem análise de tráfego, nem tipos de letra, nem CDN                                                                                                                                             |
 
 **A ligação de um convite** é `https://hub.eurolify.eu/convite#euc_…`: o
 segredo vai **depois do `#`**, que o navegador nunca envia ao servidor — não
@@ -57,15 +57,15 @@ a isto antes de entrarem contas reais.
 
 ## 3. Ecrãs, rotas e estados
 
-| Ecrã | O que mostra | Rotas da API | Estados além do normal |
-|---|---|---|---|
-| **Entrar** (`/entrar`) | o nome do produto, um botão «Entrar com passkey», a escolha da língua | `POST /hub/session/options` → navegador → `POST /hub/session` | a carregar (à espera da passkey); cancelado pela pessoa (volta ao botão, sem erro vermelho); recusado (401: «Não foi possível entrar com esta passkey»); muitas tentativas (429/`auth.locked`: com os minutos); sem suporte de passkey; erro da API (5xx: tentar outra vez) |
-| **Aceitar convite** (`/convite#…`) | «Foi convidado para trabalhar no Hub», campo «O seu nome» (1 a 100 caracteres), botão «Criar a conta com uma passkey» | `POST /hub/invitations/accept/options` → navegador → `POST /hub/invitations/accept-new` | sem segredo na ligação; convite que não vale (a mesma mensagem para expirado, usado, cancelado ou inexistente — a API não distingue, de propósito); o e-mail já tem conta (`invite.account_exists`: entrar e aceitar, §10); nome inválido; a carregar; 429. **Depois de criar a conta**, os 10 códigos de recuperação que a API devolve, **uma vez**: «Copiar», o aviso de que não voltam a aparecer e um botão «Já os guardei» antes de seguir (`docs/21` §7) |
-| **Início** (`/`; antes «Os seus comerciantes»; desde o #218, a entrada por módulos: `docs/hub-modular-glassmorphism.md`) | quem entrou (nome, e-mail); o comerciante activo (no endereço, `/?comerciante=mer_…`; com vários, escolhe-se, nunca o primeiro sozinho) e os seus módulos pelos âmbitos do `/hub/me`, com a pesquisa de módulos | `GET /hub/me` | vazio («Não pertence a nenhuma equipa»: pode acontecer depois de sair de todas); escolher o comerciante; comerciante do endereço que não é da pessoa; sem módulos; pesquisa sem resultados; a carregar; sem sessão (vai para `/entrar`) |
-| **Equipa** (`/equipa?comerciante=mer_…`) | os membros activos (nome, e-mail, papel, desde), em tabela no computador e em cartões no telemóvel; o dono vê também os convites em aberto (e-mail, papel, expira); a contagem à vista | `GET /hub/members` | vazio de convites; sem permissão (403: «Não pode ver esta equipa»); comerciante que não é dele (403); a carregar; erro |
-| **Convidar** (na Equipa, só para quem pode convidar) | e-mail e papel (o dono vê os quatro papéis, o gestor só armazém e apoio — uma cópia da regra da base, `docs/21` §5, só para não oferecer o que ela recusa; **por fazer:** a API devolver a lista; se recusar, mostra a recusa); depois de criar, **a ligação do convite, uma vez**, com «Copiar» e o aviso de que não volta a aparecer | `POST /hub/invitations` | precisa de autenticação recente (403 `auth.reauthentication_required` → pede a passkey outra vez com `POST /hub/session/reauthenticate` e repete); comerciante suspenso; e-mail inválido; 429 |
-| **Cancelar convite** | botão por convite, com confirmação | `POST /hub/invitations/{id}/cancel` | já usado; sem permissão |
-| **Sair** | no menu | `POST /hub/session/end` | sempre volta a `/entrar` |
+| Ecrã                                                                                                                     | O que mostra                                                                                                                                                                                                                                                                                                                           | Rotas da API                                                                            | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Entrar** (`/entrar`)                                                                                                   | o nome do produto, um botão «Entrar com passkey», a escolha da língua                                                                                                                                                                                                                                                                  | `POST /hub/session/options` → navegador → `POST /hub/session`                           | a carregar (à espera da passkey); cancelado pela pessoa (volta ao botão, sem erro vermelho); recusado (401: «Não foi possível entrar com esta passkey»); muitas tentativas (429/`auth.locked`: com os minutos); sem suporte de passkey; erro da API (5xx: tentar outra vez)                                                                                                                                                                                    |
+| **Aceitar convite** (`/convite#…`)                                                                                       | «Foi convidado para trabalhar no Hub», campo «O seu nome» (1 a 100 caracteres), botão «Criar a conta com uma passkey»                                                                                                                                                                                                                  | `POST /hub/invitations/accept/options` → navegador → `POST /hub/invitations/accept-new` | sem segredo na ligação; convite que não vale (a mesma mensagem para expirado, usado, cancelado ou inexistente — a API não distingue, de propósito); o e-mail já tem conta (`invite.account_exists`: entrar e aceitar, §10); nome inválido; a carregar; 429. **Depois de criar a conta**, os 10 códigos de recuperação que a API devolve, **uma vez**: «Copiar», o aviso de que não voltam a aparecer e um botão «Já os guardei» antes de seguir (`docs/21` §7) |
+| **Início** (`/`; antes «Os seus comerciantes»; desde o #218, a entrada por módulos: `docs/hub-modular-glassmorphism.md`) | quem entrou (nome, e-mail); o comerciante activo (no endereço, `/?comerciante=mer_…`; com vários, escolhe-se, nunca o primeiro sozinho) e os seus módulos pelos âmbitos do `/hub/me`, com a pesquisa de módulos                                                                                                                        | `GET /hub/me`                                                                           | vazio («Não pertence a nenhuma equipa»: pode acontecer depois de sair de todas); escolher o comerciante; comerciante do endereço que não é da pessoa; sem módulos; pesquisa sem resultados; a carregar; sem sessão (vai para `/entrar`)                                                                                                                                                                                                                        |
+| **Equipa** (`/equipa?comerciante=mer_…`)                                                                                 | os membros activos (nome, e-mail, papel, desde), em tabela no computador e em cartões no telemóvel; o dono vê também os convites em aberto (e-mail, papel, expira); a contagem à vista                                                                                                                                                 | `GET /hub/members`                                                                      | vazio de convites; sem permissão (403: «Não pode ver esta equipa»); comerciante que não é dele (403); a carregar; erro                                                                                                                                                                                                                                                                                                                                         |
+| **Convidar** (na Equipa, só para quem pode convidar)                                                                     | e-mail e papel (o dono vê os quatro papéis, o gestor só armazém e apoio — uma cópia da regra da base, `docs/21` §5, só para não oferecer o que ela recusa; **por fazer:** a API devolver a lista; se recusar, mostra a recusa); depois de criar, **a ligação do convite, uma vez**, com «Copiar» e o aviso de que não volta a aparecer | `POST /hub/invitations`                                                                 | precisa de autenticação recente (403 `auth.reauthentication_required` → pede a passkey outra vez com `POST /hub/session/reauthenticate` e repete); comerciante suspenso; e-mail inválido; 429                                                                                                                                                                                                                                                                  |
+| **Cancelar convite**                                                                                                     | botão por convite, com confirmação                                                                                                                                                                                                                                                                                                     | `POST /hub/invitations/{id}/cancel`                                                     | já usado; sem permissão                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Sair**                                                                                                                 | no menu                                                                                                                                                                                                                                                                                                                                | `POST /hub/session/end`                                                                 | sempre volta a `/entrar`                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **Erros:** o Hub mostra a `mensagem` da API na língua escolhida (a API já
 manda `pt` e `en`; o `es` traduz-se no Hub pelo `codigo`). Um erro sem
@@ -95,19 +95,19 @@ o fundo vazio com o tema do aparelho, um instante. Não se evita com um
 guião na página, porque a CSP do Hub só deixa correr os ficheiros dele
 (revisão do #227, P3-1; não medido).
 
-| Semântico | Claro | Escuro | Uso |
-|---|---|---|---|
-| `superficie` | cinzento 0 (#ffffff) | cinzento 950 (#111418) | fundo |
-| `superficie-elevada` | cinzento 50 (#f5f6f8) | cinzento 900 (#1b1f24) | cartões, painéis |
-| `texto` | cinzento 900 (#1b1f24) | cinzento 50 (#f5f6f8) | texto principal |
-| `texto-secundario` | cinzento 600 (#525b66) | cinzento 300 (#b4bcc6) | rótulos, datas |
-| `borda` | cinzento 200 (#dde1e6) | cinzento 700 (#3a414a) | linhas |
-| `accao-principal` | azul 700 (#1d4ed8) | azul 300 (#93b4fd) | botão principal, ligações |
-| `texto-sobre-accao` | #ffffff | cinzento 950 | texto do botão principal |
-| `foco` | azul 500 (#3b82f6) | azul 300 | anel de foco (2 px, sempre visível) |
-| `estado-erro` | vermelho 700 (#b91c1c) | vermelho 300 (#fca5a5) | erros |
-| `estado-aviso` | âmbar 800 (#92400e) | âmbar 300 (#fcd34d) | avisos (ex.: a ligação só aparece uma vez) |
-| `estado-sucesso` | verde 800 (#166534) | verde 300 (#86efac) | confirmação |
+| Semântico            | Claro                  | Escuro                 | Uso                                        |
+| -------------------- | ---------------------- | ---------------------- | ------------------------------------------ |
+| `superficie`         | cinzento 0 (#ffffff)   | cinzento 950 (#111418) | fundo                                      |
+| `superficie-elevada` | cinzento 50 (#f5f6f8)  | cinzento 900 (#1b1f24) | cartões, painéis                           |
+| `texto`              | cinzento 900 (#1b1f24) | cinzento 50 (#f5f6f8)  | texto principal                            |
+| `texto-secundario`   | cinzento 600 (#525b66) | cinzento 300 (#b4bcc6) | rótulos, datas                             |
+| `borda`              | cinzento 200 (#dde1e6) | cinzento 700 (#3a414a) | linhas                                     |
+| `accao-principal`    | azul 700 (#1d4ed8)     | azul 300 (#93b4fd)     | botão principal, ligações                  |
+| `texto-sobre-accao`  | #ffffff                | cinzento 950           | texto do botão principal                   |
+| `foco`               | azul 500 (#3b82f6)     | azul 300               | anel de foco (2 px, sempre visível)        |
+| `estado-erro`        | vermelho 700 (#b91c1c) | vermelho 300 (#fca5a5) | erros                                      |
+| `estado-aviso`       | âmbar 800 (#92400e)    | âmbar 300 (#fcd34d)    | avisos (ex.: a ligação só aparece uma vez) |
+| `estado-sucesso`     | verde 800 (#166534)    | verde 300 (#86efac)    | confirmação                                |
 
 Os contrastes (texto sobre a superfície, ≥ 4,5:1) **medem-se** antes de dizer
 que está feito (ponto 6). Espaços em múltiplos de 4 px; alvos de toque com
@@ -152,8 +152,8 @@ apaga a escolha do tema guardada.
 - [ ] O segredo do convite não aparece em nenhum pedido fora do corpo, nem na
       barra de endereço depois de lido.
 - [x] O aspecto foi ao Diogo ou ao Bruno com as capturas, e um deles deu o OK
-      (Diogo, 07/10/2026, sobre 7 das 24 capturas: *«sim, dou o OK ao aspecto
-      provisório»*). Vale para os tokens provisórios; a identidade visual
+      (Diogo, 07/10/2026, sobre 7 das 24 capturas: _«sim, dou o OK ao aspecto
+      provisório»_). Vale para os tokens provisórios; a identidade visual
       continua por decidir (D-12).
 - [ ] Revisão do agente (ADR-0035) publicada no pedido.
 
@@ -163,15 +163,15 @@ Feita depois do OK ao aspecto (Diogo, 07/10/2026). O que muda na VPS entra
 pelo GitHub (ADR-0028): o `aplicar-script` corre o `preparar.sh` e o
 `publicar` traz a imagem.
 
-| O quê | Onde | Como |
-|---|---|---|
-| Os ecrãs na imagem | `Dockerfile` | constrói `@eurolify/hub` e copia o `dist` para `/app/hub`: a API e os ecrãs saem sempre da mesma imagem, com o mesmo resumo |
-| Os ecrãs no disco | `eurolify-publicar` | copia `/app/hub` da imagem (um contentor sem rede, só `tar`) para `/var/lib/eurolify/hub/<resumo>` e troca a ligação `actual` de uma vez; guarda as 3 últimas. Também ao voltar à publicação anterior. Se a cópia falhar, avisa e a API não volta atrás (os ecrãs antigos continuam) |
-| O nome | zona da OVH | registo A `hub.eurolify.eu` → a VPS, **criado à mão pelo Diogo ou pelo Bruno** (o mesmo que o do MCP); sem ele o passo 14 avisa e o Hub fica desligado |
-| O certificado | `preparar.sh`, passo 14 | Let's Encrypt pelo desafio DNS da OVH (a 80 não abre), só depois de o nome resolver |
-| O site | `infra/vps/ficheiros/nginx-hub.conf` | os estáticos, `/hub/` para a API com o `X-Forwarded-For` reescrito pelo nginx — só se o pedido original começar por `/hub/`, e com o caminho já normalizado (revisão do #160, P1-1: `/products/a%2F..%2F..%2Fhub%2Fb` chegava à rota `/products`); `try_files $uri /index.html` para todas as páginas do Hub (`/entrar`, `/convite`, `/equipa`, `/conta`, `/recuperar`); `index.html` sem cache, `assets/` com cache longa; cabeçalhos: CSP (`default-src 'self'`, `frame-ancestors 'none'`), HSTS, `Referrer-Policy: no-referrer`, `nosniff`, `Permissions-Policy`. Liga-se só com o certificado e o `nginx -t`; se falhar, desliga-se outra vez |
-| A configuração da API | `/etc/eurolify/api-hub.env` (600, root) | `HUB_ORIGEM=https://hub.eurolify.eu` e `PROXY_CONFIAVEL=<gateway da rede eurolify>` — o endereço de onde o nginx chega ao contentor (revisão do #154, P1-1). O gateway **lê-se em cada corrida** (`docker network inspect`), por isso a rede não precisa de sub-rede fixa. Sem o site ligado, ou sem se ler o gateway (com aviso; os ecrãs abrem mas `/hub/*` dá 404), o ficheiro fica vazio e a API corre sem o Hub. Quando muda, a API é recriada com a mesma imagem |
-| A medição na máquina | passo 14 | pelo nginx: `/entrar` 200 e `/hub/me` 401 (sem sessão) |
+| O quê                 | Onde                                    | Como                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Os ecrãs na imagem    | `Dockerfile`                            | constrói `@eurolify/hub` e copia o `dist` para `/app/hub`: a API e os ecrãs saem sempre da mesma imagem, com o mesmo resumo                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Os ecrãs no disco     | `eurolify-publicar`                     | copia `/app/hub` da imagem (um contentor sem rede, só `tar`) para `/var/lib/eurolify/hub/<resumo>` e troca a ligação `actual` de uma vez; guarda as 3 últimas. Também ao voltar à publicação anterior. Se a cópia falhar, avisa e a API não volta atrás (os ecrãs antigos continuam)                                                                                                                                                                                                                                                                                                                                                              |
+| O nome                | zona da OVH                             | registo A `hub.eurolify.eu` → a VPS, **criado à mão pelo Diogo ou pelo Bruno** (o mesmo que o do MCP); sem ele o passo 14 avisa e o Hub fica desligado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| O certificado         | `preparar.sh`, passo 14                 | Let's Encrypt pelo desafio DNS da OVH (a 80 não abre), só depois de o nome resolver                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| O site                | `infra/vps/ficheiros/nginx-hub.conf`    | os estáticos, `/hub/` para a API com o `X-Forwarded-For` reescrito pelo nginx — só se o pedido original começar por `/hub/`, e com o caminho já normalizado (revisão do #160, P1-1: `/products/a%2F..%2F..%2Fhub%2Fb` chegava à rota `/products`); `try_files $uri /index.html` para todas as páginas do Hub (`/entrar`, `/convite`, `/equipa`, `/conta`, `/recuperar`); `index.html` sem cache, `assets/` com cache longa; cabeçalhos: CSP (`default-src 'self'`, `frame-ancestors 'none'`), HSTS, `Referrer-Policy: no-referrer`, `nosniff`, `Permissions-Policy`. Liga-se só com o certificado e o `nginx -t`; se falhar, desliga-se outra vez |
+| A configuração da API | `/etc/eurolify/api-hub.env` (600, root) | `HUB_ORIGEM=https://hub.eurolify.eu` e `PROXY_CONFIAVEL=<gateway da rede eurolify>` — o endereço de onde o nginx chega ao contentor (revisão do #154, P1-1). O gateway **lê-se em cada corrida** (`docker network inspect`), por isso a rede não precisa de sub-rede fixa. Sem o site ligado, ou sem se ler o gateway (com aviso; os ecrãs abrem mas `/hub/*` dá 404), o ficheiro fica vazio e a API corre sem o Hub. Quando muda, a API é recriada com a mesma imagem                                                                                                                                                                            |
+| A medição na máquina  | passo 14                                | pelo nginx: `/entrar` 200 e `/hub/me` 401 (sem sessão)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 **Medido localmente (07/10/2026)**, com o nginx desta configuração (sem a
 linha IPv6, que a máquina de teste não tem) e a API verdadeira com
@@ -207,7 +207,7 @@ o `scripts/capturas.mjs`, que monta um «proxy» HTTPS local.
 
 ## 9. Parte B3 dos ecrãs: a conta, recuperar, palavra-passe e chaves
 
-Pedido do Diogo, 08/10/2026: *«sim, avança com os ecrãs da parte B3»*
+Pedido do Diogo, 08/10/2026: _«sim, avança com os ecrãs da parte B3»_
 (issue #156). As rotas existem e estão no ensaio (`docs/21` §12). Mesmos
 tokens provisórios, línguas, regras de erro e de autenticação recente da §3;
 as capturas vão ao Diogo ou ao Bruno antes de juntar, como na primeira
@@ -215,24 +215,24 @@ parte. Em três pedidos, pela ordem do `docs/21` §12:
 
 ### 9.1 B3a — a minha conta e recuperar
 
-| Ecrã | O que mostra | Rotas da API | Estados além do normal |
-|---|---|---|---|
-| **A minha conta** (`/conta`, ligação «Conta» no cabeçalho) | três blocos: Passkeys, Sessões abertas, Códigos de recuperação | os de cada bloco | sem sessão (vai para `/entrar`); a carregar; erro por bloco (um bloco que falha não esconde os outros) |
-| **Passkeys** | nome, criada em, último uso (ou «nunca»); a contagem; o conselho de ter duas (`docs/21` §7: o Hub pede para registar duas) quando só há uma | `GET /hub/passkeys` | — |
-| **Acrescentar passkey** | campo «Nome desta passkey» (ex.: «Telemóvel»; 1 a 100), botão | `POST /hub/passkeys/options` → navegador → `POST /hub/passkeys` | autenticação recente (§3); cancelada pela pessoa (sem vermelho); passkey já registada neste dispositivo; sem suporte |
-| **Retirar passkey** | botão por passkey, com confirmação que diz que **todas as sessões terminam** (as outras; esta continua) | `POST /hub/passkeys/{id}/remove` | é a última forma de entrar (a API recusa: o ecrã explica que é preciso outra passkey primeiro; a regra da base só conta passkeys, e o texto revê-se na B3b se a palavra-passe passar a contar — revisão do #174, P3-7); autenticação recente |
-| **Sessões abertas** | criada em, último uso, «esta sessão» marcada; a contagem | `GET /hub/sessions` | só há esta (o botão de terminar as outras fica escondido) |
-| **Terminar todas as outras** | botão com confirmação | `POST /hub/sessions/end-all` | autenticação recente; depois, a lista volta a ler-se (fica só esta) |
-| **Códigos de recuperação** | o que são; botão «Gerar códigos novos» com confirmação de que **os antigos deixam de valer**; depois, os 10 códigos **uma vez**, como no convite (Copiar, aviso, «Já os guardei») | `POST /hub/recovery-codes` | autenticação recente |
-| **Recuperar a conta** (`/recuperar`, ligação no ecrã de entrar: «Perdeu a passkey?») | e-mail, um código de recuperação (`XXXX-XXXX-XXXX-XXXX`; a API aceita minúsculas, espaços e sem hífenes, e lê 0, 1 e 8 como O, I e B — o ecrã envia como foi escrito), nome da passkey nova, botão «Recuperar com uma passkey nova» | `POST /hub/recovery/options` → navegador → `POST /hub/recovery` | a mesma recusa para e-mail sem conta, código errado ou usado (401: a API não distingue, de propósito); muitas tentativas (429, com os minutos); cancelada; sem suporte |
-| **Depois de recuperar** | entra na conta com o aviso: as outras sessões terminaram, o código usado já não vale, **retire as passkeys que já não tem** (a do dispositivo perdido continua a valer até se retirar, `docs/21` §12, revisão do #144, P3-7) e gere códigos novos; e, se for dono, **reveja as chaves de API** que criou (revisão do #149, P2-1) | os de cima | o aviso fica até a pessoa o fechar (só neste navegador; a API não guarda «visto») |
+| Ecrã                                                                                 | O que mostra                                                                                                                                                                                                                                                                                                                     | Rotas da API                                                    | Estados além do normal                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A minha conta** (`/conta`, ligação «Conta» no cabeçalho)                           | três blocos: Passkeys, Sessões abertas, Códigos de recuperação                                                                                                                                                                                                                                                                   | os de cada bloco                                                | sem sessão (vai para `/entrar`); a carregar; erro por bloco (um bloco que falha não esconde os outros)                                                                                                                                       |
+| **Passkeys**                                                                         | nome, criada em, último uso (ou «nunca»); a contagem; o conselho de ter duas (`docs/21` §7: o Hub pede para registar duas) quando só há uma                                                                                                                                                                                      | `GET /hub/passkeys`                                             | —                                                                                                                                                                                                                                            |
+| **Acrescentar passkey**                                                              | campo «Nome desta passkey» (ex.: «Telemóvel»; 1 a 100), botão                                                                                                                                                                                                                                                                    | `POST /hub/passkeys/options` → navegador → `POST /hub/passkeys` | autenticação recente (§3); cancelada pela pessoa (sem vermelho); passkey já registada neste dispositivo; sem suporte                                                                                                                         |
+| **Retirar passkey**                                                                  | botão por passkey, com confirmação que diz que **todas as sessões terminam** (as outras; esta continua)                                                                                                                                                                                                                          | `POST /hub/passkeys/{id}/remove`                                | é a última forma de entrar (a API recusa: o ecrã explica que é preciso outra passkey primeiro; a regra da base só conta passkeys, e o texto revê-se na B3b se a palavra-passe passar a contar — revisão do #174, P3-7); autenticação recente |
+| **Sessões abertas**                                                                  | criada em, último uso, «esta sessão» marcada; a contagem                                                                                                                                                                                                                                                                         | `GET /hub/sessions`                                             | só há esta (o botão de terminar as outras fica escondido)                                                                                                                                                                                    |
+| **Terminar todas as outras**                                                         | botão com confirmação                                                                                                                                                                                                                                                                                                            | `POST /hub/sessions/end-all`                                    | autenticação recente; depois, a lista volta a ler-se (fica só esta)                                                                                                                                                                          |
+| **Códigos de recuperação**                                                           | o que são; botão «Gerar códigos novos» com confirmação de que **os antigos deixam de valer**; depois, os 10 códigos **uma vez**, como no convite (Copiar, aviso, «Já os guardei»)                                                                                                                                                | `POST /hub/recovery-codes`                                      | autenticação recente                                                                                                                                                                                                                         |
+| **Recuperar a conta** (`/recuperar`, ligação no ecrã de entrar: «Perdeu a passkey?») | e-mail, um código de recuperação (`XXXX-XXXX-XXXX-XXXX`; a API aceita minúsculas, espaços e sem hífenes, e lê 0, 1 e 8 como O, I e B — o ecrã envia como foi escrito), nome da passkey nova, botão «Recuperar com uma passkey nova»                                                                                              | `POST /hub/recovery/options` → navegador → `POST /hub/recovery` | a mesma recusa para e-mail sem conta, código errado ou usado (401: a API não distingue, de propósito); muitas tentativas (429, com os minutos); cancelada; sem suporte                                                                       |
+| **Depois de recuperar**                                                              | entra na conta com o aviso: as outras sessões terminaram, o código usado já não vale, **retire as passkeys que já não tem** (a do dispositivo perdido continua a valer até se retirar, `docs/21` §12, revisão do #144, P3-7) e gere códigos novos; e, se for dono, **reveja as chaves de API** que criou (revisão do #149, P2-1) | os de cima                                                      | o aviso fica até a pessoa o fechar (só neste navegador; a API não guarda «visto»)                                                                                                                                                            |
 
 ### 9.2 B3b — palavra-passe e autenticador
 
-| Ecrã | O que mostra | Rotas da API | Estados |
-|---|---|---|---|
-| **Entrar com palavra-passe** (em `/entrar`, ligação «Entrar com palavra-passe») | e-mail, palavra-passe, código de 6 dígitos do autenticador | `POST /hub/session/password` | a mesma recusa para tudo o que falha (401); 429 com os minutos; 503 (muitos pedidos ao mesmo tempo: tentar daqui a pouco) |
-| **Na conta: palavra-passe** | se não está activa: «Activar palavra-passe e autenticador» → palavra-passe (≥ 12) e confirmação → o segredo para o autenticador → o primeiro código de 6 dígitos → activa; se está activa: «Retirar» com confirmação | `POST /hub/password/setup`, `POST /hub/password/confirm`, `POST /hub/password/remove` | autenticação recente; código errado; retirar quando não há passkey (a API recusa) |
+| Ecrã                                                                            | O que mostra                                                                                                                                                                                                         | Rotas da API                                                                          | Estados                                                                                                                   |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Entrar com palavra-passe** (em `/entrar`, ligação «Entrar com palavra-passe») | e-mail, palavra-passe, código de 6 dígitos do autenticador                                                                                                                                                           | `POST /hub/session/password`                                                          | a mesma recusa para tudo o que falha (401); 429 com os minutos; 503 (muitos pedidos ao mesmo tempo: tentar daqui a pouco) |
+| **Na conta: palavra-passe**                                                     | se não está activa: «Activar palavra-passe e autenticador» → palavra-passe (≥ 12) e confirmação → o segredo para o autenticador → o primeiro código de 6 dígitos → activa; se está activa: «Retirar» com confirmação | `POST /hub/password/setup`, `POST /hub/password/confirm`, `POST /hub/password/remove` | autenticação recente; código errado; retirar quando não há passkey (a API recusa)                                         |
 
 **Na API (feito com a B3b):** o `/hub/me` diz `palavra_passe: "activa" |
 "pendente" | null` (migração 0029; só o estado, nenhum dado secreto). O
@@ -253,7 +253,7 @@ bloqueio por conta responde 429 a qualquer tentativa sobre essa conta,
 mesmo com a palavra-passe errada; de um IP limpo, um 429 diz que a conta
 existe e tem palavra-passe activa.
 
-**Decidido (Diogo, 08/10/2026: *«sim, com código QR»*):** o segredo do
+**Decidido (Diogo, 08/10/2026: _«sim, com código QR»_):** o segredo do
 autenticador mostra-se **como código QR e como texto** (em grupos de 4,
 para se escrever à mão). O código QR desenha-se no próprio Hub com a
 biblioteca `uqr` 0.1.3 (MIT, sem dependências, 79 KB, publicada a
@@ -265,7 +265,7 @@ só vivem no ecrã enquanto se configura (§9.4).
 `TOTP_CHAVE` (medido a 08/10/2026: `POST /hub/session/password` dá 404).
 Pô-la lá é uma chave nova na máquina, com a confirmação do Diogo ou do
 Bruno (`AGENTS.md`, «Operar a VPS»): **autorizada pelo Diogo a 08/10/2026**
-(*«sim, prepara o pedido da chave na VPS»*). O passo 10 do `preparar.sh`
+(_«sim, prepara o pedido da chave na VPS»_). O passo 10 do `preparar.sh`
 gera-a uma vez em `/etc/eurolify/api-totp.env` (600, root; nunca a
 reescreve; só uma chave válida chega à API) e o `eurolify-publicar`
 passa-a à API. Se se perder, os autenticadores já configurados deixam de
@@ -276,11 +276,11 @@ cópia fora da máquina e à parte das cópias da base (`infra/vps/LEIA-ME.md`,
 
 ### 9.3 B3c — chaves de API
 
-| Ecrã | O que mostra | Rotas da API | Estados |
-|---|---|---|---|
-| **Chaves** (`/chaves?comerciante=mer_…`, ligação «Chaves de API» ao lado de «Ver a equipa», só para o dono) | as chaves do comerciante: nome, tipo, âmbitos (em linguagem comum), o começo da chave, quem a criou (você, o nome de um membro, «alguém que já saiu da equipa», outra chave ou o operador) e quando, expira, estado (activa, revogada a…, expirou a…) | `GET /hub/keys` (e `/hub/me` e `/hub/members` para os nomes) | sem permissão (403: o ecrã não oferece a quem não é dono e mostra a recusa a quem abre a página); vazio |
-| **Criar chave de servidor** | nome, o que a chave pode fazer (os âmbitos do dono, por escolha), expira a (opcional: até ao fim desse dia); depois, **o segredo uma vez**, com Copiar, aviso e «Já o guardei» | `POST /hub/keys` | autenticação recente; sem nome ou sem âmbitos (o ecrã recusa antes); data passada; âmbitos acima do papel e comerciante suspenso (a API recusa, com texto próprio) |
-| **Revogar** | botão por chave activa, com confirmação («deixa de funcionar já, sem volta atrás») | `POST /hub/keys/{id}/revoke` | autenticação recente; já revogada ou que já não existe (outro separador: a lista volta a ler-se) |
+| Ecrã                                                                                                        | O que mostra                                                                                                                                                                                                                                          | Rotas da API                                                 | Estados                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Chaves** (`/chaves?comerciante=mer_…`, ligação «Chaves de API» ao lado de «Ver a equipa», só para o dono) | as chaves do comerciante: nome, tipo, âmbitos (em linguagem comum), o começo da chave, quem a criou (você, o nome de um membro, «alguém que já saiu da equipa», outra chave ou o operador) e quando, expira, estado (activa, revogada a…, expirou a…) | `GET /hub/keys` (e `/hub/me` e `/hub/members` para os nomes) | sem permissão (403: o ecrã não oferece a quem não é dono e mostra a recusa a quem abre a página); vazio                                                            |
+| **Criar chave de servidor**                                                                                 | nome, o que a chave pode fazer (os âmbitos do dono, por escolha), expira a (opcional: até ao fim desse dia); depois, **o segredo uma vez**, com Copiar, aviso e «Já o guardei»                                                                        | `POST /hub/keys`                                             | autenticação recente; sem nome ou sem âmbitos (o ecrã recusa antes); data passada; âmbitos acima do papel e comerciante suspenso (a API recusa, com texto próprio) |
+| **Revogar**                                                                                                 | botão por chave activa, com confirmação («deixa de funcionar já, sem volta atrás»)                                                                                                                                                                    | `POST /hub/keys/{id}/revoke`                                 | autenticação recente; já revogada ou que já não existe (outro separador: a lista volta a ler-se)                                                                   |
 
 **Chaves públicas (para a loja): ainda não se oferecem** (08/10/2026). A API
 pede a loja (`sto_…`), e ainda não há forma de criar lojas: nem rota da
@@ -297,17 +297,17 @@ migrações, 08/10/2026). Chegam com as lojas; o ecrã diz isso.
 
 ## 10. A gestão da equipa (issue #186)
 
-Pedido do Diogo, 08/10/2026: *«sim, avança com a gestão da equipa no
-Hub»*. As rotas existem e estão no ensaio (`docs/21` §4.2, §4.4, §4.5;
+Pedido do Diogo, 08/10/2026: _«sim, avança com a gestão da equipa no
+Hub»_. As rotas existem e estão no ensaio (`docs/21` §4.2, §4.4, §4.5;
 migração 0018). A base decide; o ecrã só não oferece o que vai ser recusado.
 
-| Ecrã | O que mostra | Rotas da API | Estados além do normal |
-|---|---|---|---|
-| **Equipa: mudar o papel** | na linha de cada membro, para o dono: o papel numa lista de escolha e «Mudar» (só depois de escolher outro), com confirmação: os convites em aberto e as chaves de servidor que a pessoa criou e que o papel novo já não permite são cancelados e revogados, com as chaves criadas a partir delas (`pessoa_fechar_acessos`, 0025); as integrações que as usam deixam de funcionar. Não aparece na linha do próprio dono (ninguém muda o seu papel) | `POST /hub/members/{id}/role` | autenticação recente; o último dono não deixa de o ser (`member.last_owner`); membro que já saiu (`member.not_found`: a lista relê-se); comerciante suspenso ou fechado |
-| **Equipa: tirar da equipa** | para o dono, «Tirar da equipa» na linha de cada outro membro, com confirmação: deixa de entrar; os convites em aberto que criou são cancelados e as chaves de servidor que criou (e as criadas a partir delas) são revogadas; as chaves públicas da loja ficam | `POST /hub/members/{id}/end` | autenticação recente; o último dono (`member.last_owner`); membro que já saiu |
-| **Equipa: sair da equipa** | para qualquer membro, «Sair desta equipa» na própria linha, com confirmação (o mesmo que fecha); depois volta ao «Início». O último dono vê o botão desligado e porquê | `POST /hub/members/{id}/end` (o próprio) | o último dono não sai (`member.last_owner`) |
-| **Convite: o que é, antes de aceitar** (issue #194) | em `/convite`, por cima de tudo: «Foi convidado para a equipa de {comerciante}, com o papel {papel}. O convite é para {e-mail} e expira a {data}.» Um convite que já não vale mostra só a recusa, sem formulário. Com a sessão de outra pessoa, «Este convite é para {e-mail} e entrou como {e-mail da sessão}: saia e entre com a conta desse e-mail»; «Aceitar com esta conta» continua activo, porque quem decide é a base (`invite.other_person`) — o ecrã comparar e-mails podia recusar o que ela aceita (revisão do #196, P2-1). Com sessão e um convite que não vale, uma ligação para o «Início» | `POST /hub/invitations/preview` | a carregar; convite que não vale (a mesma mensagem para expirado, usado, cancelado, inexistente ou comerciante suspenso); 429; sem rede (mostra o erro e deixa seguir: aceitar dá a sua própria resposta) |
-| **Convite com uma conta que já existe** | em `/convite`, quando a API diz que o e-mail já tem conta: «Este e-mail já tem conta. Entre com ela para aceitar o convite.» e «Entrar com passkey e aceitar»; com sessão aberta, «Entrou como {nome} ({e-mail})», «Aceitar com esta conta» e «Sair»; no formulário de conta nova, sempre «Já tem conta? Entre primeiro no Hub e volte a abrir esta ligação» | `POST /hub/session` (entrar) → `POST /hub/invitations/accept` | o convite é para outro e-mail (`invite.other_person`: sair e entrar com a conta certa); já é membro (`invite.already_member`); convite que já não vale; autenticação recente (acabou de entrar: vale); quem só tem palavra-passe entra primeiro em `/entrar` e volta a abrir a ligação |
+| Ecrã                                                | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Rotas da API                                                  | Estados além do normal                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Equipa: mudar o papel**                           | na linha de cada membro, para o dono: o papel numa lista de escolha e «Mudar» (só depois de escolher outro), com confirmação: os convites em aberto e as chaves de servidor que a pessoa criou e que o papel novo já não permite são cancelados e revogados, com as chaves criadas a partir delas (`pessoa_fechar_acessos`, 0025); as integrações que as usam deixam de funcionar. Não aparece na linha do próprio dono (ninguém muda o seu papel)                                                                                                                                                        | `POST /hub/members/{id}/role`                                 | autenticação recente; o último dono não deixa de o ser (`member.last_owner`); membro que já saiu (`member.not_found`: a lista relê-se); comerciante suspenso ou fechado                                                                                                                |
+| **Equipa: tirar da equipa**                         | para o dono, «Tirar da equipa» na linha de cada outro membro, com confirmação: deixa de entrar; os convites em aberto que criou são cancelados e as chaves de servidor que criou (e as criadas a partir delas) são revogadas; as chaves públicas da loja ficam                                                                                                                                                                                                                                                                                                                                            | `POST /hub/members/{id}/end`                                  | autenticação recente; o último dono (`member.last_owner`); membro que já saiu                                                                                                                                                                                                          |
+| **Equipa: sair da equipa**                          | para qualquer membro, «Sair desta equipa» na própria linha, com confirmação (o mesmo que fecha); depois volta ao «Início». O último dono vê o botão desligado e porquê                                                                                                                                                                                                                                                                                                                                                                                                                                    | `POST /hub/members/{id}/end` (o próprio)                      | o último dono não sai (`member.last_owner`)                                                                                                                                                                                                                                            |
+| **Convite: o que é, antes de aceitar** (issue #194) | em `/convite`, por cima de tudo: «Foi convidado para a equipa de {comerciante}, com o papel {papel}. O convite é para {e-mail} e expira a {data}.» Um convite que já não vale mostra só a recusa, sem formulário. Com a sessão de outra pessoa, «Este convite é para {e-mail} e entrou como {e-mail da sessão}: saia e entre com a conta desse e-mail»; «Aceitar com esta conta» continua activo, porque quem decide é a base (`invite.other_person`) — o ecrã comparar e-mails podia recusar o que ela aceita (revisão do #196, P2-1). Com sessão e um convite que não vale, uma ligação para o «Início» | `POST /hub/invitations/preview`                               | a carregar; convite que não vale (a mesma mensagem para expirado, usado, cancelado, inexistente ou comerciante suspenso); 429; sem rede (mostra o erro e deixa seguir: aceitar dá a sua própria resposta)                                                                              |
+| **Convite com uma conta que já existe**             | em `/convite`, quando a API diz que o e-mail já tem conta: «Este e-mail já tem conta. Entre com ela para aceitar o convite.» e «Entrar com passkey e aceitar»; com sessão aberta, «Entrou como {nome} ({e-mail})», «Aceitar com esta conta» e «Sair»; no formulário de conta nova, sempre «Já tem conta? Entre primeiro no Hub e volte a abrir esta ligação»                                                                                                                                                                                                                                              | `POST /hub/session` (entrar) → `POST /hub/invitations/accept` | o convite é para outro e-mail (`invite.other_person`: sair e entrar com a conta certa); já é membro (`invite.already_member`); convite que já não vale; autenticação recente (acabou de entrar: vale); quem só tem palavra-passe entra primeiro em `/entrar` e volta a abrir a ligação |
 
 O segredo do convite continua só na memória da página (lido uma vez ao
 abrir, §2) enquanto se entra e aceita: nunca vai para o endereço nem para o
@@ -317,9 +317,9 @@ entrou e a oferecer «Sair» (revisão do #188, P2-2).
 ## 11. Catálogo: a lista de artigos (issue #199)
 
 Pedido do Diogo, 08/10/2026: começar o Catálogo no Hub pelo desenho da
-lista de artigos. Desenho aprovado pelo Diogo a 08/10/2026 (*«sim, aprovo o
-desenho, junta o #200 e avança com o código»*), com a mudança da §11.1
-(*«sim, avança com a saída A»*). O catálogo é da outra sessão (#77). O
+lista de artigos. Desenho aprovado pelo Diogo a 08/10/2026 (_«sim, aprovo o
+desenho, junta o #200 e avança com o código»_), com a mudança da §11.1
+(_«sim, avança com a saída A»_). O catálogo é da outra sessão (#77). O
 desenho (#200) não mexeu em `apps/api/src/catalogo/` nem no `docs/14`; o
 código (#201) só extraiu o corpo do `GET /products` para a função
 `listaDeArtigos` e exportou a `ConsultaArtigos` e a `RespostaArtigos`, sem
@@ -350,20 +350,20 @@ endereço expõe.
 
 **O que o pedido do código faz:**
 
-| Ponto | Proposta |
-|---|---|
-| Quem entra | em `GET /hub/products`, a sessão do Hub com o cabeçalho `Eurolify-Comerciante`, de um membro activo desse comerciante (como as outras rotas `/hub/*` com comerciante); em `GET /products`, a chave, como hoje |
-| Que âmbitos | os do papel, pela tabela do `docs/21` §5: os quatro papéis têm `catalog:read`; `catalog:write` e `catalog:publish` só dono e gestor. A tabela vive num sítio só (na base, como os papéis), e um teste confere-a |
-| Neste primeiro pedido | **só leitura** (`catalog:read`). As escritas com sessão (editar, publicar) ficam para quando houver ecrãs que as usem, cada uma com o seu desenho: pedem as guardas do Hub (origem e JSON, `docs/21` §3) e decidir quais exigem autenticação recente |
-| Quem fez | numa escrita futura, `quem = pessoa:per_…` (`docs/21`, tabela do §1), como no resto do Hub |
-| Comerciante suspenso ou fechado | o mesmo que a chave tem hoje nessas rotas (lê) |
-| O que não muda | as rotas e as respostas do catálogo; uma chave continua a entrar como hoje |
-| A alternativa recusada | uma lista própria do Hub, com o seu código: duplicava a lista e os filtros (regra C1). O `/hub/products` não é isso: é a mesma função num segundo caminho |
+| Ponto                           | Proposta                                                                                                                                                                                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quem entra                      | em `GET /hub/products`, a sessão do Hub com o cabeçalho `Eurolify-Comerciante`, de um membro activo desse comerciante (como as outras rotas `/hub/*` com comerciante); em `GET /products`, a chave, como hoje                                        |
+| Que âmbitos                     | os do papel, pela tabela do `docs/21` §5: os quatro papéis têm `catalog:read`; `catalog:write` e `catalog:publish` só dono e gestor. A tabela vive num sítio só (na base, como os papéis), e um teste confere-a                                      |
+| Neste primeiro pedido           | **só leitura** (`catalog:read`). As escritas com sessão (editar, publicar) ficam para quando houver ecrãs que as usem, cada uma com o seu desenho: pedem as guardas do Hub (origem e JSON, `docs/21` §3) e decidir quais exigem autenticação recente |
+| Quem fez                        | numa escrita futura, `quem = pessoa:per_…` (`docs/21`, tabela do §1), como no resto do Hub                                                                                                                                                           |
+| Comerciante suspenso ou fechado | o mesmo que a chave tem hoje nessas rotas (lê)                                                                                                                                                                                                       |
+| O que não muda                  | as rotas e as respostas do catálogo; uma chave continua a entrar como hoje                                                                                                                                                                           |
+| A alternativa recusada          | uma lista própria do Hub, com o seu código: duplicava a lista e os filtros (regra C1). O `/hub/products` não é isso: é a mesma função num segundo caminho                                                                                            |
 
 ### 11.2 O ecrã
 
-| Ecrã | O que mostra | Rotas da API | Estados além do normal |
-|---|---|---|---|
+| Ecrã                                                                                | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Rotas da API                                                                           | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Artigos** (`/artigos?comerciante=mer_…`; módulo no «Início», ao lado de «Equipa») | quantos artigos há («124 artigos»; com filtro, «12 de 124 artigos»); uma tabela com **Nome**, **Tipo** (físico, serviço…), **Estado** (rascunho, activo, arquivado — uma cor por estado, `eurolify-design`, regra 3), **Marca** e **Alterado em**; um artigo que vem do sistema de gestão do comerciante diz «vem do sistema de gestão» (`origem`; `docs/14` §9, P5). Filtros: estado (todos, rascunho, activo, arquivado) e procurar pelo nome e pelo SKU de uma variante, em dois campos (`texto`, `sku`: a API junta os filtros, por isso um campo só procuraria os dois ao mesmo tempo). «Mostrar mais» pede a página seguinte (`cursor_seguinte`, 25 de cada vez); a contagem total está sempre à vista (`eurolify-design`, «Vistas»: nunca cortar em silêncio). No telemóvel, um cartão por artigo (regra 5) | `GET /hub/products?estado=&texto=&sku=&limite=25&cursor=` (a mesma do `GET /products`) | a carregar; **sem artigos** («Ainda não há artigos. Entram pela API ou por importação.», sem botão de criar: criar no Hub fica para outro pedido); **sem resultados** para o filtro («Nenhum artigo com este filtro», com «Limpar o filtro»); erro; sem rede; 429; sessão terminada (para «Entrar»); comerciante que não é dele ou membro que já saiu (403: «Não pode ver este comerciante», sem «Tentar outra vez»); «Mostrar mais» que falha mostra o erro por baixo das linhas já lidas; filtro inválido (400: o ecrã só deixa escolher valores válidos; se chegar, aparece como erro geral) |
 
 **Limites aceites** (revisão do #201): «Alterado em» aparece no fuso do
@@ -404,9 +404,9 @@ filtros (a API já os tem).
 
 ## 12. Catálogo: a ficha do artigo, só para consulta (issue #204)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da ficha do
-artigo»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o desenho,
-junta o #205 e avança com o código»*); o código está no pedido #206.
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho da ficha do
+artigo»_. Desenho aprovado pelo Diogo a 09/10/2026 (_«sim, aprovo o desenho,
+junta o #205 e avança com o código»_); o código está no pedido #206.
 O catálogo é da outra sessão (#77): o código não muda nenhuma regra nem
 resposta do catálogo, só junta caminhos `/hub/…` às mesmas funções, como na
 §11.1 (aviso no #77 antes do código).
@@ -418,12 +418,12 @@ Pela mesma API, com os caminhos `/hub/` que o nginx do ensaio deixa passar
 com a sessão de quem tem `catalog:read` (os quatro papéis, `docs/21` §5) e o
 cabeçalho `Eurolify-Comerciante`, como o `GET /hub/products`:
 
-| Caminho do Hub | A mesma de | O que dá (medido a 09/10/2026) |
-|---|---|---|
-| `GET /hub/products/{id}` | `GET /products/{id}` | o artigo com as variantes, também as arquivadas (`Artigo`); outro comerciante dá `catalog.not_found` |
-| `GET /hub/products/{id}/media` | `GET /products/{id}/media` | as imagens pela ordem, com o texto alternativo, a variante e a principal |
-| `GET /hub/media/{id}/file` | `GET /media/{id}/file` | os bytes da imagem, com o tipo dela |
-| `GET /hub/products/{id}/publications` | `GET /products/{id}/publications` | as publicações por canal × mercado, com o estado e o motivo de quem arquivou |
+| Caminho do Hub                        | A mesma de                        | O que dá (medido a 09/10/2026)                                                                       |
+| ------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `GET /hub/products/{id}`              | `GET /products/{id}`              | o artigo com as variantes, também as arquivadas (`Artigo`); outro comerciante dá `catalog.not_found` |
+| `GET /hub/products/{id}/media`        | `GET /products/{id}/media`        | as imagens pela ordem, com o texto alternativo, a variante e a principal                             |
+| `GET /hub/media/{id}/file`            | `GET /media/{id}/file`            | os bytes da imagem, com o tipo dela                                                                  |
+| `GET /hub/products/{id}/publications` | `GET /products/{id}/publications` | as publicações por canal × mercado, com o estado e o motivo de quem arquivou                         |
 
 **As imagens no ecrã**: um `<img src>` não leva o cabeçalho do comerciante,
 por isso o Hub pede os bytes com `fetch` (com o cabeçalho) e mostra-os por
@@ -442,8 +442,8 @@ política, lida do ficheiro.
 
 ### 12.2 O ecrã
 
-| Ecrã | O que mostra | Rotas da API | Estados além do normal |
-|---|---|---|---|
+| Ecrã                                                                                                                          | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Rotas da API       | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ficha do artigo** (`/artigos/{prd_…}?comerciante=mer_…`; abre-se a partir do nome na lista de artigos, que passa a ligação) | **Cabeçalho**: nome, estado (a cor da §11.2), tipo, marca, «vem do sistema de gestão» com a referência de lá (`origem_ref`; `docs/14` §9, P5), criado e alterado em. **Descrição** (texto simples, sem formatação; vazia: «Sem descrição»). **Variantes**: uma tabela com SKU, estado (activa, arquivada), unidade de venda, GTIN, conteúdo (quantidade e unidade) e peso; cartões no telemóvel. **Imagens**: miniaturas pela ordem, a principal marcada, cada uma com o texto alternativo por baixo; uma sem texto diz «Sem texto alternativo — impede a publicação» (`docs/14` §5, C2, como a API avisa). **Publicações**: uma linha por canal × mercado, com o estado (rascunho, publicado, arquivado), a data e, se arquivada, o motivo em linguagem comum. «Voltar aos artigos» mantém os filtros da lista | as quatro da §12.1 | a carregar (cada parte à sua: o cabeçalho primeiro, as imagens e as publicações depois); artigo que não existe ou de outro comerciante (404: «Este artigo não existe neste comerciante»); sem permissão (403, como a lista); erro numa parte (essa parte diz o erro com «Tentar outra vez»; as outras ficam); sem imagens («Sem imagens»); sem publicações («Ainda não está publicado em nenhuma loja»); sessão terminada (para «Entrar») |
 
 **O que a ficha não mostra, e porquê** (medido a 09/10/2026):
@@ -476,9 +476,9 @@ política, lida do ficheiro.
 
 ## 13. Catálogo: editar o artigo (issue #210)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da edição do
-artigo»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista da §13.3
-(*«sim, aceito a lista, junta o #211»*); o código vem depois do código do
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho da edição do
+artigo»_. Desenho aprovado pelo Diogo a 09/10/2026, com a lista da §13.3
+(_«sim, aceito a lista, junta o #211»_); o código vem depois do código do
 #208 (§13.2). A edição parte da
 ficha (§12). Ex.: a gestora da «Loja de Ensaio» abre o «Verniz Azul 1», vê
 «Sem texto alternativo — impede a publicação» na segunda imagem, escreve
@@ -491,20 +491,20 @@ Entra só o que a API do catálogo já sabe fazer, com as mesmas funções das
 rotas pela chave (como na §11.1): nenhuma regra nova do catálogo nasce no Hub
 (`catalog-pim`, «Primeira regra»; `eurolify-design`, regra 8).
 
-| Entra | Rota da API (medido a 09/10/2026, `apps/api/src/catalogo/rotas.ts` e `rotas-media.ts`) |
-|---|---|
-| Nome, descrição e marca do artigo | `PATCH /products/{id}` (`alterarArtigo`), com a `versao` |
-| Activar, arquivar e repor o artigo (§4.1 do `docs/14`) | `POST /products/{id}/activate`, `/archive`, `/restore` (`mudarEstadoArtigo`), com a `versao` |
-| Texto alternativo, imagem principal e ordem das imagens | `PATCH /media/{id}` (`alterarMedia`), com a `versao` |
-| Arquivar uma variante (final, C6) | `POST /variants/{id}/archive` (`arquivarVariante`) |
+| Entra                                                   | Rota da API (medido a 09/10/2026, `apps/api/src/catalogo/rotas.ts` e `rotas-media.ts`)       |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Nome, descrição e marca do artigo                       | `PATCH /products/{id}` (`alterarArtigo`), com a `versao`                                     |
+| Activar, arquivar e repor o artigo (§4.1 do `docs/14`)  | `POST /products/{id}/activate`, `/archive`, `/restore` (`mudarEstadoArtigo`), com a `versao` |
+| Texto alternativo, imagem principal e ordem das imagens | `PATCH /media/{id}` (`alterarMedia`), com a `versao`                                         |
+| Arquivar uma variante (final, C6)                       | `POST /variants/{id}/archive` (`arquivarVariante`)                                           |
 
-| Fica de fora, e porquê |
-|---|
-| **Alterar uma variante** (peso, GTIN, conteúdo, dimensões): ficou de fora deste passo por não haver rota. Desde 10/10/2026 há (`PATCH /variants/{id}` e `PATCH /hub/variants/{id}`, `docs/14` §7.1, «Alterar uma variante»; #306); o ecrã é a §23. |
+| Fica de fora, e porquê                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Alterar uma variante** (peso, GTIN, conteúdo, dimensões): ficou de fora deste passo por não haver rota. Desde 10/10/2026 há (`PATCH /variants/{id}` e `PATCH /hub/variants/{id}`, `docs/14` §7.1, «Alterar uma variante»; #306); o ecrã é a §23.                                       |
 | **Categoria fiscal**: a API aceita texto livre com um formato (`^[a-z][a-z0-9_]*$`), sem lista de valores; um valor escrito à mão decide o IVA. No Hub só entra como escolha de uma lista dada pelo servidor (`eu-vat-oss-ioss`; «Não se erra em documentos fiscais»). Até lá, só se lê. |
-| **Classificação** (famílias, natureza, prestação): formulário próprio, com regras **C**; desenho à parte. |
-| **Enviar imagens novas**: o nginx do Hub aceita corpos até 64 KB (`client_max_body_size 64k`) e as escritas do Hub só aceitam JSON (`docs/21` §3); uma imagem vai até 10 MB em bytes. Pede uma mudança à VPS e uma excepção à regra do JSON: desenho à parte. |
-| Criar artigos e variantes, apagar um rascunho, traduções, publicar, opções, kits, categorias: um de cada vez, depois. |
+| **Classificação** (famílias, natureza, prestação): formulário próprio, com regras **C**; desenho à parte.                                                                                                                                                                                |
+| **Enviar imagens novas**: o nginx do Hub aceita corpos até 64 KB (`client_max_body_size 64k`) e as escritas do Hub só aceitam JSON (`docs/21` §3); uma imagem vai até 10 MB em bytes. Pede uma mudança à VPS e uma excepção à regra do JSON: desenho à parte.                            |
+| Criar artigos e variantes, apagar um rascunho, traduções, publicar, opções, kits, categorias: um de cada vez, depois.                                                                                                                                                                    |
 
 ### 13.2 Como o Hub escreve
 
@@ -547,7 +547,7 @@ no Hub; as traduções, a media e a publicação editam-se no Eurolify), mas
 `import.external_product`). A regra vive no servidor, nas rotas `/hub/…`,
 não no ecrã: o sistema de gestão continua a escrever pela chave.
 
-**Decidido** (Diogo, 09/10/2026: *«sim, aceito a lista»*): num artigo com
+**Decidido** (Diogo, 09/10/2026: _«sim, aceito a lista»_): num artigo com
 `origem: externo`, ficam só de leitura no Hub o **nome, a descrição, a marca,
 a categoria fiscal, o estado do artigo e todos os dados das variantes**
 (SKU, GTIN, unidade, conteúdo, peso, dimensões, arquivar). Editam-se no Hub
@@ -559,12 +559,12 @@ frase.
 
 ### 13.4 O ecrã
 
-| Onde | O que muda na ficha (§12.2) | Estados além do normal |
-|---|---|---|
-| **Cabeçalho** | Com `catalog:write`: «Editar» (nome, descrição, marca) e o botão do estado que a §4.1 deixa: «Activar» (rascunho), «Arquivar» (activo), «Repor» (arquivado). Arquivar pede confirmação: «Arquivar o artigo tira-o de venda em todas as lojas. As publicações não voltam sozinhas ao repor.» | a guardar; erro da API ao lado do campo (ex.: `catalog.name_required`); activar sem variante activa diz o motivo da API |
-| **Editar** (`/artigos/{prd_…}/editar`) | Um formulário com o nome (obrigatório, até 200), a descrição (texto simples, até 10 000, com a contagem) e a marca (até 200). «Guardar» e «Cancelar»; sair com alterações por guardar pergunta antes. Depois de guardar, volta à ficha com «Alterações guardadas». | conflito de versão (§13.2); sem permissão (403); artigo que já não existe (404) |
-| **Imagens** | Em cada imagem: «Editar texto alternativo» (um campo, até 500, com «Guardar»), «Tornar principal» e «Mover para antes» / «Mover para depois» (botões, não arrastar: teclado e leitores de ecrã). Depois de guardar, as publicações recarregam (a API reverifica-as). | o aviso «impede a publicação» desaparece só quando a API o diz |
-| **Variantes** | Em cada variante activa: «Arquivar variante», com confirmação: «Arquivar a variante {SKU} não se desfaz.» | a última variante activa: a confirmação diz que o artigo deixa de se poder publicar até ter outra (C6) |
+| Onde                                   | O que muda na ficha (§12.2)                                                                                                                                                                                                                                                                 | Estados além do normal                                                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Cabeçalho**                          | Com `catalog:write`: «Editar» (nome, descrição, marca) e o botão do estado que a §4.1 deixa: «Activar» (rascunho), «Arquivar» (activo), «Repor» (arquivado). Arquivar pede confirmação: «Arquivar o artigo tira-o de venda em todas as lojas. As publicações não voltam sozinhas ao repor.» | a guardar; erro da API ao lado do campo (ex.: `catalog.name_required`); activar sem variante activa diz o motivo da API |
+| **Editar** (`/artigos/{prd_…}/editar`) | Um formulário com o nome (obrigatório, até 200), a descrição (texto simples, até 10 000, com a contagem) e a marca (até 200). «Guardar» e «Cancelar»; sair com alterações por guardar pergunta antes. Depois de guardar, volta à ficha com «Alterações guardadas».                          | conflito de versão (§13.2); sem permissão (403); artigo que já não existe (404)                                         |
+| **Imagens**                            | Em cada imagem: «Editar texto alternativo» (um campo, até 500, com «Guardar»), «Tornar principal» e «Mover para antes» / «Mover para depois» (botões, não arrastar: teclado e leitores de ecrã). Depois de guardar, as publicações recarregam (a API reverifica-as).                        | o aviso «impede a publicação» desaparece só quando a API o diz                                                          |
+| **Variantes**                          | Em cada variante activa: «Arquivar variante», com confirmação: «Arquivar a variante {SKU} não se desfaz.»                                                                                                                                                                                   | a última variante activa: a confirmação diz que o artigo deixa de se poder publicar até ter outra (C6)                  |
 
 Sem `catalog:write`, a ficha fica como na §12 (sem nenhum botão). Num artigo
 externo, como na §13.3.
@@ -587,10 +587,10 @@ externo, como na §13.3.
 
 ## 14. Catálogo: criar artigos (issue #221)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da criação de
-artigos»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que
-fica de fora e o limite de 20 variantes (*«sim, aprovo o desenho, junta o
-#222»*). A §13.1 deixou de fora «criar artigos e variantes»; este passo
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho da criação de
+artigos»_. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que
+fica de fora e o limite de 20 variantes (_«sim, aprovo o desenho, junta o
+#222»_). A §13.1 deixou de fora «criar artigos e variantes»; este passo
 trata da primeira parte. Ex.: a gestora da «Loja de Ensaio» carrega em
 «Criar artigo» na lista, escreve «Verniz Verde 31», a marca «Marca de
 Ensaio», uma variante com o SKU `ENS-031`, «Unidade», 15 ml e 60 g, e guarda;
@@ -602,21 +602,21 @@ rascunho».
 Como na §13.1, entra só o que a API já sabe fazer, pela mesma função da rota
 pela chave (medido a 09/10/2026 em `apps/api/src/catalogo/rotas.ts`).
 
-| Entra | Rota da API |
-|---|---|
-| Criar um artigo **físico**, em rascunho, com o nome, a descrição e a marca | `POST /products` (`criarArtigo` + `fichaNa`), linhas 1769–1797 |
-| As variantes do artigo novo, pelo menos uma: SKU, unidade de venda, GTIN com a origem, conteúdo (quantidade e unidade), peso e dimensões | o mesmo pedido (`variantes`, `NovaVariante`, linhas 491–533) |
+| Entra                                                                                                                                    | Rota da API                                                    |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Criar um artigo **físico**, em rascunho, com o nome, a descrição e a marca                                                               | `POST /products` (`criarArtigo` + `fichaNa`), linhas 1769–1797 |
+| As variantes do artigo novo, pelo menos uma: SKU, unidade de venda, GTIN com a origem, conteúdo (quantidade e unidade), peso e dimensões | o mesmo pedido (`variantes`, `NovaVariante`, linhas 491–533)   |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Serviço e bilhete**: só se publicam com a classificação (`docs/14` §3.10, P11) e a classificação tem regras **C** e desenho à parte (§13.1). Criá-los no Hub deixava rascunhos que o Hub não consegue levar a lado nenhum. Entram com o formulário da classificação. |
-| **Digital e cartão-oferta**: desligados na base até às portas deles (migração 0002, `catalog.type_disabled`; ADR-0034). |
-| **Categoria fiscal**: como na §13.1 (decide o IVA; só com uma lista dada pelo servidor). A API aceita criar sem ela. |
-| **`onu` e `classe_adr`** (mercadorias perigosas): **C** (`docs/14` linha 122; `product-compliance-eu`). Um valor escrito à mão decide o transporte; entra com o desenho dos campos regulamentares. |
-| **Opções** (cor, tamanho) e os valores de cada variante: formulário próprio. |
-| **Acrescentar uma variante a um artigo que já existe** (`POST /products/{id}/variants`): num artigo com opções pede os valores (a regra `options_incomplete`), e o Hub ainda não mostra opções. Entra com elas. |
-| **Imagens novas**: como na §13.1 (nginx a 64 KB e escritas só em JSON). |
-| **Preço**: é do domínio Preços e mercados (#127), ainda sem código. |
+| **Digital e cartão-oferta**: desligados na base até às portas deles (migração 0002, `catalog.type_disabled`; ADR-0034).                                                                                                                                                |
+| **Categoria fiscal**: como na §13.1 (decide o IVA; só com uma lista dada pelo servidor). A API aceita criar sem ela.                                                                                                                                                   |
+| **`onu` e `classe_adr`** (mercadorias perigosas): **C** (`docs/14` linha 122; `product-compliance-eu`). Um valor escrito à mão decide o transporte; entra com o desenho dos campos regulamentares.                                                                     |
+| **Opções** (cor, tamanho) e os valores de cada variante: formulário próprio.                                                                                                                                                                                           |
+| **Acrescentar uma variante a um artigo que já existe** (`POST /products/{id}/variants`): num artigo com opções pede os valores (a regra `options_incomplete`), e o Hub ainda não mostra opções. Entra com elas.                                                        |
+| **Imagens novas**: como na §13.1 (nginx a 64 KB e escritas só em JSON).                                                                                                                                                                                                |
+| **Preço**: é do domínio Preços e mercados (#127), ainda sem código.                                                                                                                                                                                                    |
 
 **Decidido** (Diogo, 09/10/2026): no máximo **20 variantes** por artigo criado no Hub (a API
 aceita 100, `MAX_VARIANTES_POR_ARTIGO_NOVO`). Um formulário com mais é
@@ -666,11 +666,11 @@ O SKU único protege da cópia: um SKU que já veio de lá dá
 
 ### 14.4 O ecrã
 
-| Onde | O que mostra | Estados além do normal |
-|---|---|---|
-| **Lista** (§11.2) | Com `catalog:write`, «Criar artigo» no topo. A lista vazia passa a dizer «Ainda não há artigos.» com «Criar artigo» (sem permissão, fica a frase da §11.2). | — |
+| Onde                                          | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Estados além do normal                                                                                                                                                                                                                                                                      |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Lista** (§11.2)                             | Com `catalog:write`, «Criar artigo» no topo. A lista vazia passa a dizer «Ainda não há artigos.» com «Criar artigo» (sem permissão, fica a frase da §11.2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | —                                                                                                                                                                                                                                                                                           |
 | **Criar** (`/artigos/novo?comerciante=mer_…`) | O tipo, escrito: «Físico» (sem escolha neste passo). O nome (obrigatório, até 200), a descrição (texto simples, até 10 000, com a contagem) e a marca (até 200), como na §13.4. Depois, **Variantes**, uma caixa por variante, com: SKU (obrigatório, até 64), unidade de venda (lista da API: unidade, par, caixa, embalagem, conjunto), GTIN (8, 12, 13 ou 14 algarismos) e a origem dele (só aparece com GTIN: «GS1 do comerciante», «Do fornecedor», «Interno»), conteúdo (quantidade e unidade, os dois ou nenhum: mg, g, kg, ml, cl, l, mm, cm, m, m², m³), peso em gramas e dimensões em milímetros. Sem peso, uma nota ao lado: «Sem peso, não se pode publicar» (C2). «Acrescentar outra variante» e, a partir da segunda, «Retirar esta variante». «Criar artigo» e «Cancelar»; sair com alguma coisa escrita pergunta antes (§13.4). | a criar; erro ao lado do campo (nome, SKU repetido no formulário ou já existente, GTIN inválido, GTIN sem origem, conteúdo incompleto); a resposta perdida (§14.2); sem permissão (403); 20 variantes (o botão de acrescentar sai, com «No máximo 20 variantes aqui; mais pela importação») |
-| **Depois de criar** | A ficha do artigo novo (§12), com «Artigo criado em rascunho.» no aviso, que recebe o foco, e o histórico sem o formulário (`substituir`, como na §13.4). Dali seguem «Editar», «Activar» e as imagens. | — |
+| **Depois de criar**                           | A ficha do artigo novo (§12), com «Artigo criado em rascunho.» no aviso, que recebe o foco, e o histórico sem o formulário (`substituir`, como na §13.4). Dali seguem «Editar», «Activar» e as imagens.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | —                                                                                                                                                                                                                                                                                           |
 
 Os números (`peso_g`, dimensões, quantidade) são inteiros positivos (a
 API recusa 0 e decimais): o campo só aceita algarismos e diz «Um número
@@ -697,8 +697,8 @@ inteiro, sem casas decimais».
 
 ## 15. Catálogo: enviar imagens novas (issue #229)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho do envio de
-imagens»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica de fora (*«sim, aprovo o desenho, junta o #230»*). As §13.1 e §14.1 deixaram de fora as imagens novas: o nginx do Hub
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho do envio de
+imagens»_. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica de fora (_«sim, aprovo o desenho, junta o #230»_). As §13.1 e §14.1 deixaram de fora as imagens novas: o nginx do Hub
 aceita corpos até 64 KB e as escritas do Hub são só JSON. O #215 (#179) tirou
 o terceiro motivo: os metadados (localização, data, aparelho) saem ao receber.
 Ex.: a gestora abre o «Verniz Verde 31», que ainda não tem imagens, carrega em
@@ -711,18 +711,18 @@ principal, com o texto alternativo.
 Entra só o que a API já sabe fazer (medido a 09/10/2026 em
 `apps/api/src/catalogo/rotas-media.ts`):
 
-| Entra | Rota da API |
-|---|---|
-| Enviar os bytes de uma imagem JPEG, PNG ou WebP, até 10 MB | `POST /media/uploads` (linhas 469–550): o corpo são os bytes com o `Content-Type` do ficheiro; os primeiros bytes têm de ser desse tipo; os metadados saem antes de guardar; devolve `fil_<sha256>`; o mesmo ficheiro outra vez é o mesmo `fil_` |
-| Ligar o ficheiro ao artigo, com o texto alternativo e, se for a primeira, como principal | `POST /products/{id}/media` (linhas 236–272), corpo `ficheiro`, `texto_alternativo`, `principal` |
-| Tirar uma imagem do artigo | `DELETE /media/{id}` (linhas 374–395): o ficheiro fica guardado; as publicações não mudam |
+| Entra                                                                                    | Rota da API                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Enviar os bytes de uma imagem JPEG, PNG ou WebP, até 10 MB                               | `POST /media/uploads` (linhas 469–550): o corpo são os bytes com o `Content-Type` do ficheiro; os primeiros bytes têm de ser desse tipo; os metadados saem antes de guardar; devolve `fil_<sha256>`; o mesmo ficheiro outra vez é o mesmo `fil_` |
+| Ligar o ficheiro ao artigo, com o texto alternativo e, se for a primeira, como principal | `POST /products/{id}/media` (linhas 236–272), corpo `ficheiro`, `texto_alternativo`, `principal`                                                                                                                                                 |
+| Tirar uma imagem do artigo                                                               | `DELETE /media/{id}` (linhas 374–395): o ficheiro fica guardado; as publicações não mudam                                                                                                                                                        |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A imagem de uma variante** (`variante` no corpo): a ficha não mostra ainda a que variante é cada imagem de forma editável; entra com a edição das variantes (#77). |
-| **Vídeos e outros tipos**: a API só aceita JPEG, PNG e WebP (`TIPOS_DE_IMAGEM`, `base/esquema.ts` linha 364). |
-| **Cortar, rodar ou reduzir a imagem no Hub**: a API guarda os bytes como chegam (sem os metadados); nada se volta a codificar. |
-| **Arrastar ficheiros e enviar vários de uma vez**: um de cada vez neste passo, com o botão (teclado e leitores de ecrã); vários entram depois. |
+| **Vídeos e outros tipos**: a API só aceita JPEG, PNG e WebP (`TIPOS_DE_IMAGEM`, `base/esquema.ts` linha 364).                                                        |
+| **Cortar, rodar ou reduzir a imagem no Hub**: a API guarda os bytes como chegam (sem os metadados); nada se volta a codificar.                                       |
+| **Arrastar ficheiros e enviar vários de uma vez**: um de cada vez neste passo, com o botão (teclado e leitores de ecrã); vários entram depois.                       |
 
 ### 15.2 Como o Hub envia
 
@@ -782,8 +782,8 @@ imagem ainda tem os metadados nesse momento; mede-se depois de aplicar.
 
 ### 15.4 O ecrã
 
-| Onde | O que mostra | Estados além do normal |
-|---|---|---|
+| Onde                          | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                               | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Imagens** (na ficha, §12.2) | Com `catalog:write`: «Acrescentar imagem» (um botão que abre a escolha do ficheiro; aceita JPEG, PNG e WebP). Escolhido o ficheiro: a pré-visualização, o nome e o tamanho, um campo «Texto alternativo» (até 500, obrigatório por omissão), «Guardar» e «Cancelar». A primeira imagem do artigo fica principal. Em cada imagem: «Tirar a imagem», com confirmação («Tirar a imagem do artigo? O ficheiro fica guardado.») | a enviar (com o progresso em percentagem, por `XMLHttpRequest`, e «Cancelar» que pára o envio); ficheiro grande demais (o ecrã diz «Até 10 MB» antes de enviar); tipo errado (antes de enviar, pelo tipo do ficheiro; a API confere os bytes na mesma); a API recusa o ficheiro («não é uma imagem JPEG, PNG ou WebP», «não se conseguiu ler até ao fim»); espaço esgotado; 429 («Há outro envio a decorrer; tente daqui a pouco»); resposta perdida (§15.2); sem permissão |
 
 Sem `catalog:write`, nenhum botão. Depois de guardar, o aviso «Imagem
@@ -797,8 +797,7 @@ API reverifica-as).
   `POST /hub/media/uploads` aceita bytes, e só com a origem do Hub (sem ela,
   403; outro caminho do Hub com `image/png`, 415); `armazém` e `apoio` recebem 403; outro comerciante,
   membro que saiu e sessão terminada são recusados; o «quem» é
-  `pessoa:per_…`; o terceiro envio ao mesmo tempo dá 429; acima de 10 MB,
-  413.
+  `pessoa:per_…`; o terceiro envio ao mesmo tempo dá 429; acima de 10 MB, 413.
 - **VPS**: o `nginx -t` passa com a location nova; um corpo de 1 MB passa em
   `/hub/media/uploads` e dá 413 noutro caminho `/hub/` (medido no ensaio
   depois de aplicar, de fora, sem sessão: a API responde 401 e não 413).
@@ -810,9 +809,9 @@ API reverifica-as).
 
 ## 16. Catálogo: o histórico do artigo (issue #239)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho do histórico do
-artigo»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica
-de fora (*«sim, aprovo o desenho, junta o #240»*). A API já guarda o histórico de cada artigo (`docs/14` §3.12,
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho do histórico do
+artigo»_. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica
+de fora (_«sim, aprovo o desenho, junta o #240»_). A API já guarda o histórico de cada artigo (`docs/14` §3.12,
 migração 0033, #208) e dá-o em `GET /products/{id}/timeline`; o Hub ainda
 não o mostra (`docs/14` §3.12, «Faltas conhecidas»). Este passo **só lê**:
 não grava nada e não muda a VPS (o nginx já deixa passar os `GET` em `/hub/`,
@@ -825,19 +824,19 @@ transparente»». (Nome fictício, como os dados do ensaio, `docs/21` linha 37.)
 
 ### 16.1 O que entra e o que fica de fora
 
-| Entra | Rota da API |
-|---|---|
+| Entra                                                                                                                                                                                                              | Rota da API                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | As alterações do artigo, das variantes, das imagens, das traduções, das opções, das categorias e colecções a que pertence e das publicações, da mais recente para a mais antiga, 25 de cada vez com «Mostrar mais» | `GET /products/{id}/timeline` (`catalogo/rotas-linha-do-tempo.ts`, linhas 114–219): `limite`, `cursor`; devolve `quem`, `em`, `origem`, `transacao`, `entidade`, `entidade_id`, `operacao`, `campos` (antes e depois) |
-| **Quem fez, pelo nome** (§16.2) | o mesmo, mais o nome que a API do Hub junta |
+| **Quem fez, pelo nome** (§16.2)                                                                                                                                                                                    | o mesmo, mais o nome que a API do Hub junta                                                                                                                                                                           |
 
-| Fica de fora, e porquê |
-|---|
-| **Filtrar** por parte (só imagens, só variantes) ou por data: a API já aceita `entidade` e `desde`; entram quando o histórico for longo o bastante para fazer falta. |
-| **Desfazer uma alteração** a partir do histórico: escrever o valor de antes é uma escrita nova, com as regras dela (publicação, tradução); nunca automática e nunca em lote. Desenho à parte, se for pedido. |
-| **O histórico de uma categoria ou colecção** sozinha: a API ainda não tem a rota (`docs/14` §3.12). |
-| **Notas da equipa e anexos**: ainda não existem (`docs/14` §3.12). |
-| **Exportar o histórico**: fica para quando houver um pedido de prova concreto. |
-| **O que mudou antes da migração 0033**: não há entradas, e não se inventa um passado (`docs/14` §3.12). |
+| Fica de fora, e porquê                                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Filtrar** por parte (só imagens, só variantes) ou por data: a API já aceita `entidade` e `desde`; entram quando o histórico for longo o bastante para fazer falta.                                                        |
+| **Desfazer uma alteração** a partir do histórico: escrever o valor de antes é uma escrita nova, com as regras dela (publicação, tradução); nunca automática e nunca em lote. Desenho à parte, se for pedido.                |
+| **O histórico de uma categoria ou colecção** sozinha: a API ainda não tem a rota (`docs/14` §3.12).                                                                                                                         |
+| **Notas da equipa e anexos**: ainda não existem (`docs/14` §3.12).                                                                                                                                                          |
+| **Exportar o histórico**: fica para quando houver um pedido de prova concreto.                                                                                                                                              |
+| **O que mudou antes da migração 0033**: não há entradas, e não se inventa um passado (`docs/14` §3.12).                                                                                                                     |
 | **O histórico de um rascunho apagado**: a API mantém as entradas, mas o ecrã abre-se pela ficha, e a ficha de um artigo apagado dá 404 (revisão do #242, P3-8). Entra se houver onde o pedir (ex.: uma lista dos apagados). |
 
 ### 16.2 Como o Hub lê, e o nome de quem fez
@@ -846,8 +845,8 @@ Como na §12.1: um caminho `/hub/` que chama **a mesma função** da rota pela
 chave (extraída sem mudar a resposta), com a sessão e o cabeçalho
 `Eurolify-Comerciante`:
 
-| Caminho do Hub | A mesma de | Quem |
-|---|---|---|
+| Caminho do Hub                    | A mesma de                    | Quem                                                                                                                                                            |
+| --------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /hub/products/{id}/timeline` | `GET /products/{id}/timeline` | `catalog:history`: o **dono** e o **gestor** (`docs/21` linha 221, migração 0036); o **armazém** e o **apoio** recebem 403, e a ficha não lhes mostra a ligação |
 
 **O nome.** A rota pela chave dá só o identificador (`pessoa:per_…`,
@@ -857,15 +856,15 @@ obrigava o Hub a ler a equipa e as chaves e a decidir sozinho quem é quem.
 Por isso **a API do Hub junta a cada entrada um `autor`**, decidido no
 servidor (uma regra, um sítio):
 
-| `quem` guardado | `autor` | O ecrã mostra |
-|---|---|---|
-| `pessoa:per_…` de quem **é ou foi** membro deste comerciante | `{ nome }`, o nome da conta (pseudonimizada: «Pessoa pseudonimizada», que é o que fica guardado, `docs/21` §13 ponto 7) | o nome |
-| `pessoa:per_…` que nunca foi membro deste comerciante | `{ nome: null }` | «Pessoa de fora desta equipa» (não devia acontecer; não se mostra o nome de quem não é da equipa) |
-| `chave:key_…` deste comerciante | `{ nome }`, o nome da chave | «Chave «{nome}»» |
-| `chave:key_…` que não é deste comerciante, ou apagada | `{ nome: null }` | «Chave de API» |
-| `sistema:<tarefa>` ou `catalogo:<motivo>` | `{ nome: null }` | «Automático»; com `catalogo:verificacao_falhou`, «Automático» e, na publicação, o motivo com o texto que a ficha já usa («Deixou de cumprir as regras de publicação», `textos/pt.ts` linha 404) |
-| `operador:…`, `checkout:…`, `prestador:…` (`tipo_de_autor` `operador`, `consumidor`, `prestador`) | `{ nome: null }` | «Operador», «Cliente», «Prestador de pagamentos» (revisão do #359, P3-3) |
-| outro valor (`tipo_de_autor` `desconhecido`) | `{ nome: null }` | o valor guardado, tal como está |
+| `quem` guardado                                                                                   | `autor`                                                                                                                 | O ecrã mostra                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pessoa:per_…` de quem **é ou foi** membro deste comerciante                                      | `{ nome }`, o nome da conta (pseudonimizada: «Pessoa pseudonimizada», que é o que fica guardado, `docs/21` §13 ponto 7) | o nome                                                                                                                                                                                          |
+| `pessoa:per_…` que nunca foi membro deste comerciante                                             | `{ nome: null }`                                                                                                        | «Pessoa de fora desta equipa» (não devia acontecer; não se mostra o nome de quem não é da equipa)                                                                                               |
+| `chave:key_…` deste comerciante                                                                   | `{ nome }`, o nome da chave                                                                                             | «Chave «{nome}»»                                                                                                                                                                                |
+| `chave:key_…` que não é deste comerciante, ou apagada                                             | `{ nome: null }`                                                                                                        | «Chave de API»                                                                                                                                                                                  |
+| `sistema:<tarefa>` ou `catalogo:<motivo>`                                                         | `{ nome: null }`                                                                                                        | «Automático»; com `catalogo:verificacao_falhou`, «Automático» e, na publicação, o motivo com o texto que a ficha já usa («Deixou de cumprir as regras de publicação», `textos/pt.ts` linha 404) |
+| `operador:…`, `checkout:…`, `prestador:…` (`tipo_de_autor` `operador`, `consumidor`, `prestador`) | `{ nome: null }`                                                                                                        | «Operador», «Cliente», «Prestador de pagamentos» (revisão do #359, P3-3)                                                                                                                        |
+| outro valor (`tipo_de_autor` `desconhecido`)                                                      | `{ nome: null }`                                                                                                        | o valor guardado, tal como está                                                                                                                                                                 |
 
 O tipo de quem fez vem no `tipo_de_autor` de cada entrada (`docs/28` §3.8);
 o `autor` só traz o nome. Um `pessoa:` mal escrito (sem `per_` e o
@@ -883,8 +882,8 @@ mostrar «Pessoa pseudonimizada». A resposta leva
 
 ### 16.3 O ecrã
 
-| Ecrã | O que mostra | Rotas da API | Estados além do normal |
-|---|---|---|---|
+| Ecrã                                                                                                                                                                                                                                                          | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Rotas da API                                                                                         | Estados além do normal                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Histórico do artigo** (`/artigos/{prd_…}/historico?comerciante=mer_…`; abre-se pela ligação «Histórico» na ficha, só para quem tem `catalog:history` nos âmbitos que o `GET /hub/me` dá, como o «Editar» com `catalog:write`, `ecras/Artigo.tsx` linha 159) | O nome do artigo e «Voltar à ficha». Uma lista, da mais recente para a mais antiga, em que **cada alteração** junta as entradas com a mesma `transacao` (ex.: mudar o nome e a publicação sair de venda ficam juntos): o dia e a hora (na hora deste dispositivo, como os outros ecrãs do Hub), quem (§16.2), «pela importação» quando `origem` o diz e, por baixo, uma linha por parte: o quê (§16.4), a operação (criou, alterou, apagou) e, numa alteração, cada campo com o antes → o depois. «Mostrar mais» pede as 25 seguintes (o cursor da API) e o foco vai para a primeira nova. Por cima da lista: «O histórico começa no dia em que esta função entrou; as alterações de antes não aparecem.» | `GET /hub/products/{id}/timeline`; `GET /hub/products/{id}` (o nome do artigo e o SKU das variantes) | a carregar; sem alterações («Ainda não há alterações registadas»); artigo que não existe ou de outro comerciante (404, como a ficha); sem permissão (403, como a lista); erro ao pedir mais (a lista fica; o erro e «Tentar outra vez» por baixo); sessão terminada (para «Entrar») |
 
 ### 16.4 Os campos em linguagem comum
@@ -892,24 +891,24 @@ mostrar «Pessoa pseudonimizada». A resposta leva
 O ecrã traduz as partes e os campos que conhece; os outros aparecem com o
 nome técnico, sem se inventar o que significam.
 
-| Parte (`entidade`) | O ecrã diz |
-|---|---|
-| `artigo` | «o artigo» |
-| `variante` | «a variante {SKU}» (o SKU vem da ficha, que traz também as arquivadas; sem ele, «uma variante») |
-| `media` | «uma imagem» |
-| `traducao` | «uma tradução» (com a língua e o campo, se vierem nos `campos`) |
-| `publicacao` | «uma publicação» (canal e mercado pelo identificador; a ficha mostra os nomes desde a §18, o histórico ainda não) |
-| `opcao`, `valor_opcao`, `variante_valor` | «uma opção», «um valor de opção», «o valor de uma variante» |
-| `componente` | «um componente do kit» |
-| `artigo_categoria`, `colecao_artigo` | «uma categoria», «uma colecção» |
+| Parte (`entidade`)                       | O ecrã diz                                                                                                        |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `artigo`                                 | «o artigo»                                                                                                        |
+| `variante`                               | «a variante {SKU}» (o SKU vem da ficha, que traz também as arquivadas; sem ele, «uma variante»)                   |
+| `media`                                  | «uma imagem»                                                                                                      |
+| `traducao`                               | «uma tradução» (com a língua e o campo, se vierem nos `campos`)                                                   |
+| `publicacao`                             | «uma publicação» (canal e mercado pelo identificador; a ficha mostra os nomes desde a §18, o histórico ainda não) |
+| `opcao`, `valor_opcao`, `variante_valor` | «uma opção», «um valor de opção», «o valor de uma variante»                                                       |
+| `componente`                             | «um componente do kit»                                                                                            |
+| `artigo_categoria`, `colecao_artigo`     | «uma categoria», «uma colecção»                                                                                   |
 
-| Campo | Nome no ecrã |
-|---|---|
-| `nome`, `descricao`, `marca`, `estado`, `tipo` | Nome, Descrição, Marca, Estado (com os nomes da §11.2), Tipo |
-| `sku`, `gtin`, `gtin_origem`, `unidade_de_venda` | SKU, GTIN, Origem do GTIN, Unidade de venda (com os nomes do ecrã de criar, §14) |
-| `conteudo_quantidade`, `conteudo_unidade`, `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | Conteúdo, Unidade do conteúdo, Peso (g), Comprimento, Largura, Altura (mm) |
-| `texto_alternativo`, `principal`, `posicao` | Texto alternativo, Principal, Posição |
-| `motivo_arquivo` | Motivo (com os textos da ficha, §12.2) |
+| Campo                                                                                            | Nome no ecrã                                                                     |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `nome`, `descricao`, `marca`, `estado`, `tipo`                                                   | Nome, Descrição, Marca, Estado (com os nomes da §11.2), Tipo                     |
+| `sku`, `gtin`, `gtin_origem`, `unidade_de_venda`                                                 | SKU, GTIN, Origem do GTIN, Unidade de venda (com os nomes do ecrã de criar, §14) |
+| `conteudo_quantidade`, `conteudo_unidade`, `peso_g`, `comprimento_mm`, `largura_mm`, `altura_mm` | Conteúdo, Unidade do conteúdo, Peso (g), Comprimento, Largura, Altura (mm)       |
+| `texto_alternativo`, `principal`, `posicao`                                                      | Texto alternativo, Principal, Posição                                            |
+| `motivo_arquivo`                                                                                 | Motivo (com os textos da ficha, §12.2)                                           |
 
 **A junção por alteração** junta as entradas **seguidas** com a mesma
 `transacao`. Duas escritas ao mesmo tempo no mesmo artigo podem intercalar
@@ -945,9 +944,9 @@ como texto, nunca como HTML.
 
 ## 17. Catálogo: os preços do artigo na ficha, só para consulta (issue #249)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho dos preços do
-artigo»*. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica de
-fora (*«sim, aprovo o desenho dos preços»*). A parte 2 de Preços (`docs/20` §10, #224) pôs na API as listas, os
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho dos preços do
+artigo»_. Desenho aprovado pelo Diogo a 09/10/2026, com a lista do que fica de
+fora (_«sim, aprovo o desenho dos preços»_). A parte 2 de Preços (`docs/20` §10, #224) pôs na API as listas, os
 preços por variante, as reduções e o preço por unidade. A ficha ainda diz
 que não mostra o preço (§12.2), porque não havia como o ler. Este passo **só
 lê**: não grava nada e não muda a VPS (o nginx já deixa passar os `GET` em
@@ -962,19 +961,19 @@ por unidade 526,6667 €/l.
 
 ### 17.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
+| Entra                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Os preços das variantes do artigo em cada lista **activa** do comerciante: o montante, «gratuito», a quantidade mínima e o múltiplo (quando não são 1), a redução em vigor (o preço reduzido, o de referência e o fim) e o preço por unidade, com o nome da lista, o tipo (base ou B2B), o mercado (nome, estado, moeda) e se os preços incluem IVA |
-| Numa lista sem preço para uma variante: «Sem preço nesta lista» (sem preço na lista base de um mercado, o artigo não se publica nesse mercado, C2) |
+| Numa lista sem preço para uma variante: «Sem preço nesta lista» (sem preço na lista base de um mercado, o artigo não se publica nesse mercado, C2)                                                                                                                                                                                                  |
 
-| Fica de fora, e porquê |
-|---|
-| **Alterar preços, criar ou tirar reduções**: são escritas com regras próprias (`docs/20` §10.2: o preço de referência, `prices.reduction_active`); desenho à parte, se for pedido. |
-| **O histórico de cada preço** (`GET …/history`): existe na API; entra quando houver onde o mostrar sem encher a ficha. |
-| **As listas arquivadas**: não vendem; o histórico delas fica na API. |
+| Fica de fora, e porquê                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Alterar preços, criar ou tirar reduções**: são escritas com regras próprias (`docs/20` §10.2: o preço de referência, `prices.reduction_active`); desenho à parte, se for pedido.                                                       |
+| **O histórico de cada preço** (`GET …/history`): existe na API; entra quando houver onde o mostrar sem encher a ficha.                                                                                                                   |
+| **As listas arquivadas**: não vendem; o histórico delas fica na API.                                                                                                                                                                     |
 | **O preço com o IVA de cada país**: só sai com o Motor de IVA (fatia 6). O Hub mostra o montante como está guardado e diz se inclui IVA (`preco_inclui_iva` do mercado); **nunca calcula IVA** (`eu-vat-oss-ioss`; uma regra, um sítio). |
 | **Arredondar o preço por unidade** para mostrar: a regra é **C** (`docs/20` §3.7 e §10.3). O Hub mostra o valor que o servidor dá, com as quatro casas (arredondado na quarta pelo servidor, `docs/20` §10.3), e diz «com quatro casas». |
-| **Os nomes do canal e do mercado nas publicações** (§12.2): a API já dá os nomes dos mercados (`GET /markets`), mas é outra parte da ficha; entrou num passo próprio (§18). |
+| **Os nomes do canal e do mercado nas publicações** (§12.2): a API já dá os nomes dos mercados (`GET /markets`), mas é outra parte da ficha; entrou num passo próprio (§18).                                                              |
 
 ### 17.2 Como o Hub lê
 
@@ -985,10 +984,10 @@ preços do comerciante e a filtrar ele próprio. Por isso o desenho propõe
 **uma leitura nova, na API e no Hub**, com a mesma função (uma regra, um
 sítio):
 
-| Caminho | Quem | O que dá |
-|---|---|---|
-| `GET /products/{id}/prices` (chave) | `prices:read` | as listas **activas** do comerciante, por ordem de criação e por páginas (o formato das listas, `docs/18` §2a; 25 por omissão), cada uma com o nome, o tipo, o mercado (`id`, `nome`, `estado`, `moeda`, `preco_inclui_iva`) e os preços das variantes **deste artigo** (o mesmo `PrecoEsquema` de `GET /price-lists/{id}/prices`: o montante, gratuito, mínimo, múltiplo, a redução em vigor e o preço por unidade) |
-| `GET /hub/products/{id}/prices` | a sessão com `prices:read` (os quatro papéis, `docs/21` §5 e migração 0036) e o cabeçalho `Eurolify-Comerciante` | o mesmo, pela mesma função |
+| Caminho                             | Quem                                                                                                             | O que dá                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /products/{id}/prices` (chave) | `prices:read`                                                                                                    | as listas **activas** do comerciante, por ordem de criação e por páginas (o formato das listas, `docs/18` §2a; 25 por omissão), cada uma com o nome, o tipo, o mercado (`id`, `nome`, `estado`, `moeda`, `preco_inclui_iva`) e os preços das variantes **deste artigo** (o mesmo `PrecoEsquema` de `GET /price-lists/{id}/prices`: o montante, gratuito, mínimo, múltiplo, a redução em vigor e o preço por unidade) |
+| `GET /hub/products/{id}/prices`     | a sessão com `prices:read` (os quatro papéis, `docs/21` §5 e migração 0036) e o cabeçalho `Eurolify-Comerciante` | o mesmo, pela mesma função                                                                                                                                                                                                                                                                                                                                                                                           |
 
 - **A função** fica no domínio de Preços (`precos/repositorio.ts`), ao lado
   de `precosDaListaComReducoes`, e usa o mesmo cálculo da redução em vigor e
@@ -1002,8 +1001,8 @@ sítio):
 
 ### 17.3 O ecrã
 
-| Ecrã | O que mostra | Rotas da API | Estados além do normal |
-|---|---|---|---|
+| Ecrã                                                                                                 | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Rotas da API                    | Estados além do normal                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ficha do artigo**, secção nova **«Preços»** (entre «Variantes» e «Imagens»; para os quatro papéis) | Uma caixa por lista: o nome da lista, «base» ou «B2B», o mercado (nome e, se não estiver activo, o estado: «mercado em rascunho»), a moeda e «preços com IVA» ou «preços sem IVA». Por baixo, uma linha por variante do artigo (pela ordem da ficha, também as arquivadas, marcadas): SKU; o preço na moeda da lista (`Intl.NumberFormat` com a moeda, a partir dos cêntimos) ou «Gratuito»; numa redução em vigor, o preço reduzido em destaque e «antes {preço de referência} — o mais baixo dos 30 dias antes da redução» e, se tiver fim, «termina a {data e hora}»; o preço por unidade («526,6667 €/l, com quatro casas»); a quantidade mínima e o múltiplo só quando não são 1. Uma variante sem preço nessa lista: «Sem preço nesta lista». «Mostrar mais listas» quando há mais de 25 | `GET /hub/products/{id}/prices` | a carregar (a secção à sua, como as imagens e as publicações, §12.2); sem listas activas («Ainda não há listas de preços activas»); erro só nesta parte (o erro e «Tentar outra vez»; o resto da ficha fica); sem permissão (403: a secção diz que não pode ver os preços) |
 
 **Os textos mudados na revisão do #252** (09/10/2026), para dizerem
@@ -1040,9 +1039,9 @@ com a unidade dela (kg, l, m, m², m³).
 
 ## 18. Catálogo: os nomes do canal e do mercado nas publicações (issue #258)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com os nomes do canal e do
-mercado»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
-desenho, junta o #259»*). A secção «Publicações» da ficha mostra só os identificadores
+Pedido do Diogo, 09/10/2026: _«sim, avança com os nomes do canal e do
+mercado»_. Desenho aprovado pelo Diogo a 09/10/2026 (_«sim, aprovo o
+desenho, junta o #259»_). A secção «Publicações» da ficha mostra só os identificadores
 (`chn_…`, `mkt_…`), porque, quando a ficha foi feita, nenhuma rota dava os
 nomes (§12.2). O domínio de Preços já os tem: o canal e o mercado têm `nome`
 (`docs/20` §3.1 e §3.2; migração 0017). Este passo **só lê** e não muda a
@@ -1072,8 +1071,8 @@ Rascunho» para «Loja online · Portugal · Rascunho».
 
 ### 18.2 O ecrã
 
-| Ecrã | O que muda |
-|---|---|
+| Ecrã                                              | O que muda                                                                                                                                                                                                                                                |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ficha do artigo**, secção «Publicações» (§12.2) | As colunas «Canal» e «Mercado» mostram o nome. O identificador deixa de aparecer na tabela (fica no endereço da API para quem integra). Um nome em falta mostra o identificador, como hoje. Nada mais muda: o estado, a data e o motivo ficam como estão. |
 
 ### 18.3 Antes de dizer que está feito (o pedido do código)
@@ -1093,17 +1092,17 @@ Rascunho» para «Loja online · Portugal · Rascunho».
   P2-1): a base não obriga o nome a ser único (migração 0017 só tem
   `UNIQUE (comerciante_id, id)` e `UNIQUE (comerciante_id, loja_id, id)`),
   e a ficha mostra duas linhas iguais (ex.: uma «Loja online» em cada uma
-  de duas lojas). O Diogo decidiu juntar como está (09/10/2026, *«sim,
-  junta como está»*); trata-se num passo próprio (ex.: juntar o nome da
+  de duas lojas). O Diogo decidiu juntar como está (09/10/2026, _«sim,
+  junta como está»_); trata-se num passo próprio (ex.: juntar o nome da
   loja). Não verifiquei se acontece com dados reais.
 - **Um erro na leitura dos nomes** sai com o código `prices.*` numa rota do
   Catálogo (revisão do #261, P3-6): é raro numa leitura; fica registado.
 
 ## 19. Catálogo: canais e mercados com o mesmo nome nas publicações (issue #271)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho dos canais com o
-mesmo nome»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
-desenho, junta o #272»*). Vem do P2-1 da revisão do #261 (§18.4). Este passo **só
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho dos canais com o
+mesmo nome»_. Desenho aprovado pelo Diogo a 09/10/2026 (_«sim, aprovo o
+desenho, junta o #272»_). Vem do P2-1 da revisão do #261 (§18.4). Este passo **só
 lê** e não muda a VPS.
 
 **O problema**: a base não obriga o nome a ser único, nem o do canal e do
@@ -1132,12 +1131,12 @@ não se distinguem.
 A regra é **só acrescentar quando há repetição**: a maioria dos
 comerciantes tem uma loja, e a tabela fica como hoje.
 
-| Caso, dentro da tabela «Publicações» de um artigo | O que a coluna «Canal» (ou «Mercado») mostra |
-|---|---|
-| O nome não se repete noutra linha com outro canal (mercado) | Só o nome, como hoje: «Loja online» |
-| O mesmo nome noutra linha, com outro canal (mercado), de **outra loja com outro nome** | O nome e, por baixo, a loja em texto secundário: «Loja online» / «Loja Norte» |
+| Caso, dentro da tabela «Publicações» de um artigo                                                                   | O que a coluna «Canal» (ou «Mercado») mostra                                                                               |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| O nome não se repete noutra linha com outro canal (mercado)                                                         | Só o nome, como hoje: «Loja online»                                                                                        |
+| O mesmo nome noutra linha, com outro canal (mercado), de **outra loja com outro nome**                              | O nome e, por baixo, a loja em texto secundário: «Loja online» / «Loja Norte»                                              |
 | O mesmo nome e **a mesma loja** (dois canais com o mesmo nome na mesma loja), ou duas lojas também com o mesmo nome | O nome e, por baixo, o identificador em texto secundário (`chn_…`, `mkt_…`), como antes da §18: é o único que os distingue |
-| O nome não veio | O identificador, como hoje (§18.2) |
+| O nome não veio                                                                                                     | O identificador, como hoje (§18.2)                                                                                         |
 
 - A decisão é **por coluna**: o canal e o mercado avaliam-se à parte (ex.:
   dois canais «Loja online» de lojas diferentes, com mercados «Portugal» e
@@ -1147,8 +1146,8 @@ comerciantes tem uma loja, e a tabela fica como hoje.
   célula, por isso são lidos com o nome. O identificador leva
   `translate="no"`. Antes da loja, um «Loja:» só para leitores de ecrã
   (invisível no ecrã), para se ouvir «Loja online, Loja: Norte» (decisão
-  do Diogo, 09/10/2026, *«sim, acrescenta o «Loja:» para leitores de
-  ecrã»*; revisão do #275, P3-6).
+  do Diogo, 09/10/2026, _«sim, acrescenta o «Loja:» para leitores de
+  ecrã»_; revisão do #275, P3-6).
 - **Telemóvel** (cartões, `data-rotulo`): a mesma célula, sem mudar o
   rótulo.
 
@@ -1158,8 +1157,8 @@ comerciantes tem uma loja, e a tabela fica como hoje.
   arquivada mantém o nome; o nome de uma loja de outro comerciante não
   vem; o contrato do Hub tem o campo e o da chave não.
 - **Prova pela falha**: tirar o filtro do comerciante na leitura da loja
-  faz falhar o teste de outro comerciante (como na §18.3). *Nota do
-  código (revisão do #275, P2-2):* a loja lê-se pelo JOIN com o canal, que
+  faz falhar o teste de outro comerciante (como na §18.3). _Nota do
+  código (revisão do #275, P2-2):_ a loja lê-se pelo JOIN com o canal, que
   já tem o filtro do comerciante; o filtro escrito na loja é uma segunda
   guarda e tirá-lo sozinho não muda o resultado. A prova é a do canal
   (§18.3), e a de que cada publicação traz a sua loja é um teste com duas
@@ -1170,9 +1169,9 @@ comerciantes tem uma loja, e a tabela fica como hoje.
 
 ## 20. Catálogo: as opções do artigo na ficha, só para consulta (issue #278)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho das opções»*. Desenho
-aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o desenho, junta o
-#279»*). As
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho das opções»_. Desenho
+aprovado pelo Diogo a 09/10/2026 (_«sim, aprovo o desenho, junta o
+#279»_). As
 opções são as escolhas que distinguem as variantes de um artigo (ex.: «Cor»
 com «Azul» e «Rosa», «Tamanho» com «15 ml» e «30 ml»; `docs/14` §3.3). A
 ficha hoje mostra as variantes só pelo SKU, sem dizer qual é a azul. Este
@@ -1204,12 +1203,12 @@ Unidade…» para «ENS-001 · 15 ml · Activa · Unidade…».
 
 ### 20.2 O ecrã
 
-| Ecrã | O que muda |
-|---|---|
+| Ecrã                                            | O que muda                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Ficha do artigo**, tabela «Variantes» (§12.2) | Uma coluna por opção, pela ordem das opções, entre o SKU e o estado, com o valor da variante (ex.: «Tamanho: 15 ml»). Uma variante sem valor nessa opção (um rascunho incompleto, `docs/14` §3.3) mostra «—». Nos cartões do telemóvel, o rótulo é o nome da opção (`data-rotulo`). |
-| **Ficha do artigo**, por cima da tabela | Uma linha «Opções: Tamanho (15 ml, 30 ml) · Cor (Azul, Rosa)», com todos os valores pela ordem, também os que nenhuma variante usa. |
-| Artigo **sem opções** | Nada muda: nem colunas nem a linha. |
-| As opções **falham ao ler** | A tabela fica como hoje e, por cima, «Não foi possível ler as opções» com «Tentar outra vez» (cada parte falha sozinha, §12.2). |
+| **Ficha do artigo**, por cima da tabela         | Uma linha «Opções: Tamanho (15 ml, 30 ml) · Cor (Azul, Rosa)», com todos os valores pela ordem, também os que nenhuma variante usa.                                                                                                                                                 |
+| Artigo **sem opções**                           | Nada muda: nem colunas nem a linha.                                                                                                                                                                                                                                                 |
+| As opções **falham ao ler**                     | A tabela fica como hoje e, por cima, «Não foi possível ler as opções» com «Tentar outra vez» (cada parte falha sozinha, §12.2).                                                                                                                                                     |
 
 ### 20.3 Antes de dizer que está feito (o pedido do código)
 
@@ -1225,9 +1224,9 @@ Unidade…» para «ENS-001 · 15 ml · Activa · Unidade…».
 
 ## 21. Catálogo: escrever as opções do artigo (issue #285)
 
-Pedido do Diogo, 09/10/2026: *«sim, avança com o desenho da escrita das
-opções»*. Desenho aprovado pelo Diogo a 09/10/2026 (*«sim, aprovo o
-desenho, junta o #286»*). A §20 pôs as opções na ficha só para
+Pedido do Diogo, 09/10/2026: _«sim, avança com o desenho da escrita das
+opções»_. Desenho aprovado pelo Diogo a 09/10/2026 (_«sim, aprovo o
+desenho, junta o #286»_). A §20 pôs as opções na ficha só para
 consulta; este passo deixa escrevê-las pelo Hub. Ex.: a gestora da «Loja de
 Ensaio» cria o rascunho «Verniz Verde 31» com duas variantes (§14), abre
 «Editar opções», cria «Tamanho» com «15 ml» e «30 ml», dá «15 ml» à
@@ -1237,20 +1236,20 @@ acrescenta «50 ml» e passa-o para o primeiro lugar, mas já não pode mudar
 
 ### 21.1 O que entra e o que fica de fora
 
-| Entra | Rota da API (o `docs/14` §7.1, «A escrita das opções») |
-|---|---|
-| Criar uma opção com os valores (rascunho) | `POST /products/{id}/options` (já existe) |
-| Acrescentar um valor no fim (sempre) | `POST /options/{id}/values` (já existe) |
-| Mudar o nome de uma opção ou o texto de um valor (rascunho) | `PATCH /options/{id}`, `PATCH /options/{id}/values/{valor}` (novas) |
-| Apagar uma opção ou um valor (rascunho) | `DELETE /options/{id}`, `DELETE /options/{id}/values/{valor}` (novas) |
-| Mudar a ordem das opções e dos valores (sempre) | `PUT /products/{id}/options/order`, `PUT /options/{id}/values/order` (novas) |
-| Dar valores às variantes (rascunho) | `PUT /variants/{id}/values` (nova) |
+| Entra                                                       | Rota da API (o `docs/14` §7.1, «A escrita das opções»)                       |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Criar uma opção com os valores (rascunho)                   | `POST /products/{id}/options` (já existe)                                    |
+| Acrescentar um valor no fim (sempre)                        | `POST /options/{id}/values` (já existe)                                      |
+| Mudar o nome de uma opção ou o texto de um valor (rascunho) | `PATCH /options/{id}`, `PATCH /options/{id}/values/{valor}` (novas)          |
+| Apagar uma opção ou um valor (rascunho)                     | `DELETE /options/{id}`, `DELETE /options/{id}/values/{valor}` (novas)        |
+| Mudar a ordem das opções e dos valores (sempre)             | `PUT /products/{id}/options/order`, `PUT /options/{id}/values/order` (novas) |
+| Dar valores às variantes (rascunho)                         | `PUT /variants/{id}/values` (nova)                                           |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Criar uma variante num artigo que já existe**: o Hub só cria variantes com o artigo (§14). Num artigo activo com opções, uma variante nova entra já com os valores (`docs/14` §3.3); é um passo próprio. |
-| **Traduzir os nomes e os valores**: o passo das traduções (`docs/14` §3.3, parte 3). |
-| **Arrastar para ordenar**: «Mover para antes» e «Mover para depois», como nas imagens (§13.4), por serem do teclado e dos leitores de ecrã. |
+| **Traduzir os nomes e os valores**: o passo das traduções (`docs/14` §3.3, parte 3).                                                                                                                       |
+| **Arrastar para ordenar**: «Mover para antes» e «Mover para depois», como nas imagens (§13.4), por serem do teclado e dos leitores de ecrã.                                                                |
 
 ### 21.2 Como o Hub escreve
 
@@ -1275,13 +1274,13 @@ acrescenta «50 ml» e passa-o para o primeiro lugar, mas já não pode mudar
 
 ### 21.3 O ecrã
 
-| Onde | O que muda | Estados além do normal |
-|---|---|---|
-| **Ficha** (§20.2), por cima da tabela das variantes | Com `catalog:write` e um artigo que não é externo: «Editar opções» (num artigo sem opções: «Criar opções»). | — |
-| **Editar opções** (`/artigos/{prd_…}/opcoes`) | Uma caixa por opção, pela ordem: o nome (campo, só em rascunho), os valores pela ordem, cada um com o texto (campo, só em rascunho), «Mover para antes», «Mover para depois» e «Apagar» (só em rascunho); no fim da caixa, «Acrescentar valor» (sempre). Por baixo das caixas, «Criar opção» (só em rascunho: o nome e um valor por linha). «Voltar à ficha» leva de volta. | a guardar; erro da API ao lado do campo (ex.: «Já há uma opção com este nome»); conflito de versão (§21.2) |
-| **Apagar** | Pede confirmação. Uma opção: «Apagar a opção Tamanho tira-a das 2 variantes que a têm. Não se desfaz.» (com uma ou nenhuma variante, o texto diz isso) Um valor: «As variantes com 30 ml ficam sem valor em Tamanho. Não se desfaz.» | duas variantes iguais depois de apagar: a frase da API («duas variantes activas com a mesma combinação») |
-| **Valores das variantes** (na mesma página, só em rascunho) | Uma tabela com uma linha por variante activa (SKU) e uma lista de escolha por opção («—» sem valor); «Guardar» por linha. Por cima, quantas variantes estão incompletas: «1 variante ainda sem valor numa das opções: o artigo não se activa assim.» (revisão do #297, P3-4) | a guardar; erro da API na linha |
-| **Activar** (cabeçalho da ficha, §13.4) | Sem mudanças: se faltar um valor, a API recusa com `catalog.options_incomplete` e o ecrã diz «Cada variante activa leva um valor de cada opção», com a ligação «Editar opções». | — |
+| Onde                                                        | O que muda                                                                                                                                                                                                                                                                                                                                                                  | Estados além do normal                                                                                     |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Ficha** (§20.2), por cima da tabela das variantes         | Com `catalog:write` e um artigo que não é externo: «Editar opções» (num artigo sem opções: «Criar opções»).                                                                                                                                                                                                                                                                 | —                                                                                                          |
+| **Editar opções** (`/artigos/{prd_…}/opcoes`)               | Uma caixa por opção, pela ordem: o nome (campo, só em rascunho), os valores pela ordem, cada um com o texto (campo, só em rascunho), «Mover para antes», «Mover para depois» e «Apagar» (só em rascunho); no fim da caixa, «Acrescentar valor» (sempre). Por baixo das caixas, «Criar opção» (só em rascunho: o nome e um valor por linha). «Voltar à ficha» leva de volta. | a guardar; erro da API ao lado do campo (ex.: «Já há uma opção com este nome»); conflito de versão (§21.2) |
+| **Apagar**                                                  | Pede confirmação. Uma opção: «Apagar a opção Tamanho tira-a das 2 variantes que a têm. Não se desfaz.» (com uma ou nenhuma variante, o texto diz isso) Um valor: «As variantes com 30 ml ficam sem valor em Tamanho. Não se desfaz.»                                                                                                                                        | duas variantes iguais depois de apagar: a frase da API («duas variantes activas com a mesma combinação»)   |
+| **Valores das variantes** (na mesma página, só em rascunho) | Uma tabela com uma linha por variante activa (SKU) e uma lista de escolha por opção («—» sem valor); «Guardar» por linha. Por cima, quantas variantes estão incompletas: «1 variante ainda sem valor numa das opções: o artigo não se activa assim.» (revisão do #297, P3-4)                                                                                                | a guardar; erro da API na linha                                                                            |
+| **Activar** (cabeçalho da ficha, §13.4)                     | Sem mudanças: se faltar um valor, a API recusa com `catalog.options_incomplete` e o ecrã diz «Cada variante activa leva um valor de cada opção», com a ligação «Editar opções».                                                                                                                                                                                             | —                                                                                                          |
 
 Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
 
@@ -1303,7 +1302,7 @@ Sem `catalog:write`, nada disto aparece e a ficha fica como na §20.
 
 ## 22. As chaves a propor revogar depois de recuperar a conta (issue #107)
 
-Decisão do Diogo, 10/10/2026: *«só propor, não revogar sozinho»*
+Decisão do Diogo, 10/10/2026: _«só propor, não revogar sozinho»_
 (`docs/06`, DC; `docs/21` §12, revisão do #149, P2-1). Depois de recuperar
 a conta, todas as sessões terminam, mas as chaves de API que a pessoa criou
 continuam a funcionar. Uma sessão roubada pode ter criado uma chave, e essa
@@ -1313,19 +1312,20 @@ chave fica.
 das três linhas que já lá estavam, aparece um bloco por cada comerciante de
 que a pessoa é dona: «Chaves de API que criou em «Loja de Ensaio»».
 
-| O quê | Como |
-|---|---|
-| Que chaves | as **activas** (nem revogadas nem expiradas) com `criada_por = pessoa:<esta pessoa>`, da mais nova para a mais antiga. As de outros membros, do operador ou criadas por outra chave não aparecem: não são desta pessoa |
-| Colunas | nome, começo da chave, criada em, último uso, «Revogar» |
-| Revogar | uma a uma, com a mesma confirmação e a mesma autenticação recente do ecrã das chaves (§9.3), e a mesma rota (`POST /hub/keys/{id}/revoke`). **Não há «revogar todas» nem nada automático** (DC) |
-| Sem chaves | «Não criou nenhuma chave activa neste comerciante.» |
-| Falha ao ler | a caixa de erro com «Tentar outra vez», só nesse bloco (os outros e o resto do aviso continuam) |
-| Rotas | `GET /hub/keys?comerciante=` (já existe); a API não muda |
-| Fechar o aviso | fecha também os blocos; as chaves continuam no ecrã «Chaves de API» |
+| O quê          | Como                                                                                                                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Que chaves     | as **activas** (nem revogadas nem expiradas) com `criada_por = pessoa:<esta pessoa>`, da mais nova para a mais antiga. As de outros membros, do operador ou criadas por outra chave não aparecem: não são desta pessoa |
+| Colunas        | nome, começo da chave, criada em, último uso, «Revogar»                                                                                                                                                                |
+| Revogar        | uma a uma, com a mesma confirmação e a mesma autenticação recente do ecrã das chaves (§9.3), e a mesma rota (`POST /hub/keys/{id}/revoke`). **Não há «revogar todas» nem nada automático** (DC)                        |
+| Sem chaves     | «Não criou nenhuma chave activa neste comerciante.»                                                                                                                                                                    |
+| Falha ao ler   | a caixa de erro com «Tentar outra vez», só nesse bloco (os outros e o resto do aviso continuam)                                                                                                                        |
+| Rotas          | `GET /hub/keys?comerciante=` (já existe); a API não muda                                                                                                                                                               |
+| Fechar o aviso | fecha também os blocos; as chaves continuam no ecrã «Chaves de API»                                                                                                                                                    |
 
 **Antes de dizer que está feito:** um teste da escolha das chaves (activas,
 desta pessoa, pela ordem) e a passagem pelo Chromium. A passagem faz uma
 segunda recuperação da Ana, depois de ela criar chaves (§9.3), e confere:
+
 - aparecem as chaves activas dela nesse comerciante, contadas na base
   (hoje, «Com prazo» e «Sem resposta»);
 - não aparecem a revogada nem a do operador (as de outro membro e as
@@ -1337,9 +1337,9 @@ Capturas a 375 e 1280 px, claro e escuro, para a página de aprovação.
 
 ## 23. Catálogo: alterar uma variante (issue #301)
 
-Pedido do Diogo, 10/10/2026: *«sim, avança com o desenho de alterar uma
-variante»*. **Aprovado pelo Diogo a 10/10/2026**: *«sim, aprovo o desenho,
-junta o #302»*. A §13.1 deixou de fora «alterar uma
+Pedido do Diogo, 10/10/2026: _«sim, avança com o desenho de alterar uma
+variante»_. **Aprovado pelo Diogo a 10/10/2026**: _«sim, aprovo o desenho,
+junta o #302»_. A §13.1 deixou de fora «alterar uma
 variante» por não haver rota; o `docs/14` §7.1 («Alterar uma variante»)
 desenha-a. Ex.: a gestora da «Loja de Ensaio» vê na ficha do «Verniz Rosa
 2» que a publicação diz «peso em falta», carrega em «Editar» na linha da
@@ -1358,9 +1358,9 @@ desenha-a. Ex.: a gestora da «Loja de Ensaio» vê na ficha do «Verniz Rosa
 
 ### 23.2 O ecrã
 
-| Onde | O que muda | Estados além do normal |
-|---|---|---|
-| **Ficha**, tabela «Variantes» (§12.2) | Com `catalog:write`, em cada variante activa: «Editar» ao lado de «Arquivar variante». | — |
+| Onde                                                         | O que muda                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Estados além do normal                                                                                                                                                                                     |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ficha**, tabela «Variantes» (§12.2)                        | Com `catalog:write`, em cada variante activa: «Editar» ao lado de «Arquivar variante».                                                                                                                                                                                                                                                                                                                                                                                  | —                                                                                                                                                                                                          |
 | **Editar a variante** (`/artigos/{prd_…}/variantes/{var_…}`) | O SKU à vista, sem campo (não muda). Campos: peso (g), comprimento, largura e altura (mm), GTIN e a origem dele (uma lista: «GS1 do comerciante», «Do fornecedor», «Interno»), ONU e classe ADR, como no ecrã de criar (§14). Num rascunho, também a unidade de venda e o conteúdo; depois de activo, aparecem só para ler, com «A unidade e o conteúdo só mudam enquanto o artigo é rascunho». «Guardar» e «Cancelar»; sair com alterações por guardar pergunta antes. | a guardar; o erro da API ao lado do campo (ex.: «Este GTIN já existe noutra variante»); conflito de versão (§23.1); variante arquivada (não abre o formulário: «Esta variante está arquivada e não muda.») |
 
 ### 23.3 Antes de dizer que está feito (o pedido do código)
@@ -1379,9 +1379,9 @@ desenha-a. Ex.: a gestora da «Loja de Ensaio» vê na ficha do «Verniz Rosa
 
 ## 24. Catálogo: acrescentar uma variante a um artigo existente (issue #321)
 
-Pedido do Diogo, 10/10/2026 («continuar», à pergunta *«Avanço com o
-desenho de "acrescentar uma variante" no Hub?»*). **Aprovado pelo
-Diogo a 10/10/2026**: *«aprovado»*. A §14 cria o artigo com as variantes; a §23 edita e a §12.2
+Pedido do Diogo, 10/10/2026 («continuar», à pergunta _«Avanço com o
+desenho de "acrescentar uma variante" no Hub?»_). **Aprovado pelo
+Diogo a 10/10/2026**: _«aprovado»_. A §14 cria o artigo com as variantes; a §23 edita e a §12.2
 arquiva cada uma. Falta acrescentar uma variante a um artigo que já existe.
 A API pela chave já o faz (`POST /products/{id}/variants`, `docs/14` §7.1);
 o Hub ainda não tem a rota. Ex.: o «Gel Coral 41» vende-se à unidade
@@ -1391,7 +1391,7 @@ GTIN do fornecedor e 400 g.
 ### 24.1 Como o Hub escreve
 
 - `POST /hub/products/{id}/variants`, a mesma função do `POST
-  /products/{id}/variants`, com a sessão de quem tem `catalog:write` (o dono
+/products/{id}/variants`, com a sessão de quem tem `catalog:write` (o dono
   e o gestor) e o `eurolify.quem` da pessoa (como a §13.2). O corpo é o
   mesmo: o SKU, a unidade, o GTIN com a origem, o conteúdo, o peso, as
   dimensões, o ONU, a classe ADR e os `valores` (um `ovl_…` por opção).
@@ -1414,9 +1414,9 @@ GTIN do fornecedor e 400 g.
 
 ### 24.2 O ecrã
 
-| Onde | O que muda | Estados além do normal |
-|---|---|---|
-| **Ficha**, secção «Variantes» (§12.2) | Com `catalog:write`, num artigo que não é do sistema de gestão: o botão «Acrescentar variante», por baixo da tabela. | — |
+| Onde                                                         | O que muda                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Estados além do normal                                                                                                                                                                                                                |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ficha**, secção «Variantes» (§12.2)                        | Com `catalog:write`, num artigo que não é do sistema de gestão: o botão «Acrescentar variante», por baixo da tabela.                                                                                                                                                                                                                                                                                                                                                                                                                                                       | —                                                                                                                                                                                                                                     |
 | **Acrescentar variante** (`/artigos/{prd_…}/variantes/nova`) | Os campos da §23.2, com o SKU e a unidade de venda obrigatórios e todos editáveis (a unidade e o conteúdo de uma variante nova escolhem-se sempre, também num artigo activo). Se o artigo tem opções, uma lista por opção, com os valores dela; num rascunho podem ficar por escolher, depois de activo são obrigatórias. «Criar variante» e «Cancelar»; sair com o formulário escrito pergunta antes. Depois de criar, volta à ficha com «Variante {sku} criada.» e, num artigo publicado, «Fica fora das lojas onde o artigo está à venda até a publicação ser refeita.» | a criar; o erro da API ao lado do campo (SKU que já existe, GTIN repetido ou inválido, combinação repetida, valor em falta); a resposta perdida (§24.1); artigo externo, sem permissão ou que não existe (só o aviso, sem formulário) |
 
 ### 24.3 O que fica de fora, e porquê
@@ -1444,10 +1444,10 @@ GTIN do fornecedor e 400 g.
 
 ## 25. Catálogo: definir e tirar o preço de uma variante numa lista (issue #335)
 
-Pedido do Diogo, 10/10/2026 («avançar», à pergunta *«Avanço com o desenho
-de "editar os preços de uma variante" no Hub?»*). **Aprovado pelo Diogo a
-10/10/2026**, com a Q1 em «sim» (*«sim»*, à pergunta *«Aprova o desenho, e
-com a Q1 em "sim"?»*). A §17 só mostra os
+Pedido do Diogo, 10/10/2026 («avançar», à pergunta _«Avanço com o desenho
+de "editar os preços de uma variante" no Hub?»_). **Aprovado pelo Diogo a
+10/10/2026**, com a Q1 em «sim» (_«sim»_, à pergunta _«Aprova o desenho, e
+com a Q1 em "sim"?»_). A §17 só mostra os
 preços. Uma variante acrescentada no Hub (§24) nasce sem preço, e sem preço
 na lista base de um mercado o artigo não se publica nesse mercado
 (`docs/14` §5, C2). A API pela chave já define e tira preços
@@ -1463,26 +1463,26 @@ o servidor calculou.
 
 ### 25.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
+| Entra                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Definir** o preço de uma variante activa numa lista activa (criá-lo ou mudá-lo): o montante na moeda da lista, «gratuito», a quantidade mínima e o múltiplo |
-| **Tirar** o preço de uma variante de uma lista (fica no histórico, com a saída, `docs/20` §3.5) |
+| **Tirar** o preço de uma variante de uma lista (fica no histórico, com a saída, `docs/20` §3.5)                                                               |
 
-| Fica de fora, e porquê |
-|---|
-| **Anunciar ou tirar uma redução** (o preço riscado): o preço de referência dos 30 dias tem regras ainda **C** (Dir. 98/6/CE, art. 6.º-A; `docs/20` §3.6, à espera do jurista). Passo à parte, se for pedido. |
-| **Criar, arquivar ou mudar listas e mercados**: outro ecrã, ainda por desenhar. |
+| Fica de fora, e porquê                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Anunciar ou tirar uma redução** (o preço riscado): o preço de referência dos 30 dias tem regras ainda **C** (Dir. 98/6/CE, art. 6.º-A; `docs/20` §3.6, à espera do jurista). Passo à parte, se for pedido.                                                                   |
+| **Criar, arquivar ou mudar listas e mercados**: outro ecrã, ainda por desenhar.                                                                                                                                                                                                |
 | **Preços de variantes arquivadas**: não se vendem; o botão aparece só nas activas. A API não as recusa, nem pela chave nem pelo Hub (uma variante arquivada pode ter preço, e repô-la volta a vendê-la com ele); é uma escolha do ecrã, não uma regra (revisão do #339, P3-2). |
-| **O histórico de cada preço**: como na §17, entra quando houver onde o mostrar. |
-| **Mostrar o IVA ou o preço por unidade no formulário**: o servidor calcula; o Hub mostra-os na ficha, depois de gravar (R1, R7; uma regra, um sítio). |
-| **Pôr a variante à venda**: com preço, a variante nova continua fora das publicações até a publicação ser refeita (§24.3). |
+| **O histórico de cada preço**: como na §17, entra quando houver onde o mostrar.                                                                                                                                                                                                |
+| **Mostrar o IVA ou o preço por unidade no formulário**: o servidor calcula; o Hub mostra-os na ficha, depois de gravar (R1, R7; uma regra, um sítio).                                                                                                                          |
+| **Pôr a variante à venda**: com preço, a variante nova continua fora das publicações até a publicação ser refeita (§24.3).                                                                                                                                                     |
 
 ### 25.2 Como o Hub escreve
 
-| Caminho | Quem | O que faz |
-|---|---|---|
-| `PUT /hub/price-lists/{id}/prices/{variante}` | a sessão com `prices:write` (o dono e o gestor; `docs/20` §10.1) | a mesma função do `PUT` pela chave (`definirPreco`), com o `eurolify.quem` da pessoa; o corpo é o mesmo (`montante`, `gratuito`, `quantidade_minima`, `multiplo`) e leva também a `versao` lida |
-| `DELETE /hub/price-lists/{id}/prices/{variante}` | a mesma | a mesma função do `DELETE` pela chave (`tirarPreco`); a `versao` lida vai no corpo, como nas outras escritas do Hub (§21.2) |
+| Caminho                                          | Quem                                                             | O que faz                                                                                                                                                                                       |
+| ------------------------------------------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /hub/price-lists/{id}/prices/{variante}`    | a sessão com `prices:write` (o dono e o gestor; `docs/20` §10.1) | a mesma função do `PUT` pela chave (`definirPreco`), com o `eurolify.quem` da pessoa; o corpo é o mesmo (`montante`, `gratuito`, `quantidade_minima`, `multiplo`) e leva também a `versao` lida |
+| `DELETE /hub/price-lists/{id}/prices/{variante}` | a mesma                                                          | a mesma função do `DELETE` pela chave (`tirarPreco`); a `versao` lida vai no corpo, como nas outras escritas do Hub (§21.2)                                                                     |
 
 - **O preço lido.** O preço já tem uma `versao` na base (0017: sobe em cada
   escrita), mas a API não a mostrava (`docs/20` §10.1). Todas as respostas
@@ -1522,9 +1522,9 @@ o servidor calculou.
 
 ### 25.3 O ecrã
 
-| Onde | O que muda | Estados além do normal |
-|---|---|---|
-| **Ficha**, secção «Preços» (§17.3) | Com `prices:write`: em cada variante activa, «Alterar preço» quando tem preço e «Definir preço» quando a lista diz «Sem preço nesta lista». | — |
+| Onde                                                              | O que muda                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ficha**, secção «Preços» (§17.3)                                | Com `prices:write`: em cada variante activa, «Alterar preço» quando tem preço e «Definir preço» quando a lista diz «Sem preço nesta lista».                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | **Preço da variante** (`/artigos/{prd_…}/precos/{prl_…}/{var_…}`) | No topo, a variante (SKU) e a lista (nome, mercado, moeda e «preços com IVA» ou «preços sem IVA», como na §17.3). Os campos: **Preço** («Preço com IVA (€)» ou «Preço sem IVA (€)», conforme o mercado), **Gratuito** (uma caixa; marcada, o preço fica 0 e não se escreve), **Quantidade mínima** e **Múltiplo** (1 por omissão). «Guardar», «Cancelar» e, quando há preço, «Tirar o preço desta lista», que pergunta antes. Numa lista base, a pergunta diz: «Sem preço na lista base, o artigo deixa de se poder publicar em {mercado}.» Depois de gravar, volta à ficha com «Preço de {sku} em {lista} guardado.» ou «Preço de {sku} tirado de {lista}.». Sair com o formulário mudado pergunta antes. | a gravar; o erro da API ao lado do campo (montante inválido, gratuito só a 0, quantidades); **com uma redução em vigor**: o preço e «gratuito» só de leitura, com «Este preço tem uma redução em vigor{até}: muda-se quando a redução acabar.» (as quantidades mudam); conflito (409: «Outra pessoa mudou este preço entretanto.», o formulário passa a partir do guardado e fica o que a pessoa escreveu, como a §23); variante publicada (409 ao tirar: «A variante está à venda em {mercado}: o preço não sai da lista base.»); a resposta perdida (§25.2); sem permissão, lista ou variante que não existe (só o aviso, sem formulário) |
 
 - **Escrever o montante.** O campo aceita o preço como se escreve na
@@ -1550,18 +1550,18 @@ o servidor calculou.
 
 ### 25.4 Por onde é que isto ainda pode sair errado
 
-| Risco | O que o evita |
-|---|---|
-| Um preço a 0,00 € por engano | a base recusa 0 sem «gratuito» (R4); o ecrã só manda 0 com a caixa marcada |
+| Risco                                                 | O que o evita                                                                                                                                          |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Um preço a 0,00 € por engano                          | a base recusa 0 sem «gratuito» (R4); o ecrã só manda 0 com a caixa marcada                                                                             |
 | «39,90» lido como 3990,00 € ou 39,9 lido como 39,09 € | a conversão é por texto, com no máximo as casas da moeda, e tem testes de unidade com os casos («39,9» → 3990; «39,905» recusado; «1.234,50» recusado) |
-| Duas pessoas mudam o mesmo preço | a versão (§25.2): a segunda recebe 409 |
-| Tirar o preço da lista base de um artigo à venda | a base recusa (`prices.published_variant`); a pergunta antes avisa o que acontece nos outros casos |
-| Uma chave ou um papel sem `prices:write` muda preços | a rota confere o âmbito da sessão; o armazém e o apoio recebem 403 (teste) |
+| Duas pessoas mudam o mesmo preço                      | a versão (§25.2): a segunda recebe 409                                                                                                                 |
+| Tirar o preço da lista base de um artigo à venda      | a base recusa (`prices.published_variant`); a pergunta antes avisa o que acontece nos outros casos                                                     |
+| Uma chave ou um papel sem `prices:write` muda preços  | a rota confere o âmbito da sessão; o armazém e o apoio recebem 403 (teste)                                                                             |
 
 ### 25.5 Decidido
 
 **Q1. Num artigo que vem do sistema de gestão (P5), os preços editam-se no
-Hub?** ✅ **Decidido: sim** (Diogo, 10/10/2026, *«sim»*). A decisão da §13.3 lista só os dados do artigo e das variantes; os
+Hub?** ✅ **Decidido: sim** (Diogo, 10/10/2026, _«sim»_). A decisão da §13.3 lista só os dados do artigo e das variantes; os
 preços não estão nela. Editam-se, como as imagens. Os preços são do
 domínio de Preços e não dos dados que vêm de lá. Se o sistema de gestão
 também mandar preços pela chave, vale o último a gravar, e o histórico diz
@@ -1603,7 +1603,7 @@ quem foi (`definido_por`).
 
 ## 26. O rasto de auditoria no Hub: as seis respostas (issue #322, passo 4, parte 5)
 
-Pedido do Diogo, 11/10/2026: *«avança com o desenho do ecrã do Hub»*. O
+Pedido do Diogo, 11/10/2026: _«avança com o desenho do ecrã do Hub»_. O
 rasto já responde às seis perguntas na API (`docs/28` §1; decisões DK e DO,
 Q5 a Q8; #342, #345, #349, #351, #354); o Hub ainda só mostra quem, quando e
 o antes → depois (§16). Este passo **só lê** no histórico; no ecrã das chaves
@@ -1620,33 +1620,33 @@ do próprio dono no Hub: «No Hub · Autorizado por Ana Teste».
 
 ### 26.1 O que entra e o que fica de fora
 
-| Entra | Onde | Rota da API |
-|---|---|---|
+| Entra                                                                                                                                                                                                   | Onde                        | Rota da API                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Em cada alteração do histórico do artigo, **uma linha de contexto** por baixo de quem e quando: de onde veio, a IA (só quando declarada ou comprovada), quem autorizou ou o aviso, e o motivo quando há | Histórico do artigo (§16.3) | `GET /hub/products/{id}/timeline`, que já traz `canal`, `pedido`, `ia`, `autorizado_por`, `motivo`, `tipo_de_autor`, `a_pedido_de`, `a_pedido_de_tipo` e `sem_autorizacao_de_pessoa` |
-| **O nome** de quem autorizou e de quem pediu uma tarefa | o mesmo | a mesma: a API do Hub junta `autor_autorizou` e `autor_do_pedido`, decididos no servidor como o `autor` de hoje (§16.2) |
-| **«Detalhes»** de cada alteração (um `<details>`, fechado): o n.º do pedido, a execução da IA e a IA «desconhecida» quando nada a indica | o mesmo | a mesma |
-| Ao **criar uma chave**, a caixa «Chave de um agente de IA», com a explicação; na lista, a etiqueta «Agente de IA» | Chaves (§9.3) | `POST /hub/keys` e `GET /hub/keys`, que já aceitam e devolvem `agente_ia` (#342) |
-| Os nomes dos âmbitos `prices:*` no ecrã das chaves (hoje saem vazios; revisão do #349, P3-5) | Chaves | — |
+| **O nome** de quem autorizou e de quem pediu uma tarefa                                                                                                                                                 | o mesmo                     | a mesma: a API do Hub junta `autor_autorizou` e `autor_do_pedido`, decididos no servidor como o `autor` de hoje (§16.2)                                                              |
+| **«Detalhes»** de cada alteração (um `<details>`, fechado): o n.º do pedido, a execução da IA e a IA «desconhecida» quando nada a indica                                                                | o mesmo                     | a mesma                                                                                                                                                                              |
+| Ao **criar uma chave**, a caixa «Chave de um agente de IA», com a explicação; na lista, a etiqueta «Agente de IA»                                                                                       | Chaves (§9.3)               | `POST /hub/keys` e `GET /hub/keys`, que já aceitam e devolvem `agente_ia` (#342)                                                                                                     |
+| Os nomes dos âmbitos `prices:*` no ecrã das chaves (hoje saem vazios; revisão do #349, P3-5)                                                                                                            | Chaves                      | —                                                                                                                                                                                    |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | O histórico dos **clientes, encomendas, pagamentos, documentos e preços** no Hub: a API já os dá com as seis respostas, mas o Hub ainda não tem esses ecrãs. Entram com eles. |
-| **Filtrar** por «sem autorização de uma pessoa»: entra quando o histórico for longo o bastante (como os outros filtros, §16.1). |
-| **Autorizar** a posteriori uma alteração feita sem autorização: seria uma escrita nova, com regras próprias (Q3: exigir passa a ser uma regra por âmbito, decidida depois). |
-| O `autor.tipo` antigo (obsoleto desde o #349): o ecrã passa a usar `tipo_de_autor`; o campo saiu da API a 11/10/2026, no pedido dos pendentes do #322, quando nada o lia. |
+| **Filtrar** por «sem autorização de uma pessoa»: entra quando o histórico for longo o bastante (como os outros filtros, §16.1).                                               |
+| **Autorizar** a posteriori uma alteração feita sem autorização: seria uma escrita nova, com regras próprias (Q3: exigir passa a ser uma regra por âmbito, decidida depois).   |
+| O `autor.tipo` antigo (obsoleto desde o #349): o ecrã passa a usar `tipo_de_autor`; o campo saiu da API a 11/10/2026, no pedido dos pendentes do #322, quando nada o lia.     |
 
 ### 26.2 A linha de contexto: o que diz, em linguagem comum
 
 Uma linha, por esta ordem, com as partes separadas por « · ». O texto vem do
 que o servidor decidiu (uma regra, um sítio): o ecrã não recalcula nada.
 
-| Parte | Valor da API | O ecrã diz |
-|---|---|---|
-| De onde | `canal` | `hub` «No Hub»; `api` «Pela API»; `importacao` «Pela importação»; `sistema` «Automático»; `operador` «Pelo operador»; `integracao` «Por uma integração»; `mcp` «Por um assistente (MCP)»; vazio «Origem desconhecida» |
-| A pedido de (só nas tarefas) | `a_pedido_de`, `autor_do_pedido` | «a pedido de {nome}» (o nome como no §16.2); sem pedido de origem: «sem pedido de origem registado» |
-| IA | `ia.prova` | `declarado`: «Agente de IA (declarado{: fornecedor, modelo})»; `comprovado`: «IA (comprovado: …)»; `desconhecido`: **nada na linha**, e «IA: desconhecida» nos Detalhes |
-| Autorização | `sem_autorizacao_de_pessoa`, `autor_autorizou` | `false`: «Autorizado por {nome}»; `true`: **«⚠ Sem autorização de uma pessoa»** (cor `--estado-aviso` e o ícone, nunca só a cor); `null`: «Autorização desconhecida» |
-| Motivo | `motivo` | «Motivo: {texto}», como texto (nunca HTML), com «Ver tudo» acima de 160 caracteres (como §16.4) |
+| Parte                        | Valor da API                                   | O ecrã diz                                                                                                                                                                                                            |
+| ---------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| De onde                      | `canal`                                        | `hub` «No Hub»; `api` «Pela API»; `importacao` «Pela importação»; `sistema` «Automático»; `operador` «Pelo operador»; `integracao` «Por uma integração»; `mcp` «Por um assistente (MCP)»; vazio «Origem desconhecida» |
+| A pedido de (só nas tarefas) | `a_pedido_de`, `autor_do_pedido`               | «a pedido de {nome}» (o nome como no §16.2); sem pedido de origem: «sem pedido de origem registado»                                                                                                                   |
+| IA                           | `ia.prova`                                     | `declarado`: «Agente de IA (declarado{: fornecedor, modelo})»; `comprovado`: «IA (comprovado: …)»; `desconhecido`: **nada na linha**, e «IA: desconhecida» nos Detalhes                                               |
+| Autorização                  | `sem_autorizacao_de_pessoa`, `autor_autorizou` | `false`: «Autorizado por {nome}»; `true`: **«⚠ Sem autorização de uma pessoa»** (cor `--estado-aviso` e o ícone, nunca só a cor); `null`: «Autorização desconhecida»                                                  |
+| Motivo                       | `motivo`                                       | «Motivo: {texto}», como texto (nunca HTML), com «Ver tudo» acima de 160 caracteres (como §16.4)                                                                                                                       |
 
 **Nos Detalhes:** «Pedido n.º {pedido}» (para o apoio cruzar com os registos
 do servidor), «Execução: {execucao}» quando vier, «IA: desconhecida» quando
@@ -1658,11 +1658,11 @@ por bloco.
 
 ### 26.3 As chaves: a marca «agente de IA»
 
-| Ecrã | O que muda |
-|---|---|
+| Ecrã                   | O que muda                                                                                                                                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Criar chave** (§9.3) | Por baixo dos âmbitos, a caixa «Chave de um agente de IA» (desmarcada), com a ajuda: «Tudo o que esta chave fizer fica no histórico como feito por uma IA, mesmo que o agente não o diga. Não se muda depois de criada.» Só na chave de servidor (a pública não existe no Hub hoje). |
-| **Lista de chaves** | A etiqueta «Agente de IA» ao lado do nome. |
-| **Âmbitos** | Os nomes de `prices:read` («Ver preços»), `prices:write` («Mudar preços») e `prices:history` («Ver quem mudou os preços»). |
+| **Lista de chaves**    | A etiqueta «Agente de IA» ao lado do nome.                                                                                                                                                                                                                                           |
+| **Âmbitos**            | Os nomes de `prices:read` («Ver preços»), `prices:write` («Mudar preços») e `prices:history` («Ver quem mudou os preços»).                                                                                                                                                           |
 
 ### 26.4 Estados e permissões
 
@@ -1689,10 +1689,10 @@ por bloco.
 
 ## 27. Catálogo: publicar um artigo pelo Hub (issue #378)
 
-Pedido do Diogo, 12/10/2026 («aprovado», à pergunta *«Avanço com o
-desenho de "publicar um artigo pelo Hub"?»*). **Aprovado pelo Diogo a
-12/10/2026**, com a Q1 em «não vêm marcadas» (*«aprovado»*, à pergunta
-*«Aprova o desenho, com a Q1 em "não vêm marcadas"?»*). No Hub já se cria um artigo,
+Pedido do Diogo, 12/10/2026 («aprovado», à pergunta _«Avanço com o
+desenho de "publicar um artigo pelo Hub"?»_). **Aprovado pelo Diogo a
+12/10/2026**, com a Q1 em «não vêm marcadas» (_«aprovado»_, à pergunta
+_«Aprova o desenho, com a Q1 em "não vêm marcadas"?»_). No Hub já se cria um artigo,
 se acrescentam e editam variantes e se definem os preços (§14, §23, §24,
 §25), mas nada se põe à venda: a publicação só se faz pela integração, com
 uma chave com `catalog:publish` (`docs/14` §7.1). Uma variante acrescentada
@@ -1709,28 +1709,28 @@ volta com «Publicado em Loja online · Portugal.» e a `ENS-041-B` à venda.
 
 ### 27.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
+| Entra                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Publicar** num canal × mercado onde o canal vende: a primeira vez, outra vez depois de retirada, ou **refazer** uma publicada para mudar as variantes à venda |
-| **Escolher as variantes à venda** (as outras ficam em `variantes_fora`; tirar uma não retira o artigo, `catalog-pim`, regra 6) |
-| **Ver antes** se pode publicar: a verificação do servidor (C2), com os impedimentos em linguagem comum |
-| **Retirar** uma publicação publicada (fica arquivada, motivo «retirada») |
+| **Escolher as variantes à venda** (as outras ficam em `variantes_fora`; tirar uma não retira o artigo, `catalog-pim`, regra 6)                                  |
+| **Ver antes** se pode publicar: a verificação do servidor (C2), com os impedimentos em linguagem comum                                                          |
+| **Retirar** uma publicação publicada (fica arquivada, motivo «retirada»)                                                                                        |
 
-| Fica de fora, e porquê |
-|---|
-| **Criar canais, mercados ou ligar um canal a um mercado**: são de Preços e mercados; outro ecrã, ainda por desenhar. O Hub só oferece os pares que já existem. |
-| **Resolver os impedimentos a partir daqui**: cada um leva ao ecrã onde se resolve (o preço, §25; o peso, §23; o texto alternativo, §15), mas o ecrã da publicação não os edita. |
+| Fica de fora, e porquê                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Criar canais, mercados ou ligar um canal a um mercado**: são de Preços e mercados; outro ecrã, ainda por desenhar. O Hub só oferece os pares que já existem.                                                                        |
+| **Resolver os impedimentos a partir daqui**: cada um leva ao ecrã onde se resolve (o preço, §25; o peso, §23; o texto alternativo, §15), mas o ecrã da publicação não os edita.                                                       |
 | **A Conformidade** (atributos obrigatórios por mercado): ainda não existe; a resposta diz sempre `nao_verificado: [conformidade]`, e o ecrã diz que **não foi verificada** — nunca «conforme» (`docs/14` §5, C2, rede temporária CF). |
-| **Publicar vários artigos de uma vez**: nunca em lote sem rever cada um (`AGENTS.md`, «Não se erra»). |
+| **Publicar vários artigos de uma vez**: nunca em lote sem rever cada um (`AGENTS.md`, «Não se erra»).                                                                                                                                 |
 
 ### 27.2 Como o Hub escreve
 
-| Caminho | Quem | O que faz |
-|---|---|---|
-| `GET /hub/sales-pairs` | a sessão com `catalog:read` (os quatro papéis) | os pares canal × mercado do comerciante onde o canal vende, com o nome e o estado do canal, do mercado e da loja (a mesma leitura dos nomes da §18.1 e §19.1) |
-| `POST /hub/products/{id}/publications/check` | a mesma | a mesma função do `POST /products/{id}/publications/check` pela chave: a verificação (C2) com as variantes escolhidas, sem escrever |
-| `POST /hub/products/{id}/publications` | a sessão com `catalog:publish` (o dono e o gestor) | a mesma função do `POST /products/{id}/publications` (`publicar`), com o `eurolify.quem` da pessoa; o corpo é o da chave (canal, mercado, `variantes_fora`) mais a **`versao` lida** da publicação (`null` quando ainda não existe nesse par) e as **`variantes_vistas`** (as activas que o ecrã mostrou) |
-| `POST /hub/publications/{id}/archive` | a mesma | a mesma função do `POST /publications/{id}/archive` (`retirarPublicacao`), com a `versao` lida no corpo |
+| Caminho                                      | Quem                                               | O que faz                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /hub/sales-pairs`                       | a sessão com `catalog:read` (os quatro papéis)     | os pares canal × mercado do comerciante onde o canal vende, com o nome e o estado do canal, do mercado e da loja (a mesma leitura dos nomes da §18.1 e §19.1)                                                                                                                                             |
+| `POST /hub/products/{id}/publications/check` | a mesma                                            | a mesma função do `POST /products/{id}/publications/check` pela chave: a verificação (C2) com as variantes escolhidas, sem escrever                                                                                                                                                                       |
+| `POST /hub/products/{id}/publications`       | a sessão com `catalog:publish` (o dono e o gestor) | a mesma função do `POST /products/{id}/publications` (`publicar`), com o `eurolify.quem` da pessoa; o corpo é o da chave (canal, mercado, `variantes_fora`) mais a **`versao` lida** da publicação (`null` quando ainda não existe nesse par) e as **`variantes_vistas`** (as activas que o ecrã mostrou) |
+| `POST /hub/publications/{id}/archive`        | a mesma                                            | a mesma função do `POST /publications/{id}/archive` (`retirarPublicacao`), com a `versao` lida no corpo                                                                                                                                                                                                   |
 
 - **A versão.** A publicação já tem `versao` na base (0019) e a API já a
   mostra. As escritas do Hub mandam a lida; outra guardada (alguém publicou,
@@ -1764,45 +1764,45 @@ volta com «Publicado em Loja online · Portugal.» e a `ENS-041-B` à venda.
 
 ### 27.3 O ecrã
 
-| Onde | O que muda | Estados além do normal |
-|---|---|---|
-| **Ficha**, secção «Publicações» (§12.2, §18, §19) | Com `catalog:publish`: em cada publicação, «Rever a publicação» (rascunho, publicada ou arquivada) e, numa publicada, «Retirar», que pergunta antes («Retirar o Gel Coral 41 de Loja online · Portugal? Deixa de estar à venda nesta loja.»). Por baixo da tabela, «Publicar noutra loja» quando há pares sem publicação. Uma publicada com variantes fora diz quantas: «1 variante fora». | — |
+| Onde                                                            | O que muda                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ficha**, secção «Publicações» (§12.2, §18, §19)               | Com `catalog:publish`: em cada publicação, «Rever a publicação» (rascunho, publicada ou arquivada) e, numa publicada, «Retirar», que pergunta antes («Retirar o Gel Coral 41 de Loja online · Portugal? Deixa de estar à venda nesta loja.»). Por baixo da tabela, «Publicar noutra loja» quando há pares sem publicação. Uma publicada com variantes fora diz quantas: «1 variante fora».                                                                                                                                                                                                                                                                                                                                     | —                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **Publicação** (`/artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}`) | No topo, o canal, o mercado (com a loja quando o nome se repete, §19.2) e o estado. **As variantes**: uma caixa por variante activa, marcada se está à venda; as que estão fora dizem «fora», e uma nova diz «nova» (§27.5). **«Verificar»** pede a verificação com as escolhidas e mostra o resultado: «Pode publicar» ou a lista dos impedimentos, cada um com a frase e a ligação para onde se resolve; sempre com «A conformidade do produto ainda não é verificada.». **«Publicar»** (ou «Publicar outra vez» numa publicada) só depois de uma verificação sem impedimentos com as mesmas escolhidas; mudar uma escolha pede outra verificação. Depois de publicar, volta à ficha com «Publicado em {canal} · {mercado}.» | a verificar; a publicar; impedimentos (a lista; o botão «Publicar» não aparece); um impedimento novo no instante de publicar (`publicada: false`: a lista nova, nada mudou); conflito (409: «Outra pessoa mudou esta publicação ou as variantes do artigo entretanto.», com o estado e as variantes de agora; as escolhas da pessoa ficam); a resposta perdida (§27.2); sem permissão (só o aviso, sem acções); par que não existe ou em que o canal deixou de vender (só o aviso) |
-| **Publicar noutra loja** (na ficha) | Uma lista dos pares sem publicação («Loja online · Espanha»); escolher um abre a página da publicação desse par, sem nada escolhido à partida (todas as variantes activas marcadas). | sem pares: a ligação não aparece |
+| **Publicar noutra loja** (na ficha)                             | Uma lista dos pares sem publicação («Loja online · Espanha»); escolher um abre a página da publicação desse par, sem nada escolhido à partida (todas as variantes activas marcadas).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | sem pares: a ligação não aparece                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 **Os impedimentos em linguagem comum** (os códigos da API, `docs/14` §5;
 em pt, es e en), cada um com a ligação para onde se resolve quando o Hub já
 o resolve:
 
-| Código | Texto | Leva a |
-|---|---|---|
-| `artigo_nao_activo` | O artigo não está activo. | a ficha (activar, §13) |
-| `mercado_inactivo`, `canal_inactivo`, `canal_nao_vende_no_mercado` | O mercado (ou o canal) não está activo, ou o canal deixou de vender neste mercado. | — (Preços e mercados) |
-| `sem_variantes_a_venda` | Escolha pelo menos uma variante. | — |
-| `categoria_fiscal_em_falta` | Falta a categoria fiscal do artigo. | editar o artigo (§13) |
-| `peso_em_falta` | Falta o peso de {SKU}. | editar a variante (§23) |
-| `preco_em_falta` | {SKU} não tem preço na lista base de {mercado}. | o preço (§25) |
-| `traducao_em_falta`, `traducao_desactualizada` | Falta (ou está desactualizada) a tradução do nome em {línguas}. | — (as traduções ainda não se editam no Hub) |
-| `classificacao_em_falta`, `natureza_incompativel`, `familia_restrita`, `data_ou_local_em_falta` | O texto do código, sem ligação (a classificação tem desenho à parte, §13.1). | — |
-| `texto_alternativo_em_falta` | Há imagens sem texto alternativo. | a ficha, nas imagens (§15) |
+| Código                                                                                          | Texto                                                                              | Leva a                                      |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
+| `artigo_nao_activo`                                                                             | O artigo não está activo.                                                          | a ficha (activar, §13)                      |
+| `mercado_inactivo`, `canal_inactivo`, `canal_nao_vende_no_mercado`                              | O mercado (ou o canal) não está activo, ou o canal deixou de vender neste mercado. | — (Preços e mercados)                       |
+| `sem_variantes_a_venda`                                                                         | Escolha pelo menos uma variante.                                                   | —                                           |
+| `categoria_fiscal_em_falta`                                                                     | Falta a categoria fiscal do artigo.                                                | editar o artigo (§13)                       |
+| `peso_em_falta`                                                                                 | Falta o peso de {SKU}.                                                             | editar a variante (§23)                     |
+| `preco_em_falta`                                                                                | {SKU} não tem preço na lista base de {mercado}.                                    | o preço (§25)                               |
+| `traducao_em_falta`, `traducao_desactualizada`                                                  | Falta (ou está desactualizada) a tradução do nome em {línguas}.                    | — (as traduções ainda não se editam no Hub) |
+| `classificacao_em_falta`, `natureza_incompativel`, `familia_restrita`, `data_ou_local_em_falta` | O texto do código, sem ligação (a classificação tem desenho à parte, §13.1).       | —                                           |
+| `texto_alternativo_em_falta`                                                                    | Há imagens sem texto alternativo.                                                  | a ficha, nas imagens (§15)                  |
 
 ### 27.4 Por onde é que isto ainda pode sair errado
 
-| Risco | O que o evita |
-|---|---|
-| Pôr à venda o que não se reviu (uma variante nova sem fotografia, por exemplo) | as variantes escolhem-se uma a uma; as que estão fora não vêm marcadas (§27.5) |
-| Publicar com uma verificação antiga | o botão só aparece depois de verificar com as mesmas escolhidas, e o servidor verifica outra vez no instante de publicar (`publicada: false` se algo mudou) |
-| Ler «sem impedimentos» como «conforme» | o ecrã diz sempre que a conformidade não foi verificada (C2, CF) |
-| Duas pessoas a publicar ou retirar a mesma publicação | a versão (§27.2): a segunda recebe 409 |
-| O armazém ou o apoio põem à venda | a rota confere `catalog:publish`; o ecrã nem mostra as acções |
+| Risco                                                                          | O que o evita                                                                                                                                               |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pôr à venda o que não se reviu (uma variante nova sem fotografia, por exemplo) | as variantes escolhem-se uma a uma; as que estão fora não vêm marcadas (§27.5)                                                                              |
+| Publicar com uma verificação antiga                                            | o botão só aparece depois de verificar com as mesmas escolhidas, e o servidor verifica outra vez no instante de publicar (`publicada: false` se algo mudou) |
+| Ler «sem impedimentos» como «conforme»                                         | o ecrã diz sempre que a conformidade não foi verificada (C2, CF)                                                                                            |
+| Duas pessoas a publicar ou retirar a mesma publicação                          | a versão (§27.2): a segunda recebe 409                                                                                                                      |
+| O armazém ou o apoio põem à venda                                              | a rota confere `catalog:publish`; o ecrã nem mostra as acções                                                                                               |
 
 ### 27.5 Decidido
 
 **Q1. Ao rever uma publicação publicada, as variantes que estão fora vêm
 marcadas para entrar?** Ex.: a `ENS-041-B`, acabada de acrescentar.
-✅ **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma vem marcada** (Diogo, 13/10/2026, *«A»*; revisão do #421, P2-2).
+✅ **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma vem marcada** (Diogo, 13/10/2026, _«A»_; revisão do #421, P2-2).
 
-✅ **Decidido: não** (Diogo, 12/10/2026, *«aprovado»*). Ficam como estão, com a marca «nova» (a que nasceu fora
+✅ **Decidido: não** (Diogo, 12/10/2026, _«aprovado»_). Ficam como estão, com a marca «nova» (a que nasceu fora
 por ter sido acrescentada depois de publicar) ou «fora» (a que alguém tirou),
 e a pessoa marca as que quer pôr à venda. Assim nada entra numa loja sem
 alguém o escolher. A alternativa (vir marcadas) poupa um clique, mas põe à
@@ -1825,30 +1825,31 @@ venda, por omissão, uma variante que pode ainda não estar pronta.
 
 ### 27.7 Em código (13/10/2026; pedido #421)
 
-| O quê | Onde |
-|---|---|
-| `GET /hub/sales-pairs`: os pares canal × mercado onde o canal vende, com os nomes e os estados do canal, do mercado e da loja (`catalog:read`) | `paresDeVenda` (`src/precos/repositorio.ts`); `src/identidade/hub-catalogo.ts` |
-| `POST /hub/products/{id}/publications/check`: a mesma `verificarPublicacao` da chave (`catalog:read`) | `src/identidade/hub-catalogo.ts` |
-| `POST /hub/products/{id}/publications` e `POST /hub/publications/{id}/archive`: o mesmo `publicar` e `retirarPublicacao` da chave, com `catalog:publish`, a pessoa como «quem» e o prazo de espera do `escreverNoHub` (que passou a receber o âmbito) | `src/identidade/hub-catalogo.ts` |
-| a `versao` lida, dentro de `publicar` e de `retirarPublicacao`, com a linha já tomada: `null` só numa publicação que nasce no pedido; um número só se é o guardado e a publicação já existia; outra dá 409 `catalog.version_conflict` e a transacção desfaz o rascunho. As rotas pela chave não a mandam e ficam como estavam | `src/catalogo/publicacao.ts` |
-| 8 testes pela API: os pares (e outro comerciante não os vê); verificar, publicar com `null`, refazer na versão lida e retirar, com `publicado_por` e `arquivado_por` da pessoa; os três conflitos de versão sem escrever; `publicada: false` sem mudar o estado nem as variantes; o armazém e o apoio verificam mas recebem 403 ao publicar e retirar, e o gestor retira; outro comerciante dá 404, com prova pela falha; o prazo de espera (503 `catalog.retry` com a publicação presa); duas publicações ao mesmo tempo sobre a mesma versão (uma 200, a outra 409) | `test/hub-publicar.test.ts` |
-| o ecrã da publicação (`/artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}`): as variantes, «Verificar», «Publicar» só depois de uma verificação sem impedimentos com as mesmas escolhas (o foco vai para o botão; com impedimentos fica no resultado), o 409, a resposta perdida (só dá por feito com o estado, as variantes, outra versão **e** a última verificação sem impedimentos), `publicada: false` | `apps/hub/src/ecras/PublicarArtigo.tsx`; a lógica em `apps/hub/src/publicar.ts` |
-| na ficha, secção «Publicações»: «Rever a publicação», «Retirar» com a pergunta (o 409 e a transição inválida recarregam com «Outra pessoa mudou…»; a resposta perdida diz que não encontrou a mudança), «N variantes fora», «Publicar noutra loja» só com pares de canal e mercado activos | `apps/hub/src/ecras/Artigo.tsx` |
-| os textos dos impedimentos em pt, es e en, com a ligação para onde se resolve (a ficha, editar o artigo, editar a variante, o preço na lista base) | `apps/hub/src/textos/` |
-| testes da lógica do ecrã (escolha inicial, «Publicar», pares, impedimentos, resposta perdida) e a passagem no navegador com as capturas a 375, 768 e 1280 px, claro e escuro | `apps/hub/test/publicar.test.ts`; `apps/hub/scripts/capturas.mjs` |
+| O quê                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Onde                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `GET /hub/sales-pairs`: os pares canal × mercado onde o canal vende, com os nomes e os estados do canal, do mercado e da loja (`catalog:read`)                                                                                                                                                                                                                                                                                                                                                                                                                        | `paresDeVenda` (`src/precos/repositorio.ts`); `src/identidade/hub-catalogo.ts`  |
+| `POST /hub/products/{id}/publications/check`: a mesma `verificarPublicacao` da chave (`catalog:read`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `src/identidade/hub-catalogo.ts`                                                |
+| `POST /hub/products/{id}/publications` e `POST /hub/publications/{id}/archive`: o mesmo `publicar` e `retirarPublicacao` da chave, com `catalog:publish`, a pessoa como «quem» e o prazo de espera do `escreverNoHub` (que passou a receber o âmbito)                                                                                                                                                                                                                                                                                                                 | `src/identidade/hub-catalogo.ts`                                                |
+| a `versao` lida, dentro de `publicar` e de `retirarPublicacao`, com a linha já tomada: `null` só numa publicação que nasce no pedido; um número só se é o guardado e a publicação já existia; outra dá 409 `catalog.version_conflict` e a transacção desfaz o rascunho. As rotas pela chave não a mandam e ficam como estavam                                                                                                                                                                                                                                         | `src/catalogo/publicacao.ts`                                                    |
+| 8 testes pela API: os pares (e outro comerciante não os vê); verificar, publicar com `null`, refazer na versão lida e retirar, com `publicado_por` e `arquivado_por` da pessoa; os três conflitos de versão sem escrever; `publicada: false` sem mudar o estado nem as variantes; o armazém e o apoio verificam mas recebem 403 ao publicar e retirar, e o gestor retira; outro comerciante dá 404, com prova pela falha; o prazo de espera (503 `catalog.retry` com a publicação presa); duas publicações ao mesmo tempo sobre a mesma versão (uma 200, a outra 409) | `test/hub-publicar.test.ts`                                                     |
+| o ecrã da publicação (`/artigos/{prd_…}/publicacoes/{chn_…}/{mkt_…}`): as variantes, «Verificar», «Publicar» só depois de uma verificação sem impedimentos com as mesmas escolhas (o foco vai para o botão; com impedimentos fica no resultado), o 409, a resposta perdida (só dá por feito com o estado, as variantes, outra versão **e** a última verificação sem impedimentos), `publicada: false`                                                                                                                                                                 | `apps/hub/src/ecras/PublicarArtigo.tsx`; a lógica em `apps/hub/src/publicar.ts` |
+| na ficha, secção «Publicações»: «Rever a publicação», «Retirar» com a pergunta (o 409 e a transição inválida recarregam com «Outra pessoa mudou…»; a resposta perdida diz que não encontrou a mudança), «N variantes fora», «Publicar noutra loja» só com pares de canal e mercado activos                                                                                                                                                                                                                                                                            | `apps/hub/src/ecras/Artigo.tsx`                                                 |
+| os textos dos impedimentos em pt, es e en, com a ligação para onde se resolve (a ficha, editar o artigo, editar a variante, o preço na lista base)                                                                                                                                                                                                                                                                                                                                                                                                                    | `apps/hub/src/textos/`                                                          |
+| testes da lógica do ecrã (escolha inicial, «Publicar», pares, impedimentos, resposta perdida) e a passagem no navegador com as capturas a 375, 768 e 1280 px, claro e escuro                                                                                                                                                                                                                                                                                                                                                                                          | `apps/hub/test/publicar.test.ts`; `apps/hub/scripts/capturas.mjs`               |
 
-✅ **Aspecto e os quatro textos novos dos impedimentos aprovados** (Diogo, 13/10/2026, *«A»*), pelas capturas de 1280 px claro e 375 px escuro.
+✅ **Aspecto e os quatro textos novos dos impedimentos aprovados** (Diogo, 13/10/2026, _«A»_), pelas capturas de 1280 px claro e 375 px escuro.
 
 **Desvios do desenho:**
+
 - **A marca «nova»** (pedido #427): numa publicada, a variante que está fora e nasceu depois de a publicação entrar em venda (`criado_em` da variante depois de `publicado_em`) diz «nova»; a outra que está fora diz «fora». Numa que não está à venda, só «fora». O `publicado_em` só muda quando a publicação passa a publicada, não ao publicar outra vez: uma variante nova deixada de fora ao refazer continua «nova». Se a variante nascer enquanto outra transacção publica, pode dizer «fora» em vez de «nova» (as duas datas vêm de relógios diferentes da base); fica sempre por marcar (revisão do #427).
-- **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma variante vem marcada** (Diogo, 13/10/2026: *«A»*; `docs/06`, EJ): a base só põe fora a variante acrescentada a uma publicação publicada, e assim nada volta à venda sem ser escolhido (revisão do #421, P2-2).
+- **Numa publicação que não está à venda** (arquivada ou em rascunho), **nenhuma variante vem marcada** (Diogo, 13/10/2026: _«A»_; `docs/06`, EJ): a base só põe fora a variante acrescentada a uma publicação publicada, e assim nada volta à venda sem ser escolhido (revisão do #421, P2-2).
 - **«Retirar» pergunta com a caixa do navegador** (`window.confirm`), como as outras perguntas da ficha.
 - **Os textos de `classificacao_em_falta`, `natureza_incompativel`, `familia_restrita` e `data_ou_local_em_falta`** foram escritos aqui (a §27.3 dizia «o texto do código»); a família mostra o código interno.
 - **Fica** (revisão do #421): ~~uma variante criada enquanto o ecrã está aberto, num par sem publicação publicada, entra no que se publica se a pessoa não recarregar~~ — tratado a 13/10/2026 com as `variantes_vistas` (§27.2); o aviso «Publicado em…» na ficha vem do endereço, como o «Alterações guardadas»; nenhum papel de hoje tem `catalog:write` sem `catalog:publish`, por isso o teste dos papéis não distingue os dois.
 
 ## 28. O ecrã «A decidir» (issue #366, parte 2)
 
-Pedido do Diogo, 12/10/2026 (*«avança com o próximo pendente»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«A, aprovado»*). A peça 21
+Pedido do Diogo, 12/10/2026 (_«avança com o próximo pendente»_). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (_«A, aprovado»_). A peça 21
 (`docs/33`, decisão DW) já tem a API: a lista `GET /tasks`, atribuir e
 mudar o prazo, o aviso de vencido de hora a hora e, desde a migração 0071,
 o e-mail desse aviso (`docs/34` §12, EB). Mas só por chave. O `docs/33` §8
@@ -1865,31 +1866,31 @@ página.
 
 ### 28.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
+| Entra                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A lista** dos casos abertos das filas que o papel lê, do prazo mais próximo ao mais longe, com o total por fila, a dizer de que filas são («Vê 5 das 7 filas») |
-| **Os filtros** «Todos», «Os meus», «Sem responsável» e «Vencidas», e a fila |
-| **Ficar com o caso** (atribuir-se), **atribuir a outra pessoa**, **tirar o responsável** e **mudar o prazo**, com a versão lida |
-| **O histórico** das atribuições do caso (quem o teve, os prazos, os motivos), a abrir na linha |
-| Um **módulo novo** na entrada, «A decidir», para quem lê pelo menos uma fila |
+| **Os filtros** «Todos», «Os meus», «Sem responsável» e «Vencidas», e a fila                                                                                      |
+| **Ficar com o caso** (atribuir-se), **atribuir a outra pessoa**, **tirar o responsável** e **mudar o prazo**, com a versão lida                                  |
+| **O histórico** das atribuições do caso (quem o teve, os prazos, os motivos), a abrir na linha                                                                   |
+| Um **módulo novo** na entrada, «A decidir», para quem lê pelo menos uma fila                                                                                     |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Decidir o caso a partir daqui.** A tarefa diz quem decide e até quando, nunca decide (`docs/33` R1). Cada caso decide-se no ecrã da fila dele, e **nenhuma das sete filas tem ecrã no Hub** (`docs/33` §2; procurei `/withdrawals`, `/problems`, `/refunds`, `/invoices` e `payment-issues` em `apps/hub/src` a 12/10/2026, sem resultados). Por isso a linha mostra o identificador do caso e da encomenda, sem ligação, até cada fila ter o seu ecrã (Q1). |
-| **Atribuir vários casos de uma vez.** Nunca em lote (`AGENTS.md`, «Não se erra», regra 5). |
-| **Guardar filtros por pessoa** e escolher colunas: o `docs/hub-modular-glassmorphism.md` não deixa guardar nada no navegador sem desenho aprovado. Fica para quando houver preferências no servidor. |
-| **Notificações dentro do Hub.** O aviso de vencido sai por e-mail (`docs/34` §12) e aparece na lista como «vencida». |
+| **Atribuir vários casos de uma vez.** Nunca em lote (`AGENTS.md`, «Não se erra», regra 5).                                                                                                                                                                                                                                                                                                                                                                     |
+| **Guardar filtros por pessoa** e escolher colunas: o `docs/hub-modular-glassmorphism.md` não deixa guardar nada no navegador sem desenho aprovado. Fica para quando houver preferências no servidor.                                                                                                                                                                                                                                                           |
+| **Notificações dentro do Hub.** O aviso de vencido sai por e-mail (`docs/34` §12) e aparece na lista como «vencida».                                                                                                                                                                                                                                                                                                                                           |
 
 ### 28.2 Como o Hub lê e escreve
 
 As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/tarefas/rotas.ts`), com a sessão em vez da chave, como em Vendas (`/hub/sales/summary`, `docs/35`).
 
-| Caminho | Quem | O que faz |
-|---|---|---|
-| `GET /hub/tasks?fila=&responsavel=eu\|sem&vencida=&limite=&cursor=` (o comerciante no cabeçalho `Eurolify-Comerciante`, como nas outras rotas do Hub) | a sessão do comerciante; as filas são as que o **papel** lê (R2, pelos `ambitos` da sessão) | a lista e os totais de `listarTarefas`. **`responsavel=eu`** existe aqui, porque a sessão é uma pessoa (`docs/33` §7 deixou-o para o ecrã). Sem nenhuma fila, 403 `tasks.forbidden` |
-| `GET /hub/tasks/{fila}/{caso}` | o `read` da fila no papel | o caso e o histórico das atribuições |
-| `POST /hub/tasks/{fila}/{caso}/assign` `{ responsavel: per_… \| null, versao }` | atribuir-se: o âmbito de decidir a fila no papel; outra pessoa ou `null`: também `tasks:assign` (R3) | a mesma função `tarefas_atribuir`, com o `eurolify.quem` da pessoa; a base confere quem pode ser responsável |
-| `POST /hub/tasks/{fila}/{caso}/deadline` `{ prazo, motivo, versao }` | decidir a fila e `tasks:assign` | a mesma função `tarefas_mudar_prazo`; o prazo nunca no passado nem depois do prazo legal (R5) |
+| Caminho                                                                                                                                               | Quem                                                                                                 | O que faz                                                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /hub/tasks?fila=&responsavel=eu\|sem&vencida=&limite=&cursor=` (o comerciante no cabeçalho `Eurolify-Comerciante`, como nas outras rotas do Hub) | a sessão do comerciante; as filas são as que o **papel** lê (R2, pelos `ambitos` da sessão)          | a lista e os totais de `listarTarefas`. **`responsavel=eu`** existe aqui, porque a sessão é uma pessoa (`docs/33` §7 deixou-o para o ecrã). Sem nenhuma fila, 403 `tasks.forbidden` |
+| `GET /hub/tasks/{fila}/{caso}`                                                                                                                        | o `read` da fila no papel                                                                            | o caso e o histórico das atribuições                                                                                                                                                |
+| `POST /hub/tasks/{fila}/{caso}/assign` `{ responsavel: per_… \| null, versao }`                                                                       | atribuir-se: o âmbito de decidir a fila no papel; outra pessoa ou `null`: também `tasks:assign` (R3) | a mesma função `tarefas_atribuir`, com o `eurolify.quem` da pessoa; a base confere quem pode ser responsável                                                                        |
+| `POST /hub/tasks/{fila}/{caso}/deadline` `{ prazo, motivo, versao }`                                                                                  | decidir a fila e `tasks:assign`                                                                      | a mesma função `tarefas_mudar_prazo`; o prazo nunca no passado nem depois do prazo legal (R5)                                                                                       |
 
 - **Os nomes das pessoas** lêem-se do `GET /hub/members` (já existe, todos os membros o lêem). A lista de tarefas só traz `per_…`.
 - **Quem pode ser escolhido** em «Atribuir a…»: os membros cujo papel decide a fila. A régua vive na base (`tarefas_pode_decidir`). Para o ecrã não oferecer o que a API recusa, a rota `GET /hub/tasks/{fila}/{caso}` devolve também `pode_ser_responsavel: [per_…]`, calculado pela base. Assim o ecrã não guarda nenhuma cópia da régua (`eurolify-design`, regra 8; ao contrário do `papeis.ts` dos convites, que é uma cópia).
@@ -1898,39 +1899,40 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/tarefas/rotas
 
 ### 28.3 O ecrã
 
-| Onde | O que mostra | Estados além do normal |
-|---|---|---|
-| **Entrada** (`/`) | Um módulo «A decidir» na grelha, para quem lê pelo menos uma fila: os quatro papéis de hoje (`papel_ambitos`, migração 0068). O dono, o gestor e o apoio lêem as sete filas. O armazém lê as três com `returns:read`: o prazo do reembolso, a livre resolução e o problema. O registo dos módulos (`modulos.ts`) passa a aceitar «um destes âmbitos». | — |
+| Onde                                       | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Estados além do normal                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Entrada** (`/`)                          | Um módulo «A decidir» na grelha, para quem lê pelo menos uma fila: os quatro papéis de hoje (`papel_ambitos`, migração 0068). O dono, o gestor e o apoio lêem as sete filas. O armazém lê as três com `returns:read`: o prazo do reembolso, a livre resolução e o problema. O registo dos módulos (`modulos.ts`) passa a aceitar «um destes âmbitos».                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | —                                                                                                                                                                                                                                                                                                                                          |
 | **A decidir** (`/a-decidir?comerciante=…`) | No topo, os filtros «Todos · Os meus · Sem responsável · Vencidas» (um grupo de botões de alternância, com o seleccionado marcado também por texto e não só por cor), a fila (uma lista de escolha) e «Vê 5 das 7 filas», quando o papel não lê todas. Depois, a contagem («12 casos; 3 vencidos») e a lista: **tabela** a partir de 768 px, **cartões** abaixo (regra 5). Cada linha: a fila pelo nome; o caso (`pdi_…`, os últimos 4 algarismos à vista e o resto ao copiar); a encomenda, se houver; o motivo em linguagem comum; há quanto tempo está na fila; o responsável (o nome, ou «eu», ou «sem responsável»); o prazo, com a data e a hora no fuso do comerciante, e a etiqueta «vencida» (token de estado único, regra 3, com texto). Os botões da linha, conforme o papel: «Ficar com o caso», «Atribuir…», «Mudar o prazo…» e «Histórico». No fim, «Ver mais» (cursor; nunca corta em silêncio, R10). | a carregar; erro com «Tentar outra vez»; vazio por filtro («Nada vencido.»; «Não tem casos.»); vazio total («Nada por decidir.»); sem nenhuma fila (só o aviso, como acontece com `tasks.forbidden`); comerciante errado ou que mudou entretanto (como nas outras páginas; `docs/hub-modular-glassmorphism.md`, «Contexto do comerciante») |
-| **Atribuir…** (um diálogo) | As pessoas que `pode_ser_responsavel` devolve, com o nome e o papel, e «Sem responsável». Confirmar grava; a linha actualiza. | conflito (409: «Outra pessoa mudou este caso entretanto.», com o responsável e o prazo de agora); `tasks.assignee_not_allowed` (a pessoa mudou de papel entretanto: relê a lista); sem `tasks:assign` (só «Ficar com o caso») |
-| **Mudar o prazo…** (um diálogo) | A data e a hora, no fuso do comerciante (dito ao lado: «Hora de Lisboa»), e o **motivo**, obrigatório, com a frase «Não escreva dados de clientes neste motivo.» (`docs/33` §6). Onde há prazo legal: «Não pode passar de {data}.», e o campo não deixa escolher depois. | `tasks.deadline_invalid` (no passado, ou depois do prazo legal: a frase da API em linguagem comum); `tasks.reason_required`; conflito |
-| **Histórico** (abre por baixo da linha) | Cada mudança: quando, quem (o nome, ou «sistema» no aviso de vencido), o que mudou (o responsável de → para; o prazo de → para) e o motivo. | a carregar; erro |
+| **Atribuir…** (um diálogo)                 | As pessoas que `pode_ser_responsavel` devolve, com o nome e o papel, e «Sem responsável». Confirmar grava; a linha actualiza.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | conflito (409: «Outra pessoa mudou este caso entretanto.», com o responsável e o prazo de agora); `tasks.assignee_not_allowed` (a pessoa mudou de papel entretanto: relê a lista); sem `tasks:assign` (só «Ficar com o caso»)                                                                                                              |
+| **Mudar o prazo…** (um diálogo)            | A data e a hora, no fuso do comerciante (dito ao lado: «Hora de Lisboa»), e o **motivo**, obrigatório, com a frase «Não escreva dados de clientes neste motivo.» (`docs/33` §6). Onde há prazo legal: «Não pode passar de {data}.», e o campo não deixa escolher depois.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `tasks.deadline_invalid` (no passado, ou depois do prazo legal: a frase da API em linguagem comum); `tasks.reason_required`; conflito                                                                                                                                                                                                      |
+| **Histórico** (abre por baixo da linha)    | Cada mudança: quando, quem (o nome, ou «sistema» no aviso de vencido), o que mudou (o responsável de → para; o prazo de → para) e o motivo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | a carregar; erro                                                                                                                                                                                                                                                                                                                           |
 
 **Os motivos em linguagem comum** (pt, es e en): o código de cada fila vem do domínio dela (`docs/33` §4.1). O texto escreve-se para os códigos de hoje: as diferenças de pagamento (`0044`), os motivos de um documento retido (`docs/29`), os sinais de um duplicado (só o tipo, nunca o valor, `0046` R12), o estado do pedido de livre resolução, o tipo do problema e o estado do reembolso. Um código sem texto mostra-se como está, nunca se esconde. Vários códigos (um documento com dois motivos) mostram-se todos.
 
 ### 28.4 Por onde é que isto ainda pode sair errado
 
-| Risco | O que o evita |
-|---|---|
-| O ecrã mostrar casos de uma fila que o papel não lê | a rota filtra pelos âmbitos da sessão, como a da chave (R2); o ecrã não filtra nada sozinho |
-| O armazém atribuir a outra pessoa ou mudar o prazo | a rota pede `tasks:assign`; o ecrã nem mostra os botões; a base confere quem pode ser responsável |
-| Duas pessoas ao mesmo tempo no mesmo caso | a versão (409) e o tranco do caso na base (`docs/33` R7) |
-| Ler «a tarefa está feita» numa atribuição | não há «marcar como feita» (R1): o caso sai da lista quando a fila o decide |
-| Um motivo de mudança de prazo com dados de clientes | a frase no campo; o motivo nunca vai no e-mail (`docs/34` §12, T4); o motivo limpa-se no apagamento do titular desde 14/10/2026 (migração 0102, `docs/33` §6) |
-| A lista parecer vazia por estar cortada | o total por fila e «Ver mais» (R10) |
-| Uma pessoa pensar que o identificador sem ligação é um erro | a linha diz «Este caso ainda não tem ecrã no Hub; decide-se pela integração.» uma vez por cima da lista, enquanto nenhuma fila tiver ecrã (Q1) |
+| Risco                                                       | O que o evita                                                                                                                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O ecrã mostrar casos de uma fila que o papel não lê         | a rota filtra pelos âmbitos da sessão, como a da chave (R2); o ecrã não filtra nada sozinho                                                                   |
+| O armazém atribuir a outra pessoa ou mudar o prazo          | a rota pede `tasks:assign`; o ecrã nem mostra os botões; a base confere quem pode ser responsável                                                             |
+| Duas pessoas ao mesmo tempo no mesmo caso                   | a versão (409) e o tranco do caso na base (`docs/33` R7)                                                                                                      |
+| Ler «a tarefa está feita» numa atribuição                   | não há «marcar como feita» (R1): o caso sai da lista quando a fila o decide                                                                                   |
+| Um motivo de mudança de prazo com dados de clientes         | a frase no campo; o motivo nunca vai no e-mail (`docs/34` §12, T4); o motivo limpa-se no apagamento do titular desde 14/10/2026 (migração 0102, `docs/33` §6) |
+| A lista parecer vazia por estar cortada                     | o total por fila e «Ver mais» (R10)                                                                                                                           |
+| Uma pessoa pensar que o identificador sem ligação é um erro | a linha diz «Este caso ainda não tem ecrã no Hub; decide-se pela integração.» uma vez por cima da lista, enquanto nenhuma fila tiver ecrã (Q1)                |
 
 ### 28.5 Decidido
 
-✅ **Q1: A** (Diogo, 12/10/2026, *«A, aprovado»*). Desenho aprovado.
+✅ **Q1: A** (Diogo, 12/10/2026, _«A, aprovado»_). Desenho aprovado.
 
-✅ **Aspecto aprovado** (Diogo, 13/10/2026, *«A, aprovado»*), pelas capturas da versão publicada (#396 e #399): 1280 px em claro, 375 px em escuro e a entrada com o módulo. Não visto no Safari nem num telemóvel real.
+✅ **Aspecto aprovado** (Diogo, 13/10/2026, _«A, aprovado»_), pelas capturas da versão publicada (#396 e #399): 1280 px em claro, 375 px em escuro e a entrada com o módulo. Não visto no Safari nem num telemóvel real.
 
 **Q1.** Nenhuma das sete filas tem ecrã no Hub. A lista «A decidir» avança
 já, **sem ligação ao caso** (mostra o identificador do caso e da encomenda,
 e diz que se decide pela integração), ou espera que as filas tenham os seus
 ecrãs? Ex.: uma diferença de pagamento aparece como «pdi_…0190», sem nada
 onde carregar para a resolver.
+
 - **A (proposta):** avança já. Atribuir e mudar prazos no Hub tem valor
   sozinho: quem decide passa a saber o que é seu e o que venceu. Cada ecrã
   de fila, quando existir, acrescenta a ligação nesta lista.
@@ -1939,14 +1941,15 @@ onde carregar para a resolver.
 
 ### 28.7 Em código (12/10/2026; migração 0073; pedido #396)
 
-| O quê | Onde |
-|---|---|
-| as quatro rotas `/hub/tasks`, com as funções da lista e do caso partilhadas com as da chave; a lista leva também o `fuso` do comerciante, para o ecrã mostrar e escolher os prazos nele | `apps/api/src/tarefas/rotas.ts` |
-| `tarefas_podem_ser_responsaveis(fila)`: quem pode ser responsável, pela régua da base, só no comerciante do contexto | migração 0073 |
-| o ecrã, o módulo «A decidir» (basta um dos âmbitos que lêem as filas), os textos PT, ES e EN e os motivos em linguagem comum | `apps/hub/src/ecras/ADecidir.tsx`, `tarefas.ts`, `modulos.ts`, `textos/` |
-| testes: 6 pela API (`test/tarefas-hub.test.ts`), 13 sem servidor (`apps/hub/test/tarefas.test.ts`, com a régua igual à da API) e a passagem nas capturas | — |
+| O quê                                                                                                                                                                                   | Onde                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| as quatro rotas `/hub/tasks`, com as funções da lista e do caso partilhadas com as da chave; a lista leva também o `fuso` do comerciante, para o ecrã mostrar e escolher os prazos nele | `apps/api/src/tarefas/rotas.ts`                                          |
+| `tarefas_podem_ser_responsaveis(fila)`: quem pode ser responsável, pela régua da base, só no comerciante do contexto                                                                    | migração 0073                                                            |
+| o ecrã, o módulo «A decidir» (basta um dos âmbitos que lêem as filas), os textos PT, ES e EN e os motivos em linguagem comum                                                            | `apps/hub/src/ecras/ADecidir.tsx`, `tarefas.ts`, `modulos.ts`, `textos/` |
+| testes: 6 pela API (`test/tarefas-hub.test.ts`), 13 sem servidor (`apps/hub/test/tarefas.test.ts`, com a régua igual à da API) e a passagem nas capturas                                | —                                                                        |
 
 **Desvios do desenho:**
+
 - **«Atribuir…» e «Mudar o prazo…» abrem por baixo da linha,** como o
   histórico, e não num diálogo. O Hub não tem diálogos, e um painel na
   página não prende o foco nem o teclado. O foco vai para o título do
@@ -1976,6 +1979,7 @@ onde carregar para a resolver.
   colunas não cabiam a 768 px (revisão do #396, P3-8).
 
 **Ficam** (revisão do #396):
+
 - Não há teste do componente sem servidor para o conflito (409), «Ver mais»
   e atribuir a outra pessoa; a passagem nas capturas cobre a resposta
   perdida, o foco, os filtros, ficar com o caso, o prazo e o histórico.
@@ -2006,9 +2010,9 @@ onde carregar para a resolver.
 
 ## 29. Envios: as contas de transportadora (issue #393)
 
-Pedido do Diogo, 12/10/2026: *«avança»*, depois de a parte C dos envios estar
+Pedido do Diogo, 12/10/2026: _«avança»_, depois de a parte C dos envios estar
 no `main` (`docs/36` §16, #406). Desenho aprovado pelo Diogo a 12/10/2026
-(*«sim, aprovo; avança com o código»*). É o primeiro passo dos
+(_«sim, aprovo; avança com o código»_). É o primeiro passo dos
 envios no Hub. A API já tem tudo (`docs/36` §3.1, §7.1 e §16): o Hub só
 lhe dá ecrãs. Skills: `eurolify-design`, `eurolify-hub-modular`,
 `observability-security`, `eu-gdpr-privacy`, `order-fulfilment`.
@@ -2021,22 +2025,22 @@ assinatura dos avisos, e carrega em «Testar a ligação». A conta passa a
 
 ### 29.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
-| **A lista das contas** do comerciante, com estes campos: o nome; a transportadora; o estado («Por testar», «Pronta» ou «Arquivada»); o modo («Teste»); quando e por quem as credenciais foram guardadas; e quando foi testada. |
-| **Ligar uma conta** (só o dono, `shipping:accounts`): a transportadora, o nome e a morada do remetente. |
-| **Mudar o nome e a morada do remetente**, com a versão (409 num conflito). |
-| **As credenciais.** Os campos dependem da transportadora: na Sendcloud, «Chave pública» e «Chave secreta». Junta-se o segredo dos avisos, com o endereço dos avisos para copiar (`…/webhooks/carriers/{transportadora}/cac_…`). Os segredos **nunca se mostram nem voltam do servidor**; o ecrã diz só «Guardadas a {data} por {pessoa}». |
+| Entra                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A lista das contas** do comerciante, com estes campos: o nome; a transportadora; o estado («Por testar», «Pronta» ou «Arquivada»); o modo («Teste»); quando e por quem as credenciais foram guardadas; e quando foi testada.                                                                                                                                                                               |
+| **Ligar uma conta** (só o dono, `shipping:accounts`): a transportadora, o nome e a morada do remetente.                                                                                                                                                                                                                                                                                                      |
+| **Mudar o nome e a morada do remetente**, com a versão (409 num conflito).                                                                                                                                                                                                                                                                                                                                   |
+| **As credenciais.** Os campos dependem da transportadora: na Sendcloud, «Chave pública» e «Chave secreta». Junta-se o segredo dos avisos, com o endereço dos avisos para copiar (`…/webhooks/carriers/{transportadora}/cac_…`). Os segredos **nunca se mostram nem voltam do servidor**; o ecrã diz só «Guardadas a {data} por {pessoa}».                                                                    |
 | **«Testar a ligação»** e o resultado, nas palavras do servidor: pronta; credenciais recusadas (a conta volta a «Por testar»); a transportadora não respondeu (nada muda); ou a lista nova de serviços deixa métodos activos sem serviço (código próprio `shipping.service_in_use`; os métodos vão no `detail`, o ecrã diz que há um método activo a mudar primeiro; `docs/36` §16, P2-2, e revisão do #409). |
-| **Os serviços da conta**: o nome, os países, o peso máximo e se pede telefone ou e-mail. Na Sendcloud, com a data da fotografia. |
-| **Arquivar uma conta**, com confirmação («Arquivar a conta? Depois de arquivada, só se pode consultar. Se um método de entrega activo a usar, o arquivo é recusado»). O servidor recusa com `shipping.account_in_use` (409) enquanto houver um método activo com ela (revisão do #409, P2-2). |
-| **Um módulo «Envios» na entrada do Hub**, para quem tem `shipping:read`. |
+| **Os serviços da conta**: o nome, os países, o peso máximo e se pede telefone ou e-mail. Na Sendcloud, com a data da fotografia.                                                                                                                                                                                                                                                                             |
+| **Arquivar uma conta**, com confirmação («Arquivar a conta? Depois de arquivada, só se pode consultar. Se um método de entrega activo a usar, o arquivo é recusado»). O servidor recusa com `shipping.account_in_use` (409) enquanto houver um método activo com ela (revisão do #409, P2-2).                                                                                                                |
+| **Um módulo «Envios» na entrada do Hub**, para quem tem `shipping:read`.                                                                                                                                                                                                                                                                                                                                     |
 
-| Fica de fora, e porquê |
-|---|
-| **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§31). Precisam das listas dos mercados e dos armazéns no Hub. |
-| **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Ficam no ecrã «Expedir» (§33). |
-| **O modo real**: é uma migração com decisão escrita (`docs/36` §16.2). O ecrã diz «Teste» e não oferece outro. |
+| Fica de fora, e porquê                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Os métodos de entrega** (a tarifa, a conta, o serviço, as zonas) e **o peso da embalagem por armazém**: são o passo seguinte (§31). Precisam das listas dos mercados e dos armazéns no Hub.                     |
+| **A etiqueta e o seguimento numa expedição**: o Hub ainda não tem ecrãs das encomendas e das expedições. Ficam no ecrã «Expedir» (§33).                                                                           |
+| **O modo real**: é uma migração com decisão escrita (`docs/36` §16.2). O ecrã diz «Teste» e não oferece outro.                                                                                                    |
 | **Os CTT**: a conta cria-se, vê-se e arquiva-se, mas sem credenciais nem teste: o adaptador não declara campos, e o ecrã diz «Esta transportadora ainda não está ligada ao Eurolify», até haver o adaptador (V1). |
 
 ### 29.2 Como o Hub lê e escreve
@@ -2049,14 +2053,14 @@ no código). A `versao` recusa a repetição de uma alteração. Uma resposta
 perdida ao ligar a conta não se repete sozinha: o ecrã diz que a conta pode
 ter ficado criada e pede para conferir a lista.
 
-| Caminho do Hub | Âmbito | A rota da chave |
-|---|---|---|
-| `GET /hub/carrier-accounts` | `shipping:read` | `GET /carrier-accounts` |
-| `POST /hub/carrier-accounts` | `shipping:accounts` | `POST /carrier-accounts` |
-| `PATCH /hub/carrier-accounts/{id}` | `shipping:accounts` | `PATCH /carrier-accounts/{id}` |
+| Caminho do Hub                               | Âmbito              | A rota da chave                          |
+| -------------------------------------------- | ------------------- | ---------------------------------------- |
+| `GET /hub/carrier-accounts`                  | `shipping:read`     | `GET /carrier-accounts`                  |
+| `POST /hub/carrier-accounts`                 | `shipping:accounts` | `POST /carrier-accounts`                 |
+| `PATCH /hub/carrier-accounts/{id}`           | `shipping:accounts` | `PATCH /carrier-accounts/{id}`           |
 | `PUT /hub/carrier-accounts/{id}/credentials` | `shipping:accounts` | `PUT /carrier-accounts/{id}/credentials` |
-| `POST /hub/carrier-accounts/{id}/test` | `shipping:accounts` | `POST /carrier-accounts/{id}/test` |
-| `GET /hub/carrier-accounts/{id}/services` | `shipping:read` | `GET /carrier-accounts/{id}/services` |
+| `POST /hub/carrier-accounts/{id}/test`       | `shipping:accounts` | `POST /carrier-accounts/{id}/test`       |
+| `GET /hub/carrier-accounts/{id}/services`    | `shipping:read`     | `GET /carrier-accounts/{id}/services`    |
 
 - **Os papéis** são os da migração 0074: o dono tem `shipping:accounts`; o
   gestor, o armazém e o apoio só `shipping:read` e vêem a lista sem os
@@ -2076,11 +2080,11 @@ ter ficado criada e pede para conferir a lista.
 
 ### 29.3 O ecrã
 
-| Ecrã | O que mostra | Estados além do normal |
-|---|---|---|
-| **Envios** (`/envios`, no módulo novo) | Uma linha por conta (cartões no telemóvel): o nome, a transportadora, o estado com a cor do estado, «Teste», e a última vez que foi testada. Para o dono, «Ligar uma transportadora». Por omissão, as arquivadas ficam escondidas, com «Mostrar as arquivadas». | sem contas («Ainda não há contas de transportadora»; para o dono, com o botão); a carregar; erro; sem permissão |
-| **Ligar uma transportadora** (`/envios/nova`) | A transportadora (Sendcloud ou CTT), o nome e a morada do remetente: nome, linha 1, linha 2, código postal, localidade e país. | campos em falta e o país, conferidos no ecrã junto ao campo; um valor que o servidor recuse sai no topo, com a mensagem dele; resposta perdida (o ecrã não repete: diz que a conta pode ter ficado criada e manda conferir a lista) |
-| **A conta** (`/envios/{cac_…}`) | O estado e o modo. O nome e o remetente, com «Editar». As credenciais: os campos da transportadora, vazios, com «Guardadas a {data} por {pessoa}» ou «Ainda não há credenciais». O segredo dos avisos e o endereço dos avisos, com «Copiar». «Testar a ligação». Os serviços, numa tabela. «Arquivar». | o teste a decorrer (o botão diz «A testar…», e as outras acções ficam paradas até acabar: guardar credenciais a meio daria conflito); os serviços que não se lêem (a página abre na mesma, com um aviso); os quatro resultados do teste (§29.1); conflito (409: «A conta mudou entretanto», com «Recarregar»); arquivada (só leitura); sem permissão para mudar (os campos não aparecem) |
+| Ecrã                                          | O que mostra                                                                                                                                                                                                                                                                                           | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Envios** (`/envios`, no módulo novo)        | Uma linha por conta (cartões no telemóvel): o nome, a transportadora, o estado com a cor do estado, «Teste», e a última vez que foi testada. Para o dono, «Ligar uma transportadora». Por omissão, as arquivadas ficam escondidas, com «Mostrar as arquivadas».                                        | sem contas («Ainda não há contas de transportadora»; para o dono, com o botão); a carregar; erro; sem permissão                                                                                                                                                                                                                                                                          |
+| **Ligar uma transportadora** (`/envios/nova`) | A transportadora (Sendcloud ou CTT), o nome e a morada do remetente: nome, linha 1, linha 2, código postal, localidade e país.                                                                                                                                                                         | campos em falta e o país, conferidos no ecrã junto ao campo; um valor que o servidor recuse sai no topo, com a mensagem dele; resposta perdida (o ecrã não repete: diz que a conta pode ter ficado criada e manda conferir a lista)                                                                                                                                                      |
+| **A conta** (`/envios/{cac_…}`)               | O estado e o modo. O nome e o remetente, com «Editar». As credenciais: os campos da transportadora, vazios, com «Guardadas a {data} por {pessoa}» ou «Ainda não há credenciais». O segredo dos avisos e o endereço dos avisos, com «Copiar». «Testar a ligação». Os serviços, numa tabela. «Arquivar». | o teste a decorrer (o botão diz «A testar…», e as outras acções ficam paradas até acabar: guardar credenciais a meio daria conflito); os serviços que não se lêem (a página abre na mesma, com um aviso); os quatro resultados do teste (§29.1); conflito (409: «A conta mudou entretanto», com «Recarregar»); arquivada (só leitura); sem permissão para mudar (os campos não aparecem) |
 
 **Os textos** estão em PT, ES e EN, sem maiúsculas forçadas. «Pronta» quer dizer
 «passou o teste», e o ecrã nunca o diz por outras palavras.
@@ -2111,11 +2115,12 @@ mesmo pedido.
 
 ## 30. O ecrã «Faturação»: a ligação ao emissor e o relatório OSS (issue #310)
 
-Pedido do Diogo, 12/10/2026 (*«sim, avança com o desenho do ecrã
-Faturação»*). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (*«sim,
-aprovo o desenho com a Q1 em A»*; `docs/06`, EG).
+Pedido do Diogo, 12/10/2026 (_«sim, avança com o desenho do ecrã
+Faturação»_). **Aprovado pelo Diogo a 12/10/2026**, com a Q1 em A (_«sim,
+aprovo o desenho com a Q1 em A»_; `docs/06`, EG).
 
 Hoje tudo o que a fatia 10 faz só se usa pela integração, com uma chave:
+
 - ligar o Moloni pela autorização dele (`docs/29` §17);
 - testar a ligação;
 - ver o relatório OSS, fechar o período e classificar um documento
@@ -2130,6 +2135,7 @@ Skills: `eu-vat-oss-ioss`, `third-party-extensions`, `headless-commerce`,
 `eurolify-hub-quality-gate`, `observability-security`, `eu-gdpr-privacy`.
 
 Ex.: a dona da «Loja Exemplo» abre «Faturação» e vê:
+
 - a ligação ao Moloni «Pronta, em modo teste»;
 - por baixo, o T3 de 2026 com «1 fatura por classificar».
 
@@ -2139,36 +2145,36 @@ impedimentos. Carrega em «Fechar o T3 de 2026», confirma com a passkey e vê
 
 ### 30.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
+| Entra                                                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A ligação de cada entidade legal**: o adaptador, o modo (teste), o estado (`por_testar`, `pronta`, `com_erro`, desligada), quando foi testada e o erro em linguagem comum |
-| **Ligar o Moloni** (ou ligar outra vez) pela autorização dele, e **testar** a ligação |
-| **O relatório OSS de um período** (trimestre; o mês fica na API): os cinco baldes por país e taxa, as alterações, o que fica à parte, o limiar e o que impede o fecho |
-| **Classificar um documento** que o relatório não classifica sozinho (`docs/37` §10, P1-A) |
-| **Fechar o período** (só o dono) e ver um período fechado tal como ficou |
-| **Descarregar os registos** do art. 63.º-C do Reg. 282/2011 (CSV) |
+| **Ligar o Moloni** (ou ligar outra vez) pela autorização dele, e **testar** a ligação                                                                                       |
+| **O relatório OSS de um período** (trimestre; o mês fica na API): os cinco baldes por país e taxa, as alterações, o que fica à parte, o limiar e o que impede o fecho       |
+| **Classificar um documento** que o relatório não classifica sozinho (`docs/37` §10, P1-A)                                                                                   |
+| **Fechar o período** (só o dono) e ver um período fechado tal como ficou                                                                                                    |
+| **Descarregar os registos** do art. 63.º-C do Reg. 282/2011 (CSV)                                                                                                           |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Criar a ligação e os mapas** (a série, (país, taxa) → taxa do emissor, motivo → isenção, os ids do Moloni). Dependem de ids que só se lêem no Moloni, e um mapa errado põe uma taxa errada numa fatura. Ficam pela integração até haver leitura das listas do Moloni (Q1). |
-| **Escolher o emissor da entidade** (`eurolify` ou `sistema_proprio`) e **«emitida fora»** (`docs/29` §15). São decisões de faturação com fila própria; entram com o ecrã dos documentos fiscais. |
-| **Os documentos fiscais** (a lista, a prova, o PDF, resolver uma divergência). Outro ecrã: as filas de «A decidir» (§28) já os mostram pelo identificador. |
-| **Declarar** no portal da AT. O Eurolify nunca declara: dá os números e os registos, e o comerciante apresenta a declaração (Diretiva IVA, art. 369.º-F; `docs/37`). |
+| **Escolher o emissor da entidade** (`eurolify` ou `sistema_proprio`) e **«emitida fora»** (`docs/29` §15). São decisões de faturação com fila própria; entram com o ecrã dos documentos fiscais.                                                                             |
+| **Os documentos fiscais** (a lista, a prova, o PDF, resolver uma divergência). Outro ecrã: as filas de «A decidir» (§28) já os mostram pelo identificador.                                                                                                                   |
+| **Declarar** no portal da AT. O Eurolify nunca declara: dá os números e os registos, e o comerciante apresenta a declaração (Diretiva IVA, art. 369.º-F; `docs/37`).                                                                                                         |
 
 ### 30.2 Como o Hub lê e escreve
 
 As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rotas.ts` e `rotas-oss.ts`). Usam a sessão em vez da chave, o comerciante no cabeçalho `Eurolify-Comerciante` e o `eurolify.quem` da pessoa, como em «A decidir» (§28.2).
 
-| Caminho | Quem | O que faz |
-|---|---|---|
-| `GET /hub/invoicing` | a sessão com `invoices:read` (dono, gestor, apoio) | as entidades legais do comerciante (nome, país, emissor escolhido) e as ligações de cada uma, **sem credenciais** (as mesmas de `GET /invoicing-connections`) |
-| `POST /hub/invoicing-connections/{id}/authorize` `{ empresa }` | `invoices:accounts` (só o dono), **autenticação recente** | a mesma `pedirAutorizacao` (`docs/29` §17) |
-| `POST /hub/invoicing-connections/{id}/authorize/complete` `{ codigo, estado }` | `invoices:accounts` | a mesma `concluirAutorizacao` |
-| `POST /hub/invoicing-connections/{id}/test` | `invoices:accounts` | a mesma `testarLigacao` |
-| `GET /hub/tax-reports/oss?entidade=&periodo=` | `tax:read` (dono, gestor, apoio) | o mesmo `relatorioOss` |
-| `POST /hub/tax-reports/oss/classifications` | `tax:write` (só o dono) | a mesma `classificarOss` |
-| `POST /hub/tax-reports/oss/close` | `tax:write`, **autenticação recente** | o mesmo `fecharOss`; o `fechado_por` passa a ser a pessoa (`pessoa:per_…`) |
-| `GET /hub/tax-reports/oss/records?entidade=&periodo=` | `tax:read` | o mesmo CSV, com os mesmos cabeçalhos (sem cache, como anexo) |
+| Caminho                                                                        | Quem                                                      | O que faz                                                                                                                                                     |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /hub/invoicing`                                                           | a sessão com `invoices:read` (dono, gestor, apoio)        | as entidades legais do comerciante (nome, país, emissor escolhido) e as ligações de cada uma, **sem credenciais** (as mesmas de `GET /invoicing-connections`) |
+| `POST /hub/invoicing-connections/{id}/authorize` `{ empresa }`                 | `invoices:accounts` (só o dono), **autenticação recente** | a mesma `pedirAutorizacao` (`docs/29` §17)                                                                                                                    |
+| `POST /hub/invoicing-connections/{id}/authorize/complete` `{ codigo, estado }` | `invoices:accounts`                                       | a mesma `concluirAutorizacao`                                                                                                                                 |
+| `POST /hub/invoicing-connections/{id}/test`                                    | `invoices:accounts`                                       | a mesma `testarLigacao`                                                                                                                                       |
+| `GET /hub/tax-reports/oss?entidade=&periodo=`                                  | `tax:read` (dono, gestor, apoio)                          | o mesmo `relatorioOss`                                                                                                                                        |
+| `POST /hub/tax-reports/oss/classifications`                                    | `tax:write` (só o dono)                                   | a mesma `classificarOss`                                                                                                                                      |
+| `POST /hub/tax-reports/oss/close`                                              | `tax:write`, **autenticação recente**                     | o mesmo `fecharOss`; o `fechado_por` passa a ser a pessoa (`pessoa:per_…`)                                                                                    |
+| `GET /hub/tax-reports/oss/records?entidade=&periodo=`                          | `tax:read`                                                | o mesmo CSV, com os mesmos cabeçalhos (sem cache, como anexo)                                                                                                 |
 
 - **Autenticação recente** para ligar uma conta e para fechar um período
   (§3): o primeiro dá acesso à emissão; o segundo não se desfaz.
@@ -2191,54 +2197,55 @@ As rotas pelo Hub fazem **o mesmo** que as da chave (`apps/api/src/faturacao/rot
 
 ### 30.3 O ecrã
 
-| Onde | O que mostra | Estados além do normal |
-|---|---|---|
-| **Entrada** (`/`) | Um módulo «Faturação» na grelha, para quem tem `invoices:read` ou `tax:read`: dono, gestor e apoio; o armazém não o vê. | — |
-| **Faturação** (`/faturacao?comerciante=…`) | Uma secção por entidade legal (o nome e o país; com uma só, sem título repetido). **A ligação**: o emissor («Moloni»), «em modo teste» sempre à vista, o estado com texto e o token de estado (regra 3), «testada há 2 dias» e o erro em linguagem comum. Com `invoices:accounts`: «Ligar o Moloni» (sem credenciais), «Ligar outra vez» (com erro ou para mudar de conta) e «Testar». Sem ligação: «Esta entidade ainda não está ligada a um software de faturação. A ligação cria-se pela integração.» (Q1). Por baixo, **«Relatório OSS»**, com o último trimestre acabado e o estado dele («Aberto · 2 impedimentos», «Fechado a …»). | a carregar; erro com «Tentar outra vez»; entidade que escolheu o sistema próprio («Os documentos desta entidade saem do sistema próprio.»); ligação desligada; comerciante errado (como nas outras páginas) |
-| **Ligar o Moloni** (diálogo) | O campo «Empresa no Moloni» (o número que o Moloni mostra na área de cliente) e a frase «Vai entrar no Moloni para autorizar o Eurolify. Só as empresas de teste são aceites.». Confirmar pede a autenticação recente e leva ao Moloni. | `invoices.invalid_field` (empresa fora da lista de teste, M8: «Esta empresa não é uma conta de teste.»); `invoices.not_configured` (o endereço de resposta não está configurado: «A ligação ao Moloni ainda não está disponível neste servidor.») |
-| **De volta do Moloni** (`/faturacao/moloni`) | «A concluir a ligação ao Moloni…», depois «Ligado. Falta testar.» com o botão «Testar», e por fim o resultado. | sem pedido guardado ou expirado («Este pedido já não vale. Peça outra vez.»); `state` diferente; `invoices.issuer_error` (o Moloni recusou: a frase dele, tapada, e «Peça outra vez»); `invoices.issuer_busy` (documentos a meio: «Há documentos a meio no Moloni; resolva-os antes de mudar a conta.»); usada (409) |
+| Onde                                                                              | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Estados além do normal                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Entrada** (`/`)                                                                 | Um módulo «Faturação» na grelha, para quem tem `invoices:read` ou `tax:read`: dono, gestor e apoio; o armazém não o vê.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | —                                                                                                                                                                                                                                                                                                                                                                   |
+| **Faturação** (`/faturacao?comerciante=…`)                                        | Uma secção por entidade legal (o nome e o país; com uma só, sem título repetido). **A ligação**: o emissor («Moloni»), «em modo teste» sempre à vista, o estado com texto e o token de estado (regra 3), «testada há 2 dias» e o erro em linguagem comum. Com `invoices:accounts`: «Ligar o Moloni» (sem credenciais), «Ligar outra vez» (com erro ou para mudar de conta) e «Testar». Sem ligação: «Esta entidade ainda não está ligada a um software de faturação. A ligação cria-se pela integração.» (Q1). Por baixo, **«Relatório OSS»**, com o último trimestre acabado e o estado dele («Aberto · 2 impedimentos», «Fechado a …»).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | a carregar; erro com «Tentar outra vez»; entidade que escolheu o sistema próprio («Os documentos desta entidade saem do sistema próprio.»); ligação desligada; comerciante errado (como nas outras páginas)                                                                                                                                                         |
+| **Ligar o Moloni** (diálogo)                                                      | O campo «Empresa no Moloni» (o número que o Moloni mostra na área de cliente) e a frase «Vai entrar no Moloni para autorizar o Eurolify. Só as empresas de teste são aceites.». Confirmar pede a autenticação recente e leva ao Moloni.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `invoices.invalid_field` (empresa fora da lista de teste, M8: «Esta empresa não é uma conta de teste.»); `invoices.not_configured` (o endereço de resposta não está configurado: «A ligação ao Moloni ainda não está disponível neste servidor.»)                                                                                                                   |
+| **De volta do Moloni** (`/faturacao/moloni`)                                      | «A concluir a ligação ao Moloni…», depois «Ligado. Falta testar.» com o botão «Testar», e por fim o resultado.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | sem pedido guardado ou expirado («Este pedido já não vale. Peça outra vez.»); `state` diferente; `invoices.issuer_error` (o Moloni recusou: a frase dele, tapada, e «Peça outra vez»); `invoices.issuer_busy` (documentos a meio: «Há documentos a meio no Moloni; resolva-os antes de mudar a conta.»); usada (409)                                                |
 | **Relatório OSS** (`/faturacao/oss?comerciante=…&entidade=lgl_…&periodo=2026-T3`) | **No topo**: o período, com anterior e seguinte. Os trimestres escolhem-se numa lista dos últimos oito, mais o actual com «em curso». Mostra o estado: aberto, ou «Fechado a {data}, por {nome}» com a versão da regra. Sempre a frase: «Estes números ajudam a preencher a declaração OSS. Quem a apresenta é a empresa, no portal das Finanças.» **Os baldes**: os cinco pela ordem do `docs/37` §2.1, cada um com a base e o IVA e as linhas por país e taxa (tabela a partir de 768 px, cartões abaixo, regra 5). As notas de crédito já vêm a negativo, e um valor negativo leva sinal e texto, não só cor. **Alterações de períodos anteriores**, quando houver, com o período de origem. **À parte** (sem somar): as emitidas fora do Eurolify (com o número declarado), as do sistema próprio e as por emitir. **O limiar**: «Vendas à distância em 2026: 4 230,00 € de 10 000,00 €»; com documentos excluídos, «a soma pode estar por baixo: {n} documentos não entraram». **O que impede o fecho**: cada motivo em linguagem comum, com os documentos (os últimos 4 algarismos à vista) e, nos classificáveis, «Classificar». No fim, «Descarregar os registos (CSV)» e, para o dono, «Fechar o {período}». | a carregar; erro; período inválido; período em curso (o botão diz «Só depois de {data}»); com impedimentos (o botão não aparece; a lista diz porquê); só «por emitir» (o diálogo de fechar pede a confirmação, Q-O4); período anterior ao último fechado (só leitura, com a frase do P1-B); CSV recusado (a frase da API); sem `tax:write` (só leitura, sem botões) |
-| **Classificar** (diálogo) | O documento (número, data, total) e uma linha por cada linha da prova, pela ordem dela: a descrição, a taxa e os valores, **só de leitura**, e dois campos, o **balde** (lista dos cinco) e o **país** (lista dos 27 e «fora da UE»). O país vem filtrado pelo balde para o ecrã não oferecer o que a API recusa: nacional só o país da entidade, OSS e intracomunitárias os outros 26, exportação fora da UE. Quando a prova não tem data, também **a data**, entre o dia do pedido e hoje. Por fim, o **motivo** (obrigatório, com a frase «Não escreva dados de clientes neste motivo.») e o aviso «Esta decisão fica gravada e não se muda.». | `tax_reports.invalid` (a frase da API); `tax_reports.not_classifiable`; `tax_reports.already_classified` (relê); sem `tax:write` |
-| **Fechar** (diálogo) | «Fechar o T3 de 2026? Os números ficam gravados como estão e o período não se reabre. O que chegar depois com data deste período entra como alteração no seguinte.» Com por emitir: a lista deles e a caixa «Vi os pedidos por emitir e quero fechar na mesma». Pede a autenticação recente. | `tax_reports.not_closable` (a lista nova de impedimentos: alguma coisa mudou); `tax_reports.already_closed` (relê); `tax_reports.retry` |
+| **Classificar** (diálogo)                                                         | O documento (número, data, total) e uma linha por cada linha da prova, pela ordem dela: a descrição, a taxa e os valores, **só de leitura**, e dois campos, o **balde** (lista dos cinco) e o **país** (lista dos 27 e «fora da UE»). O país vem filtrado pelo balde para o ecrã não oferecer o que a API recusa: nacional só o país da entidade, OSS e intracomunitárias os outros 26, exportação fora da UE. Quando a prova não tem data, também **a data**, entre o dia do pedido e hoje. Por fim, o **motivo** (obrigatório, com a frase «Não escreva dados de clientes neste motivo.») e o aviso «Esta decisão fica gravada e não se muda.».                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `tax_reports.invalid` (a frase da API); `tax_reports.not_classifiable`; `tax_reports.already_classified` (relê); sem `tax:write`                                                                                                                                                                                                                                    |
+| **Fechar** (diálogo)                                                              | «Fechar o T3 de 2026? Os números ficam gravados como estão e o período não se reabre. O que chegar depois com data deste período entra como alteração no seguinte.» Com por emitir: a lista deles e a caixa «Vi os pedidos por emitir e quero fechar na mesma». Pede a autenticação recente.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `tax_reports.not_closable` (a lista nova de impedimentos: alguma coisa mudou); `tax_reports.already_closed` (relê); `tax_reports.retry`                                                                                                                                                                                                                             |
 
 **A régua do país por balde** (no diálogo de classificar) vem do servidor e não é cópia: a rota `GET /hub/tax-reports/oss` passa a devolver `classificavel: { baldes: [{ balde, paises: [...] }] }`, calculado a partir de `PAISES_UE` e do país da entidade, os mesmos que validam em `classificarOss` (regra 8, como o `pode_ser_responsavel` do §28.2).
 
 **Os impedimentos em linguagem comum** (pt, es, en), com o que se pode fazer:
 
-| Código | Texto | Acção |
-|---|---|---|
-| `periodo_em_curso` | O período ainda não acabou. | — |
-| `por_emitir` | Há pedidos pagos por faturar ({n}). | fechar com a confirmação (Q-O4) |
-| `divergente` | Há faturas emitidas que não batem com o pedido. | — («A decidir») |
-| `declarado_divergente` | Uma fatura já declarada passou a divergente. | — («A decidir») |
-| `linhas_desalinhadas` | As linhas da fatura não batem com as do pedido. | «Classificar» (só se a divergência foi resolvida) |
-| `sem_balde` | O Eurolify não sabe onde declarar uma linha. | «Classificar» |
-| `sem_data` | A fatura não tem data. | «Classificar» |
-| `outra_moeda` | Fatura noutra moeda que não o euro. | — (ainda não suportado) |
-| `sinal_inesperado` | A fatura tem valores negativos. | — (suporte) |
-| `periodo_anterior_aberto` | Um período anterior ainda está aberto ({período}). | ir a esse período |
-| `periodo_posterior_fechado` | Já fechou um período a seguir a este. | só leitura |
+| Código                      | Texto                                              | Acção                                             |
+| --------------------------- | -------------------------------------------------- | ------------------------------------------------- |
+| `periodo_em_curso`          | O período ainda não acabou.                        | —                                                 |
+| `por_emitir`                | Há pedidos pagos por faturar ({n}).                | fechar com a confirmação (Q-O4)                   |
+| `divergente`                | Há faturas emitidas que não batem com o pedido.    | — («A decidir»)                                   |
+| `declarado_divergente`      | Uma fatura já declarada passou a divergente.       | — («A decidir»)                                   |
+| `linhas_desalinhadas`       | As linhas da fatura não batem com as do pedido.    | «Classificar» (só se a divergência foi resolvida) |
+| `sem_balde`                 | O Eurolify não sabe onde declarar uma linha.       | «Classificar»                                     |
+| `sem_data`                  | A fatura não tem data.                             | «Classificar»                                     |
+| `outra_moeda`               | Fatura noutra moeda que não o euro.                | — (ainda não suportado)                           |
+| `sinal_inesperado`          | A fatura tem valores negativos.                    | — (suporte)                                       |
+| `periodo_anterior_aberto`   | Um período anterior ainda está aberto ({período}). | ir a esse período                                 |
+| `periodo_posterior_fechado` | Já fechou um período a seguir a este.              | só leitura                                        |
 
 ### 30.4 Por onde é que isto ainda pode sair errado
 
-| Risco | O que o evita |
-|---|---|
+| Risco                                                                                                                                                                                                                           | O que o evita                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Números baseados em regras ainda C** (o período pela data do documento, a NC no período dela, a taxa da fatura emitida numa linha classificada, GR/EL) chegarem a um ecrã sem validação (`AGENTS.md`, «Não se erra», regra 7) | o ecrã diz sempre que os números ajudam e que quem declara é a empresa; o módulo só se liga **no ensaio** até o contabilista validar o `docs/37` (ADR-0045: as validações no fim do desenvolvimento, antes do primeiro comerciante de fora). A porta está escrita no `docs/05`, «Antes do primeiro comerciante de fora» (revisão do #408, P2-5) |
-| Ler um período fechado como recalculado | o topo diz «Fechado a …» e a página mostra a fotografia, nunca outra conta |
-| O apoio descarregar os registos (têm o NIF e o nome dos clientes) | `tax:read` dá-lhe o mesmo que pela chave. O ecrã diz antes de descarregar: «Tem dados pessoais (NIF e nome). Guarde-o só onde guarda a contabilidade.» Se o apoio não deve ter esta leitura, muda-se o papel (`papel_ambitos`), não o ecrã |
-| Ligar a conta Moloni de outra pessoa | a autorização só se conclui com o `estado` guardado no separador de quem a pediu; o P2-1 do #407 (prender o código ao pedido) continua por fazer antes do modo real |
-| Classificar com um país que a API recusa | o ecrã só oferece os países que o servidor devolve; a API confere outra vez |
-| Duas pessoas a fechar o mesmo período | a API fecha um de cada vez por entidade; a segunda recebe `already_closed` e o ecrã relê |
-| Um erro do Moloni com dados sensíveis no ecrã | a API já tapa os segredos (`taparSegredos`); o ecrã mostra só a `mensagem` |
+| Ler um período fechado como recalculado                                                                                                                                                                                         | o topo diz «Fechado a …» e a página mostra a fotografia, nunca outra conta                                                                                                                                                                                                                                                                      |
+| O apoio descarregar os registos (têm o NIF e o nome dos clientes)                                                                                                                                                               | `tax:read` dá-lhe o mesmo que pela chave. O ecrã diz antes de descarregar: «Tem dados pessoais (NIF e nome). Guarde-o só onde guarda a contabilidade.» Se o apoio não deve ter esta leitura, muda-se o papel (`papel_ambitos`), não o ecrã                                                                                                      |
+| Ligar a conta Moloni de outra pessoa                                                                                                                                                                                            | a autorização só se conclui com o `estado` guardado no separador de quem a pediu; o P2-1 do #407 (prender o código ao pedido) continua por fazer antes do modo real                                                                                                                                                                             |
+| Classificar com um país que a API recusa                                                                                                                                                                                        | o ecrã só oferece os países que o servidor devolve; a API confere outra vez                                                                                                                                                                                                                                                                     |
+| Duas pessoas a fechar o mesmo período                                                                                                                                                                                           | a API fecha um de cada vez por entidade; a segunda recebe `already_closed` e o ecrã relê                                                                                                                                                                                                                                                        |
+| Um erro do Moloni com dados sensíveis no ecrã                                                                                                                                                                                   | a API já tapa os segredos (`taparSegredos`); o ecrã mostra só a `mensagem`                                                                                                                                                                                                                                                                      |
 
 ### 30.5 Decidido
 
-✅ **Q1: A** (Diogo, 12/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
+✅ **Q1: A** (Diogo, 12/10/2026, _«sim, aprovo o desenho com a Q1 em A»_).
 
 **Q1. A ligação ao emissor e os mapas criam-se no Hub nesta parte?** Ex.:
 a dona da «Loja Exemplo» ainda não tem ligação. Precisaria de escolher a
 série «500», dizer que a taxa de 23 % de PT é a taxa «11» do Moloni e indicar
 o artigo dos portes e o cliente «Consumidor final».
+
 - **A (proposta):** não. Nesta parte, o Hub só liga, testa e mostra a
   ligação; criá-la e os mapas ficam pela integração. Os mapas dependem de ids
   que só se lêem no Moloni, e um mapa errado põe uma taxa errada numa fatura.
@@ -2269,17 +2276,18 @@ o artigo dos portes e o cliente «Consumidor final».
 
   Também: o papel sem `tax:write`, um período em curso e um posterior
   fechado.
+
 - **Capturas**: a 375, 768 e 1280 px, claro e escuro, para a página de
   aprovação (`eurolify-hub-quality-gate`).
 
 ### 30.7 Em código (12/10/2026; pedido #408)
 
-| O quê | Onde |
-|---|---|
-| as rotas `/hub/invoicing…` (a faturação, ligar, concluir, testar), pelo papel da sessão e com autenticação recente para ligar | `apps/api/src/faturacao/rotas.ts` |
-| as rotas `/hub/tax-reports/oss…` (o relatório com `classificavel`, o documento a classificar, classificar, fechar com autenticação recente, os registos) | `apps/api/src/faturacao/rotas-oss.ts`; `paisesPorBalde`, `classificavelOss` e `documentoParaClassificar` em `oss.ts` |
-| o módulo, a página «Faturação», o regresso do Moloni e o relatório OSS, com os diálogos | `apps/hub/src/ecras/Faturacao.tsx`, `RelatorioOss.tsx`, `Dialogo.tsx`; a lógica em `apps/hub/src/faturacao.ts` |
-| testes: as rotas pelo papel (`apps/api/test/faturacao-hub.test.ts`), a lógica do Hub (`apps/hub/test/faturacao.test.ts`) e as capturas (`scripts/capturas.mjs`, com `/faturacao`) | — |
+| O quê                                                                                                                                                                             | Onde                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| as rotas `/hub/invoicing…` (a faturação, ligar, concluir, testar), pelo papel da sessão e com autenticação recente para ligar                                                     | `apps/api/src/faturacao/rotas.ts`                                                                                    |
+| as rotas `/hub/tax-reports/oss…` (o relatório com `classificavel`, o documento a classificar, classificar, fechar com autenticação recente, os registos)                          | `apps/api/src/faturacao/rotas-oss.ts`; `paisesPorBalde`, `classificavelOss` e `documentoParaClassificar` em `oss.ts` |
+| o módulo, a página «Faturação», o regresso do Moloni e o relatório OSS, com os diálogos                                                                                           | `apps/hub/src/ecras/Faturacao.tsx`, `RelatorioOss.tsx`, `Dialogo.tsx`; a lógica em `apps/hub/src/faturacao.ts`       |
+| testes: as rotas pelo papel (`apps/api/test/faturacao-hub.test.ts`), a lógica do Hub (`apps/hub/test/faturacao.test.ts`) e as capturas (`scripts/capturas.mjs`, com `/faturacao`) | —                                                                                                                    |
 
 **Desvio do desenho:** uma rota a mais, `GET /hub/tax-reports/oss/documents/{id}`.
 O relatório não traz as linhas da prova, e o diálogo «Classificar» precisa
@@ -2287,6 +2295,7 @@ delas. A rota devolve o número, a data, o total, a data mínima e as linhas;
 nunca o NIF nem o nome do cliente.
 
 **Revisão do #408** (agente da sessão, Opus 5.5; 0 P0, 0 P1, 5 P2, 11 P3):
+
 - **P2-1, corrigido:** os erros do relatório e a recusa do Moloni passam a
   ter texto próprio nas três línguas, com o pormenor da API (em português).
 - **P2-2, corrigido:** uma resposta perdida conta também com um 5xx sem
@@ -2310,6 +2319,7 @@ nunca o NIF nem o nome do cliente.
   `invoices:read`; dois pormenores de acessibilidade.
 
 **Por fazer:**
+
 - **A exportação:** os países fora da UE ainda não vêm do servidor. O ecrã
   pede o código, e a API confere-o.
 - **`periodo_anterior_aberto`:** o impedimento não diz qual é o período.
@@ -2320,12 +2330,13 @@ nunca o NIF nem o nome do cliente.
 
 ## 31. Envios: os métodos de entrega e o peso da embalagem (issue #393)
 
-Pedido do Diogo, 12/10/2026: *«depois avança com os métodos de entrega»*. A
-13/10/2026 aprovou o aspecto dos ecrãs do §29 (*«aprovo; avança com os
-métodos de entrega»*). Desenho aprovado pelo Diogo a 13/10/2026 (*«sim, aprovo; avança com o
-código»*).
+Pedido do Diogo, 12/10/2026: _«depois avança com os métodos de entrega»_. A
+13/10/2026 aprovou o aspecto dos ecrãs do §29 (_«aprovo; avança com os
+métodos de entrega»_). Desenho aprovado pelo Diogo a 13/10/2026 (_«sim, aprovo; avança com o
+código»_).
 
 A API já tem quase tudo:
+
 - os métodos (`docs/25` §3.6, Q2; `docs/36` §3.2);
 - o peso da embalagem por armazém (`docs/36` Q6, `PUT /warehouses/{id}/packaging`);
 - as regras do checkout (`docs/36` R4).
@@ -2347,25 +2358,26 @@ começam por `9`). No armazém de Lisboa põe a embalagem a 200 g.
 
 ### 31.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
-| **A lista dos métodos**, por mercado: o nome, a tarifa (na moeda do mercado, com ou sem IVA como o mercado), «grátis a partir de», o prazo máximo, a transportadora e o serviço (ou «Manual»), e o estado («Activo» ou «Arquivado»). |
-| **Criar um método** (dono e gestor, `shipping:write`): os campos de §31.3. |
-| **Mudar um método**, com a versão (409 num conflito), e **arquivar e reactivar**. Arquivar tira-o do checkout. O mercado não muda depois de criado: a API não o deixa. |
-| **O peso da embalagem por armazém**, em gramas, somado ao das variantes na etiqueta (`docs/36` Q6). |
+| Entra                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A lista dos métodos**, por mercado: o nome, a tarifa (na moeda do mercado, com ou sem IVA como o mercado), «grátis a partir de», o prazo máximo, a transportadora e o serviço (ou «Manual»), e o estado («Activo» ou «Arquivado»).                                                                                                                                                                                                                    |
+| **Criar um método** (dono e gestor, `shipping:write`): os campos de §31.3.                                                                                                                                                                                                                                                                                                                                                                              |
+| **Mudar um método**, com a versão (409 num conflito), e **arquivar e reactivar**. Arquivar tira-o do checkout. O mercado não muda depois de criado: a API não o deixa.                                                                                                                                                                                                                                                                                  |
+| **O peso da embalagem por armazém**, em gramas, somado ao das variantes na etiqueta (`docs/36` Q6).                                                                                                                                                                                                                                                                                                                                                     |
 | **As restrições que o cliente vê.** O ecrã diz ao comerciante que o prazo máximo e as regiões servidas aparecem ao cliente antes da compra. Fontes: L1 e L3 do `docs/36` §5 (Dir. 2011/83/UE, art. 6.º, n.º 1, al. g); DL 24/2014, art. 7.º). Relidas no `eur-lex` a 13/10/2026: `corpus/consumidores-e-vendas/32011L0083-direitos-dos-consumidores.md` e `legislacao-pt/decreto-lei-24-2014.md`, este consolidado até 03/03/2023, obtido a 10/10/2026. |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Aceitar mercadorias perigosas (números ONU) pelo Hub.** A classificação é de um profissional, nunca do nome (L9, `eurolify-transport-logistics-eu`). O ecrã mostra a lista e diz que está vazia por omissão, mas não a muda. Quem precisar muda-a pela API, com a classificação feita. |
-| **Opções de entrega respeitadoras do ambiente (L8).** A transposição portuguesa não está no `eur-lex` (Q8 do `docs/36`): **C**. |
-| **O IVA dos portes com categorias misturadas (V12):** é o contabilista que decide. O ecrã não promete nada sobre ele. |
-| **Criar e mudar mercados e armazéns:** são de outros domínios (`docs/20`, `docs/24`). O ecrã só os lê para escolher. |
-| **A etiqueta numa expedição**, que precisa dos ecrãs das encomendas (`docs/27`). |
+| **Opções de entrega respeitadoras do ambiente (L8).** A transposição portuguesa não está no `eur-lex` (Q8 do `docs/36`): **C**.                                                                                                                                                          |
+| **O IVA dos portes com categorias misturadas (V12):** é o contabilista que decide. O ecrã não promete nada sobre ele.                                                                                                                                                                    |
+| **Criar e mudar mercados e armazéns:** são de outros domínios (`docs/20`, `docs/24`). O ecrã só os lê para escolher.                                                                                                                                                                     |
+| **A etiqueta numa expedição**, que precisa dos ecrãs das encomendas (`docs/27`).                                                                                                                                                                                                         |
 
 ### 31.2 Como o Hub lê e escreve
 
 Segue o padrão do §29.2:
+
 - a sessão da pessoa e o cabeçalho `Eurolify-Comerciante`;
 - **sem `Idempotency-Key`** (`docs/21` §11): a `versao` recusa a repetição;
 - `cache-control: private, no-store`, também nos 403;
@@ -2373,14 +2385,14 @@ Segue o padrão do §29.2:
   embalagem não têm rasto de auditoria (procurei `metodo_entrega` com
   «rasto» nas migrações, a 13/10/2026). Fica assim: um rasto é outro pedido.
 
-| Caminho do Hub | Âmbito | A rota da chave |
-|---|---|---|
-| `GET /hub/shipping-methods?mercado=` | `shipping:read` | `GET /shipping-methods` |
-| `POST /hub/shipping-methods` | `shipping:write` | `POST /shipping-methods` |
-| `PATCH /hub/shipping-methods/{id}` | `shipping:write` | `PATCH /shipping-methods/{id}` |
-| `GET /hub/markets` | `prices:read` | `GET /markets` |
-| `GET /hub/warehouses` | `inventory:read` | `GET /warehouses` (passa a dizer `embalagem_g`) |
-| `PUT /hub/warehouses/{id}/packaging` | `shipping:write` | `PUT /warehouses/{id}/packaging` |
+| Caminho do Hub                       | Âmbito           | A rota da chave                                 |
+| ------------------------------------ | ---------------- | ----------------------------------------------- |
+| `GET /hub/shipping-methods?mercado=` | `shipping:read`  | `GET /shipping-methods`                         |
+| `POST /hub/shipping-methods`         | `shipping:write` | `POST /shipping-methods`                        |
+| `PATCH /hub/shipping-methods/{id}`   | `shipping:write` | `PATCH /shipping-methods/{id}`                  |
+| `GET /hub/markets`                   | `prices:read`    | `GET /markets`                                  |
+| `GET /hub/warehouses`                | `inventory:read` | `GET /warehouses` (passa a dizer `embalagem_g`) |
+| `PUT /hub/warehouses/{id}/packaging` | `shipping:write` | `PUT /warehouses/{id}/packaging`                |
 
 - **Os papéis** não mudam: o dono e o gestor têm `shipping:write` (migração
   0074). O armazém e o apoio só vêem, sem botões. Todos os papéis com
@@ -2404,12 +2416,12 @@ Segue o padrão do §29.2:
 Dentro do módulo «Envios», três separadores: «Contas» (o que já existe,
 §29), «Métodos de entrega» e «Embalagem».
 
-| Ecrã | O que mostra | Estados além do normal |
-|---|---|---|
-| **Métodos de entrega** (`/envios/metodos`) | Um filtro por mercado. Uma linha por método (cartões no telemóvel): o nome, o mercado, a tarifa, «grátis a partir de», «até N dias», a transportadora e o serviço (ou «Manual»), e o estado. Para o dono e o gestor, «Criar um método». As arquivadas ficam escondidas, com «Mostrar os arquivados». A contagem à vista. | sem mercados (diz que primeiro se cria um mercado, sem botão para isso); sem métodos; a carregar; erro; sem permissão |
+| Ecrã                                         | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Estados além do normal                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Métodos de entrega** (`/envios/metodos`)   | Um filtro por mercado. Uma linha por método (cartões no telemóvel): o nome, o mercado, a tarifa, «grátis a partir de», «até N dias», a transportadora e o serviço (ou «Manual»), e o estado. Para o dono e o gestor, «Criar um método». As arquivadas ficam escondidas, com «Mostrar os arquivados». A contagem à vista.                                                                                                                                                                                                                                                                                            | sem mercados (diz que primeiro se cria um mercado, sem botão para isso); sem métodos; a carregar; erro; sem permissão                                                                                                                                                                                                         |
 | **Criar um método** (`/envios/metodos/novo`) | O mercado. O nome, em cada língua do mercado (a principal é obrigatória). O prazo em texto por língua (opcional, ex.: «2 a 3 dias úteis»). A tarifa e «grátis a partir de», com a moeda e «com IVA» ou «sem IVA», como o mercado. «Pede telefone». A transportadora: «Manual (sem etiquetas)» ou uma conta pronta, e o serviço dela. O prazo máximo, de 1 a 30 dias, com a nota de que o cliente vê «entrega até {data}». Os códigos postais servidos (prefixos; vazio é o país todo), com a nota de que o cliente vê a restrição antes de encomendar. O peso máximo, sugerido pelo serviço. A lista ONU, só a ler. | campos em falta junto ao campo; a recusa do servidor (conta não pronta, serviço desconhecido, país não servido, telefone ou peso) sai com o texto do código; sem contas prontas (só «Manual», com ligação a «Contas»); resposta perdida (o ecrã não repete: diz que o método pode ter ficado criado e manda conferir a lista) |
-| **O método** (`/envios/metodos/{shm_…}`) | Os mesmos campos, com «Guardar», e «Arquivar» ou «Reactivar», com confirmação. | conflito (409, com «Recarregar»); arquivado (só leitura, com «Reactivar»); a conta do método arquivada ou por testar (aviso: o checkout não o oferece, `docs/36` R4); sem permissão para mudar |
-| **Embalagem** (`/envios/embalagem`) | Uma linha por armazém: o nome, a loja e o peso da embalagem em gramas, com «Guardar» em cada linha. A nota: «Soma-se ao peso das variantes na etiqueta». | sem armazéns (diz que se criam em «Stock»); valor fora de 0 a 100 000 g; a carregar; erro; sem permissão para mudar |
+| **O método** (`/envios/metodos/{shm_…}`)     | Os mesmos campos, com «Guardar», e «Arquivar» ou «Reactivar», com confirmação.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | conflito (409, com «Recarregar»); arquivado (só leitura, com «Reactivar»); a conta do método arquivada ou por testar (aviso: o checkout não o oferece, `docs/36` R4); sem permissão para mudar                                                                                                                                |
+| **Embalagem** (`/envios/embalagem`)          | Uma linha por armazém: o nome, a loja e o peso da embalagem em gramas, com «Guardar» em cada linha. A nota: «Soma-se ao peso das variantes na etiqueta».                                                                                                                                                                                                                                                                                                                                                                                                                                                            | sem armazéns (diz que se criam em «Stock»); valor fora de 0 a 100 000 g; a carregar; erro; sem permissão para mudar                                                                                                                                                                                                           |
 
 **Os textos** estão em PT, ES e EN. «Manual» quer dizer «sem etiquetas pelo
 Eurolify», e o ecrã di-lo.
@@ -2468,6 +2480,7 @@ Eurolify», e o ecrã di-lo.
 
 **Revisão do agente** (Claude Sonnet 5.5, publicada no #413): 0 P0, 0 P1 e
 4 P2, todos corrigidos.
+
 - **P2-1:** um método arquivado também se muda. Se a conta dele deixou de
   estar pronta, escolhe-se outra, ou «Manual», antes de reactivar. Há um
   teste da API para isto.
@@ -2483,6 +2496,7 @@ Eurolify», e o ecrã di-lo.
   - os mercados arquivados não se oferecem num método novo.
 
 **Desvios do §31, declarados:**
+
 - **Os números ONU:** a rota do Hub aceita `aceita_onu`, como a da chave,
   porque o corpo é o mesmo. O ecrã nunca o envia.
 - **A embalagem:** a lista mostra o armazém sem o nome da loja.
@@ -2496,10 +2510,10 @@ Eurolify», e o ecrã di-lo.
 
 ## 32. Faturação: criar a ligação ao Moloni e os mapas no Hub (issue #310)
 
-Pedido do Diogo, 13/10/2026 (*«sim, avança com o desenho da ligação ao
-Moloni no Hub»*). É a parte que a Q1 do §30 deixou para depois: «entram numa
+Pedido do Diogo, 13/10/2026 (_«sim, avança com o desenho da ligação ao
+Moloni no Hub»_). É a parte que a Q1 do §30 deixou para depois: «entram numa
 parte seguinte, com a leitura das listas do Moloni». **Aprovado pelo Diogo a
-13/10/2026**, com a Q1 em A (*«sim, aprovo o desenho com a Q1 em A»*;
+13/10/2026**, com a Q1 em A (_«sim, aprovo o desenho com a Q1 em A»_;
 `docs/06`, EI).
 
 Hoje a ligação, a série e os mapas só se criam pela integração. É preciso
@@ -2512,6 +2526,7 @@ Skills: `eu-vat-oss-ioss`, `third-party-extensions`, `headless-commerce`,
 `observability-security`.
 
 Ex.: a dona da «Loja Exemplo»:
+
 1. Carrega em «Criar a ligação ao Moloni», liga a conta (§30) e testa.
 2. Abre «Configurar». Escolhe a série «Loja online 2026» e, para «IVA 23 %
    (PT)», a taxa «Taxa Normal 23 % · PT» do Moloni. Para o motivo «M16»,
@@ -2522,45 +2537,45 @@ Ex.: a dona da «Loja Exemplo»:
 
 ### 32.1 O que diz o Moloni (páginas lidas a 12/10 e 13/10/2026, **M**; nenhuma lida pela API: as credenciais da conta de teste não estão no ambiente)
 
-| O que se escolhe | Método do Moloni | O que devolve |
-|---|---|---|
-| a série | `documentSets/getAll` (`company_id`; até 50) | `document_set_id`, `name`, `active_by_default` |
-| as taxas | `taxes/getAll` | `tax_id`, `value`, `saft_type`, `fiscal_zone` (`docs/eurolify/fontes-api-moloni-11out2026.md` §9) |
-| as isenções | `taxExemptions/getAll` | `code`, `name`, `description` |
-| os métodos de pagamento | `paymentMethods/getAll` (`company_id`; até 50) | `payment_method_id`, `name` |
-| a língua | `languages/getAll` (sem parâmetros) | `language_id`, `code`, `title` |
-| o vencimento | `maturityDates/getAll` (`company_id`) | `maturity_date_id`, `name`, `days` |
-| a unidade dos artigos criados | `measurementUnits/getAll` (`company_id`) | `unit_id`, `name`, `short_name` |
-| a categoria dos artigos criados | `productCategories/getAll` (`company_id`, `parent_id` = 0 para as de topo) | `category_id`, `name`, `num_categories` |
-| o artigo dos portes | `products/getBySearch` (`search` no nome, na referência ou no EAN; até 50) | `product_id`, `name`, `reference`, `price` |
-| o cliente «Consumidor final» | `customers/getBySearch` (`search` no número, no contribuinte ou no nome; até 50) | `customer_id`, `vat`, `name`, `number` |
+| O que se escolhe                | Método do Moloni                                                                 | O que devolve                                                                                     |
+| ------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| a série                         | `documentSets/getAll` (`company_id`; até 50)                                     | `document_set_id`, `name`, `active_by_default`                                                    |
+| as taxas                        | `taxes/getAll`                                                                   | `tax_id`, `value`, `saft_type`, `fiscal_zone` (`docs/eurolify/fontes-api-moloni-11out2026.md` §9) |
+| as isenções                     | `taxExemptions/getAll`                                                           | `code`, `name`, `description`                                                                     |
+| os métodos de pagamento         | `paymentMethods/getAll` (`company_id`; até 50)                                   | `payment_method_id`, `name`                                                                       |
+| a língua                        | `languages/getAll` (sem parâmetros)                                              | `language_id`, `code`, `title`                                                                    |
+| o vencimento                    | `maturityDates/getAll` (`company_id`)                                            | `maturity_date_id`, `name`, `days`                                                                |
+| a unidade dos artigos criados   | `measurementUnits/getAll` (`company_id`)                                         | `unit_id`, `name`, `short_name`                                                                   |
+| a categoria dos artigos criados | `productCategories/getAll` (`company_id`, `parent_id` = 0 para as de topo)       | `category_id`, `name`, `num_categories`                                                           |
+| o artigo dos portes             | `products/getBySearch` (`search` no nome, na referência ou no EAN; até 50)       | `product_id`, `name`, `reference`, `price`                                                        |
+| o cliente «Consumidor final»    | `customers/getBySearch` (`search` no número, no contribuinte ou no nome; até 50) | `customer_id`, `vat`, `name`, `number`                                                            |
 
 **Por medir na conta de teste:** os campos exactos de cada resposta e se
 estas leituras contam para o limite de pedidos (§13.5).
 
 ### 32.2 O que entra e o que fica de fora
 
-| Entra |
-|---|
-| **Criar a ligação ao Moloni** de uma entidade que não tem nenhuma activa: sem série nem mapas, «por testar» |
-| **Configurar**: a série, as taxas, as isenções, os métodos de pagamento, a língua, o vencimento, a unidade e a categoria dos artigos criados, o artigo dos portes e o cliente «Consumidor final», **sempre escolhidos de uma lista lida do Moloni** |
+| Entra                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Criar a ligação ao Moloni** de uma entidade que não tem nenhuma activa: sem série nem mapas, «por testar»                                                                                                                                                                            |
+| **Configurar**: a série, as taxas, as isenções, os métodos de pagamento, a língua, o vencimento, a unidade e a categoria dos artigos criados, o artigo dos portes e o cliente «Consumidor final», **sempre escolhidos de uma lista lida do Moloni**                                    |
 | **Ver o que falta**: o Eurolify diz que pares (país, taxa), que códigos de isenção e que meios de pagamento precisam de mapa. O que falta não impede gravar, mas fica à vista, e uma fatura que precise dele fica retida (`taxa_sem_mapa`, `isencao_sem_mapa`, motivos que já existem) |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------ |
 | **Escolher o emissor da entidade** (Eurolify ou sistema próprio): como no §30.1, entra com o ecrã dos documentos fiscais |
-| **Criar séries, taxas ou artigos no Moloni**: nunca a partir do Eurolify; cria-se no Moloni e escolhe-se aqui |
-| **O adaptador de ensaio**: não lê listas; continua só pela integração |
-| **Desligar a ligação**: fica pela integração, porque desligar com documentos a meio tem regras próprias (R15) |
+| **Criar séries, taxas ou artigos no Moloni**: nunca a partir do Eurolify; cria-se no Moloni e escolhe-se aqui            |
+| **O adaptador de ensaio**: não lê listas; continua só pela integração                                                    |
+| **Desligar a ligação**: fica pela integração, porque desligar com documentos a meio tem regras próprias (R15)            |
 
 ### 32.3 Como o Hub lê e escreve
 
-| Caminho | Quem | O que faz |
-|---|---|---|
-| `POST /hub/invoicing-connections` `{ entidade_legal }` | `invoices:accounts` (o dono) | a mesma `criarLigacao`, com `adaptador = moloni`, sem série nem mapas; uma activa por entidade (a base já o garante) |
-| `GET /hub/invoicing-connections/{id}/issuer-options` | `invoices:accounts` | **lê do Moloni**, com as credenciais da ligação: as séries, as taxas, as isenções, os métodos de pagamento, as línguas, os vencimentos, as unidades e as categorias de topo. **Junta o que o Eurolify precisa de mapear**: os pares (país, taxa) da tabela do Motor de IVA vigentes hoje nos países dos mercados activos do comerciante, os códigos de motivo de isenção do Motor (os de `GET /tax/reasons`) e os meios de pagamento que o comerciante aceita (a régua método → conta, `docs/26`). Nunca escolhe nada |
-| `GET /hub/invoicing-connections/{id}/issuer-search?tipo=artigo\|cliente&q=` | `invoices:accounts` | pesquisa no Moloni (`products/getBySearch` ou `customers/getBySearch`), até 50; de cada cliente só o id, o número e o nome, **nunca o contribuinte nem a morada** |
-| `PATCH /hub/invoicing-connections/{id}` `{ versao, serie, taxas, isencoes, config }` | `invoices:accounts` | a mesma `mudarLigacao` da chave: fica por testar e, com documentos a meio no emissor, recusa (R15). **Antes de gravar, o servidor relê as listas do Moloni e confere que cada id escolhido existe lá** (uma série apagada entretanto, ou um id escrito à mão por uma integração do Hub, é recusado com `invoices.invalid_field`) |
+| Caminho                                                                              | Quem                         | O que faz                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------ | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /hub/invoicing-connections` `{ entidade_legal }`                               | `invoices:accounts` (o dono) | a mesma `criarLigacao`, com `adaptador = moloni`, sem série nem mapas; uma activa por entidade (a base já o garante)                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `GET /hub/invoicing-connections/{id}/issuer-options`                                 | `invoices:accounts`          | **lê do Moloni**, com as credenciais da ligação: as séries, as taxas, as isenções, os métodos de pagamento, as línguas, os vencimentos, as unidades e as categorias de topo. **Junta o que o Eurolify precisa de mapear**: os pares (país, taxa) da tabela do Motor de IVA vigentes hoje nos países dos mercados activos do comerciante, os códigos de motivo de isenção do Motor (os de `GET /tax/reasons`) e os meios de pagamento que o comerciante aceita (a régua método → conta, `docs/26`). Nunca escolhe nada |
+| `GET /hub/invoicing-connections/{id}/issuer-search?tipo=artigo\|cliente&q=`          | `invoices:accounts`          | pesquisa no Moloni (`products/getBySearch` ou `customers/getBySearch`), até 50; de cada cliente só o id, o número e o nome, **nunca o contribuinte nem a morada**                                                                                                                                                                                                                                                                                                                                                     |
+| `PATCH /hub/invoicing-connections/{id}` `{ versao, serie, taxas, isencoes, config }` | `invoices:accounts`          | a mesma `mudarLigacao` da chave: fica por testar e, com documentos a meio no emissor, recusa (R15). **Antes de gravar, o servidor relê as listas do Moloni e confere que cada id escolhido existe lá** (uma série apagada entretanto, ou um id escrito à mão por uma integração do Hub, é recusado com `invoices.invalid_field`)                                                                                                                                                                                      |
 
 - **Os erros do Moloni** (credenciais mortas, rede) saem como na ligação
   (`invoices.issuer_error`, tapados). A ligação passa a «com erro» só pela
@@ -2571,29 +2586,30 @@ estas leituras contam para o limite de pedidos (§13.5).
 
 ### 32.4 O ecrã
 
-| Onde | O que muda | Estados além do normal |
-|---|---|---|
-| **Faturação** (§30.3), uma entidade sem ligação | Para o dono: «Criar a ligação ao Moloni» (em vez da frase da Q1 do §30). Cria e mostra a ligação «Por testar», com «Ligar o Moloni» | já existe uma activa (relê); sem `invoices:accounts` (só a frase) |
-| **Faturação**, uma entidade com ligação Moloni ligada | «Configurar», e por baixo do estado «Faltam 2 taxas e 1 método de pagamento» (do `issuer-options`), ou nada quando nada falta | — |
+| Onde                                                                 | O que muda                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Estados além do normal                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Faturação** (§30.3), uma entidade sem ligação                      | Para o dono: «Criar a ligação ao Moloni» (em vez da frase da Q1 do §30). Cria e mostra a ligação «Por testar», com «Ligar o Moloni»                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | já existe uma activa (relê); sem `invoices:accounts` (só a frase)                                                                                                                                                                                                                                                                                                                                                                              |
+| **Faturação**, uma entidade com ligação Moloni ligada                | «Configurar», e por baixo do estado «Faltam 2 taxas e 1 método de pagamento» (do `issuer-options`), ou nada quando nada falta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | —                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | **Configurar** (`/faturacao/configurar?comerciante=…&ligacao=isx_…`) | Uma secção por grupo, cada uma com listas de escolha preenchidas pelo Moloni, sempre com o nome e o id do Moloni lado a lado (`Taxa Normal 23 % · PT (id 11)`): **Série**; **Taxas** (uma linha por par do Eurolify, «IVA 23 % · Portugal», e a taxa do Moloni a escolher); **Isenções** (uma linha por código); **Métodos de pagamento** (uma linha por meio); **Para os clientes criados** (língua, vencimento); **Para os artigos criados** (unidade, categoria); **Portes** e **Consumidor final** (um campo de pesquisa que mostra até 50 resultados). Por baixo, «Faltam: …» actualizado à medida que se escolhe. «Gravar» grava tudo de uma vez, com a versão lida. Depois de gravar, «A ligação ficou por testar.» e o botão «Testar» | a ler o Moloni; o Moloni recusou ou não respondeu (a frase, tapada, e «Tentar outra vez»); lista vazia no Moloni («O Moloni não tem nenhuma série; crie-a no Moloni e volte.»); conflito (409: «Outra pessoa mudou esta ligação entretanto.», com as escolhas da pessoa guardadas no ecrã); um id que deixou de existir (`invoices.invalid_field`: a frase da API e a lista relida); documentos a meio (`invoices.issuer_busy`); sem permissão |
 
 ### 32.5 Por onde é que isto ainda pode sair errado
 
-| Risco | O que o evita |
-|---|---|
+| Risco                                                                                              | O que o evita                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Escolher a taxa errada do Moloni** (uma de 23 % de outra zona fiscal, ou de 13 % em vez de 23 %) | a lista mostra o valor, a zona fiscal e o id; nada vem escolhido (Q1); o teste da ligação não chega para isto. **O contabilista confere os mapas antes do primeiro comerciante de fora** (**C**, `docs/05`) |
-| Escolher por nome um cliente ou artigo com nome parecido | a pesquisa mostra o número e a referência ao lado do nome, e guarda-se o id (`AGENTS.md`, «Não se erra», regra 6) |
-| Um id que deixa de existir no Moloni depois de gravado | o servidor confere ao gravar; depois disso, a emissão falha no Moloni e o documento fica retido com a frase dele (§13.5), nunca sai com outra coisa |
-| Dados pessoais dos clientes do Moloni no Hub | a pesquisa de clientes só devolve o id, o número e o nome; o contribuinte e a morada não saem |
-| A leitura gastar o limite do Moloni | o limite próprio por empresa (§13.5); as listas lêem-se só ao abrir e ao gravar |
+| Escolher por nome um cliente ou artigo com nome parecido                                           | a pesquisa mostra o número e a referência ao lado do nome, e guarda-se o id (`AGENTS.md`, «Não se erra», regra 6)                                                                                           |
+| Um id que deixa de existir no Moloni depois de gravado                                             | o servidor confere ao gravar; depois disso, a emissão falha no Moloni e o documento fica retido com a frase dele (§13.5), nunca sai com outra coisa                                                         |
+| Dados pessoais dos clientes do Moloni no Hub                                                       | a pesquisa de clientes só devolve o id, o número e o nome; o contribuinte e a morada não saem                                                                                                               |
+| A leitura gastar o limite do Moloni                                                                | o limite próprio por empresa (§13.5); as listas lêem-se só ao abrir e ao gravar                                                                                                                             |
 
 ### 32.6 Decidido
 
-✅ **Q1: A** (Diogo, 13/10/2026, *«sim, aprovo o desenho com a Q1 em A»*).
+✅ **Q1: A** (Diogo, 13/10/2026, _«sim, aprovo o desenho com a Q1 em A»_).
 
 **Q1. O ecrã sugere a taxa do Moloni quando o valor e a zona fiscal batem?**
 Ex.: para «IVA 23 % · Portugal», o Moloni tem a «Taxa Normal» (23 %, zona
 PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
+
 - **A (proposta):** não sugere nem escolhe. As taxas do Moloni com o mesmo
   valor e a mesma zona aparecem **no topo da lista**, e a pessoa escolhe
   sempre. Nada fica escolhido sem alguém o escolher («Não se erra», regra
@@ -2622,15 +2638,16 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
 
 ### 32.8 Em código (13/10/2026; pedido #412)
 
-| O quê | Onde |
-|---|---|
-| as quatro rotas `/hub/invoicing-connections…` (criar, `issuer-options`, `issuer-search`, `PATCH`), só com `invoices:accounts` | `apps/api/src/faturacao/rotas.ts` |
-| o que o Eurolify precisa de mapear (`necessarioDe`), o que falta (`faltaNaLigacao`, a mesma chave de `motivosDoConteudo`), ler e pesquisar no emissor, e gravar com a conferência dos ids (`configurarLigacao`) | `apps/api/src/faturacao/repositorio.ts` |
-| as listas, a pesquisa e a confirmação de um artigo ou cliente por id (`products/getOne`, `customers/getOne`) no Moloni | `apps/api/src/faturacao/moloni.ts`; o contrato em `adaptador.ts` |
-| «Criar a ligação ao Moloni», «Configurar», «Falta mapear: …» e o ecrã `/faturacao/configurar` | `apps/hub/src/ecras/Faturacao.tsx`, `ConfigurarFaturacao.tsx`; a lógica em `apps/hub/src/faturacao.ts` |
-| testes: as rotas pelo papel, as listas, a pesquisa sem contribuinte, a conferência ao gravar, o 409, a recusa do Moloni e os documentos a meio (`apps/api/test/faturacao-configurar.test.ts`); a lógica do Hub (`apps/hub/test/faturacao.test.ts`); as capturas com `/faturacao/configurar` | — |
+| O quê                                                                                                                                                                                                                                                                                       | Onde                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| as quatro rotas `/hub/invoicing-connections…` (criar, `issuer-options`, `issuer-search`, `PATCH`), só com `invoices:accounts`                                                                                                                                                               | `apps/api/src/faturacao/rotas.ts`                                                                      |
+| o que o Eurolify precisa de mapear (`necessarioDe`), o que falta (`faltaNaLigacao`, a mesma chave de `motivosDoConteudo`), ler e pesquisar no emissor, e gravar com a conferência dos ids (`configurarLigacao`)                                                                             | `apps/api/src/faturacao/repositorio.ts`                                                                |
+| as listas, a pesquisa e a confirmação de um artigo ou cliente por id (`products/getOne`, `customers/getOne`) no Moloni                                                                                                                                                                      | `apps/api/src/faturacao/moloni.ts`; o contrato em `adaptador.ts`                                       |
+| «Criar a ligação ao Moloni», «Configurar», «Falta mapear: …» e o ecrã `/faturacao/configurar`                                                                                                                                                                                               | `apps/hub/src/ecras/Faturacao.tsx`, `ConfigurarFaturacao.tsx`; a lógica em `apps/hub/src/faturacao.ts` |
+| testes: as rotas pelo papel, as listas, a pesquisa sem contribuinte, a conferência ao gravar, o 409, a recusa do Moloni e os documentos a meio (`apps/api/test/faturacao-configurar.test.ts`); a lógica do Hub (`apps/hub/test/faturacao.test.ts`); as capturas com `/faturacao/configurar` | —                                                                                                      |
 
 **Desvios do desenho (para o Diogo ou o Bruno confirmarem):**
+
 - **O «Falta mapear» do ecrã Faturação vem de `GET /hub/invoicing`**, não do
   `issuer-options`: conta-se só com a base, sem ler o Moloni a cada abertura
   da página (poupa o limite de pedidos, §13.5).
@@ -2652,6 +2669,7 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
 «Controlo de erros» do Moloni, lida a 13/10/2026).
 
 **Revisão do #412** (agente da sessão, Sonnet 5.5; 0 P0, 1 P1, 6 P2, 12 P3):
+
 - **P1-1, corrigido:** o que se pesquisa (`q` de `issuer-search`, que pode
   ser o NIF ou o nome de um cliente) sai tapado do registo da API.
 - **P2-1, corrigido:** ao gravar, o servidor confere só o que muda; uma
@@ -2681,6 +2699,7 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
   por medir).
 
 **Por fazer:**
+
 - **Ler as listas na conta de teste do Moloni** antes de abrir isto a um
   comerciante: os campos exactos de cada resposta, se `taxes/getAll` traz
   `fiscal_zone` como o código do país, se `documentSets/getAll` e
@@ -2693,12 +2712,13 @@ PT) e a «Taxa Normal antiga» (23 %, zona PT, já sem uso).
 
 ## 33. Envios: «Expedir» — as expedições, a etiqueta e o seguimento (issue #393)
 
-Pedido do Diogo, 13/10/2026: *«depois avança com o próximo passo dos
-envios»*, depois de aprovar o aspecto do §31 (*«aprovo; junta quando ficar
-verde»*). Desenho aprovado pelo Diogo a 13/10/2026 (*«sim, aprovo; avança
-com o código»*).
+Pedido do Diogo, 13/10/2026: _«depois avança com o próximo passo dos
+envios»_, depois de aprovar o aspecto do §31 (_«aprovo; junta quando ficar
+verde»_). Desenho aprovado pelo Diogo a 13/10/2026 (_«sim, aprovo; avança
+com o código»_).
 
 A API já tem tudo:
+
 - a vista do armazém (`docs/27` §6, `GET /fulfilment/orders`);
 - as expedições (`docs/27` §3.7);
 - a etiqueta e o seguimento (`docs/36` §4 e §7.1).
@@ -2716,45 +2736,46 @@ PDF, imprime-o, cola-o na caixa e carrega em «Marcar como expedida».
 
 ### 33.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
-| **Um módulo «Expedir»** na entrada do Hub, para quem tem `fulfilment:read`: o dono, o gestor, o armazém e o apoio. |
-| **As encomendas por expedir**, das mais antigas para as mais recentes, como a API as dá (no máximo 100 de cada vez). A lista diz quantas mostra e, se forem 100, que há mais. |
-| **A encomenda na vista do armazém**: as linhas, com a quantidade e quanto já saiu; o método de entrega; quem recebe, com o nome, o telefone e a morada; e as expedições. **Sem** preços, NIF, e-mail nem perfil de faturação (`docs/27` §6). |
-| **Criar uma expedição** (`fulfilment:write`: o dono, o gestor e o armazém). Escolhem-se as linhas e as quantidades, e por omissão vai tudo o que falta. O servidor recusa mais do que falta. |
-| **A etiqueta**, quando o método tem conta: pedir, ver o estado (por pedir, a pedir, emitida, recusada com o motivo, incerta, anulada), descarregar o ficheiro, anular e «Consultar a transportadora» (uma etiqueta incerta nunca se pede outra vez às cegas, `docs/36` §4.1). |
-| **O seguimento**: os eventos da transportadora, normalizados, com a data. |
+| Entra                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Um módulo «Expedir»** na entrada do Hub, para quem tem `fulfilment:read`: o dono, o gestor, o armazém e o apoio.                                                                                                                                                                                                                                                                                                                     |
+| **As encomendas por expedir**, das mais antigas para as mais recentes, como a API as dá (no máximo 100 de cada vez). A lista diz quantas mostra e, se forem 100, que há mais.                                                                                                                                                                                                                                                          |
+| **A encomenda na vista do armazém**: as linhas, com a quantidade e quanto já saiu; o método de entrega; quem recebe, com o nome, o telefone e a morada; e as expedições. **Sem** preços, NIF, e-mail nem perfil de faturação (`docs/27` §6).                                                                                                                                                                                           |
+| **Criar uma expedição** (`fulfilment:write`: o dono, o gestor e o armazém). Escolhem-se as linhas e as quantidades, e por omissão vai tudo o que falta. O servidor recusa mais do que falta.                                                                                                                                                                                                                                           |
+| **A etiqueta**, quando o método tem conta: pedir, ver o estado (por pedir, a pedir, emitida, recusada com o motivo, incerta, anulada), descarregar o ficheiro, anular e «Consultar a transportadora» (uma etiqueta incerta nunca se pede outra vez às cegas, `docs/36` §4.1).                                                                                                                                                          |
+| **O seguimento**: os eventos da transportadora, normalizados, com a data.                                                                                                                                                                                                                                                                                                                                                              |
 | **O estado da expedição**, pelas transições da `docs/27` §3.7: «Marcar como expedida» (a saída do stock, com os lotes que o servidor escolhe: os que expiram primeiro; **com conta, só depois de a etiqueta estar emitida**); «Cancelar» uma criada que não saiu (**com uma etiqueta viva, anula-se primeiro**); e, **só num método «Manual»**, a transportadora e o seguimento escritos à mão e «entregue», «devolvida» ou «perdida». |
 
-| Fica de fora, e porquê |
-|---|
-| **Escolher os lotes à mão:** o servidor escolhe os que expiram primeiro. Escolher outro lote vai para um pedido à parte. |
+| Fica de fora, e porquê                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Escolher os lotes à mão:** o servidor escolhe os que expiram primeiro. Escolher outro lote vai para um pedido à parte.                                                                  |
 | **Mudar o serviço de uma expedição:** é uma decisão de uma pessoa, com motivo (`docs/27` R6). O ecrã não o oferecia; desde 13/10/2026 oferece-o, com a correcção do peso (`docs/36` §19). |
-| **Imprimir ou pedir etiquetas em lote:** nesta parte, uma expedição de cada vez. |
-| **Corrigir à mão o estado de uma expedição com etiqueta.** Nesse caso, quem decide «entregue» é o seguimento da transportadora (`docs/36` §4.2). O ecrã não oferece estes botões. |
-| **O resto da encomenda:** os preços, o pagamento, a linha do tempo (`orders:read`), cancelar e as devoluções. Ficam para os ecrãs das encomendas e da pós-venda. |
+| **Imprimir ou pedir etiquetas em lote:** nesta parte, uma expedição de cada vez.                                                                                                          |
+| **Corrigir à mão o estado de uma expedição com etiqueta.** Nesse caso, quem decide «entregue» é o seguimento da transportadora (`docs/36` §4.2). O ecrã não oferece estes botões.         |
+| **O resto da encomenda:** os preços, o pagamento, a linha do tempo (`orders:read`), cancelar e as devoluções. Ficam para os ecrãs das encomendas e da pós-venda.                          |
 
 ### 33.2 Como o Hub lê e escreve
 
 Segue o padrão do §29.2:
+
 - a sessão da pessoa e o cabeçalho `Eurolify-Comerciante`;
 - sem `Idempotency-Key` (`docs/21` §11);
 - `cache-control: private, no-store`, também nos 403;
 - quem escreve fica `pessoa:per_…` nos movimentos e na etiqueta (nas rotas
   da chave fica `chave:key_…`).
 
-| Caminho do Hub | Âmbito | A rota da chave |
-|---|---|---|
-| `GET /hub/fulfilment/orders` | `fulfilment:read` | `GET /fulfilment/orders` |
-| `GET /hub/fulfilment/orders/{id}` | `fulfilment:read` | `GET /fulfilment/orders/{id}` |
-| `POST /hub/orders/{id}/shipments` | `fulfilment:write` | `POST /orders/{id}/shipments` |
-| `PATCH /hub/shipments/{id}` | `fulfilment:write` | `PATCH /shipments/{id}` |
-| `POST /hub/shipments/{id}/label` | `fulfilment:write` | `POST /shipments/{id}/label` |
-| `GET /hub/shipments/{id}/label` | `fulfilment:read` | `GET /shipments/{id}/label` |
-| `GET /hub/shipments/{id}/label/file` | `fulfilment:read` | `GET /shipments/{id}/label/file` |
+| Caminho do Hub                        | Âmbito             | A rota da chave                   |
+| ------------------------------------- | ------------------ | --------------------------------- |
+| `GET /hub/fulfilment/orders`          | `fulfilment:read`  | `GET /fulfilment/orders`          |
+| `GET /hub/fulfilment/orders/{id}`     | `fulfilment:read`  | `GET /fulfilment/orders/{id}`     |
+| `POST /hub/orders/{id}/shipments`     | `fulfilment:write` | `POST /orders/{id}/shipments`     |
+| `PATCH /hub/shipments/{id}`           | `fulfilment:write` | `PATCH /shipments/{id}`           |
+| `POST /hub/shipments/{id}/label`      | `fulfilment:write` | `POST /shipments/{id}/label`      |
+| `GET /hub/shipments/{id}/label`       | `fulfilment:read`  | `GET /shipments/{id}/label`       |
+| `GET /hub/shipments/{id}/label/file`  | `fulfilment:read`  | `GET /shipments/{id}/label/file`  |
 | `POST /hub/shipments/{id}/label/void` | `fulfilment:write` | `POST /shipments/{id}/label/void` |
-| `GET /hub/shipments/{id}/events` | `fulfilment:read` | `GET /shipments/{id}/events` |
-| `POST /hub/shipments/{id}/refresh` | `fulfilment:write` | `POST /shipments/{id}/refresh` |
+| `GET /hub/shipments/{id}/events`      | `fulfilment:read`  | `GET /shipments/{id}/events`      |
+| `POST /hub/shipments/{id}/refresh`    | `fulfilment:write` | `POST /shipments/{id}/refresh`    |
 
 - **Os papéis não mudam:**
   - `fulfilment:write`: o dono, o gestor e o armazém;
@@ -2772,10 +2793,10 @@ Segue o padrão do §29.2:
 
 ### 33.3 O ecrã
 
-| Ecrã | O que mostra | Estados além do normal |
-|---|---|---|
-| **Expedir** (`/expedir`) | Uma linha por encomenda (cartões no telemóvel): o número, a data, o estado («Paga», «Em preparação», «Expedida em parte»), o método de entrega, o número de artigos por expedir e a localidade. A contagem à vista. | nada por expedir; a carregar; erro; sem permissão; 100 mostradas (diz que há mais e que são as mais antigas) |
-| **A encomenda** (`/expedir/{ord_…}`) | Quem recebe (o nome, o telefone e a morada) e o método. As linhas, com «por expedir» e «já saiu». O formulário «Criar a expedição», com uma quantidade por linha, preenchida com o que falta. As expedições, cada uma com o estado e a etiqueta. | tudo já saiu (sem formulário); recusa do servidor (mais do que falta, sem armazém, a encomenda não está para expedir); conflito; resposta perdida (relê); só ver |
+| Ecrã                                 | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                          | Estados além do normal                                                                                                                                                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Expedir** (`/expedir`)             | Uma linha por encomenda (cartões no telemóvel): o número, a data, o estado («Paga», «Em preparação», «Expedida em parte»), o método de entrega, o número de artigos por expedir e a localidade. A contagem à vista.                                                                                                                                                                                                                   | nada por expedir; a carregar; erro; sem permissão; 100 mostradas (diz que há mais e que são as mais antigas)                                                                                                             |
+| **A encomenda** (`/expedir/{ord_…}`) | Quem recebe (o nome, o telefone e a morada) e o método. As linhas, com «por expedir» e «já saiu». O formulário «Criar a expedição», com uma quantidade por linha, preenchida com o que falta. As expedições, cada uma com o estado e a etiqueta.                                                                                                                                                                                      | tudo já saiu (sem formulário); recusa do servidor (mais do que falta, sem armazém, a encomenda não está para expedir); conflito; resposta perdida (relê); só ver                                                         |
 | **A expedição**, dentro da encomenda | **Com conta:** a etiqueta (o estado, o motivo de uma recusa, o seguimento com a ligação pública da transportadora, o peso), «Pedir a etiqueta», «Descarregar a etiqueta», «Anular», «Consultar a transportadora», o seguimento e «Marcar como expedida». **Manual:** a transportadora e o seguimento escritos à mão, «Marcar como expedida» e depois «entregue», «devolvida» ou «perdida». Em ambos, «Cancelar» enquanto está criada. | etiqueta recusada (o motivo e o que fazer); incerta (não se pede outra; consultar); a transportadora sem resposta; sem `ENVIOS_CHAVE` no servidor; conflito; confirmação antes de cancelar, anular e marcar como perdida |
 
 **Os textos** estão em PT, ES e EN. Cada estado tem uma cor, por token. Os
@@ -2849,6 +2870,7 @@ dados de quem recebe não vão para o título da janela.
 7 P2.
 
 **Corrigido:**
+
 - **P1-1:** o mapa dos erros do ecrã usa os códigos que o servidor dá
   (`shipments.*`, `orders.invalid_transition`). Um teste confere que cada
   código do mapa existe no servidor. Para isso, os códigos do stock
@@ -2878,6 +2900,7 @@ dados de quem recebe não vão para o título da janela.
   - a lista dos eventos tem estilo.
 
 **Fica, declarado:**
+
 - **P2-5:** pedir, anular e consultar a etiqueta exigem o `quem`, mas a
   base não o guarda em nenhuma tabela. Está provado na expedição, na saída
   do stock e na transição da encomenda.
@@ -2892,9 +2915,9 @@ dados de quem recebe não vão para o título da janela.
 
 ## 34. Pagamentos: a fila de diferenças no Hub (issue #287)
 
-Pedido do Diogo, 14/10/2026 (*«sim, avança com o desenho»*). **Aprovado pelo
-Diogo a 14/10/2026**, com a Q1 em a) (*«sim, aprovo o desenho com a Q1 em
-a)»*: autenticação recente sempre; `docs/06`, ES).
+Pedido do Diogo, 14/10/2026 (_«sim, avança com o desenho»_). **Aprovado pelo
+Diogo a 14/10/2026**, com a Q1 em a) (_«sim, aprovo o desenho com a Q1 em
+a)»_: autenticação recente sempre; `docs/06`, ES).
 
 É a porta P2-6 do `docs/26` («Portas antes do modo real»): a fila de
 diferenças resolve-se no Hub, por uma pessoa com sessão. Hoje só se resolve
@@ -2925,19 +2948,19 @@ transferência». Confirma com a passkey. A diferença fica «Resolvida a
 
 ### 34.1 O que entra e o que fica de fora
 
-| Entra |
-|---|
+| Entra                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A lista das diferenças** abertas, e as resolvidas num separador, por ordem de chegada: o motivo em linguagem comum, a prova (montantes, moedas, estados; nunca dados do cliente) e o pagamento a que se refere |
-| **Resolver uma diferença** (só o dono, `payments:resolve`), com o texto da resolução, obrigatório |
-| **Num pagamento incerto, decidir se foi pago** (`capturado`) ou não (`falhado`), depois de ver a conta no prestador. A base já obriga a decidir (revisão do #288, P2-2) |
-| **A ligação a partir de «A decidir»**: cada diferença leva a esta página |
+| **Resolver uma diferença** (só o dono, `payments:resolve`), com o texto da resolução, obrigatório                                                                                                                |
+| **Num pagamento incerto, decidir se foi pago** (`capturado`) ou não (`falhado`), depois de ver a conta no prestador. A base já obriga a decidir (revisão do #288, P2-2)                                          |
+| **A ligação a partir de «A decidir»**: cada diferença leva a esta página                                                                                                                                         |
 
-| Fica de fora, e porquê |
-|---|
+| Fica de fora, e porquê                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Reconciliar um reembolso** (`reembolso_incerto`, `reembolso_por_confirmar`, `reembolso_desconhecido`). O estado do reembolso decide-se na pós-venda (`POST /refunds/{id}/reconcile`, `docs/30` §13, P7). Aqui só se fecha a diferença com o texto, como hoje pela API; a página diz isso. |
-| **Contas e métodos de pagamento** (as credenciais da EuPago, a régua). Outro ecrã, com as outras portas do `docs/26`. |
-| **Consultar o prestador a partir do Hub** (`POST /payments/{id}/check`). Fica para depois: a consulta já corre sozinha de minuto a minuto. |
-| **Resolver várias de uma vez.** Cada diferença é um caso, e decide uma pessoa (`AGENTS.md`, «Não se erra em documentos fiscais», regra 5). |
+| **Contas e métodos de pagamento** (as credenciais da EuPago, a régua). Outro ecrã, com as outras portas do `docs/26`.                                                                                                                                                                       |
+| **Consultar o prestador a partir do Hub** (`POST /payments/{id}/check`). Fica para depois: a consulta já corre sozinha de minuto a minuto.                                                                                                                                                  |
+| **Resolver várias de uma vez.** Cada diferença é um caso, e decide uma pessoa (`AGENTS.md`, «Não se erra em documentos fiscais», regra 5).                                                                                                                                                  |
 
 ### 34.2 Como o Hub lê e escreve
 
@@ -2945,10 +2968,10 @@ As rotas pelo Hub fazem **o mesmo** que as da chave. Usam a sessão, o
 comerciante no cabeçalho `Eurolify-Comerciante` e o `eurolify.quem` da pessoa
 (`pessoa:per_…`), como em «Faturação» (§30.2).
 
-| Caminho | Quem | O que faz |
-|---|---|---|
-| `GET /hub/payment-issues?estado=aberta\|resolvida` | a sessão com `payments:read` (dono, gestor, apoio) | a mesma `listarDiferencas`, mais o resumo do pagamento de cada uma (encomenda, método, montante, moeda e estado), para o ecrã não pedir um a um |
-| `POST /hub/payment-issues/{id}/resolve` `{ resolucao, pagamento? }` | `payments:resolve` (só o dono), **autenticação recente** (Q1) | a mesma `resolverDiferenca`; o `resolvida_por` passa a ser a pessoa |
+| Caminho                                                             | Quem                                                          | O que faz                                                                                                                                       |
+| ------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /hub/payment-issues?estado=aberta\|resolvida`                  | a sessão com `payments:read` (dono, gestor, apoio)            | a mesma `listarDiferencas`, mais o resumo do pagamento de cada uma (encomenda, método, montante, moeda e estado), para o ecrã não pedir um a um |
+| `POST /hub/payment-issues/{id}/resolve` `{ resolucao, pagamento? }` | `payments:resolve` (só o dono), **autenticação recente** (Q1) | a mesma `resolverDiferenca`; o `resolvida_por` passa a ser a pessoa                                                                             |
 
 - **O prazo de espera e as respostas perdidas**, como nas outras escritas do
   Hub (5 s, depois 503). Ao resolver, relê a lista: se a diferença já
@@ -2959,12 +2982,12 @@ comerciante no cabeçalho `Eurolify-Comerciante` e o `eurolify.quem` da pessoa
 
 ### 34.3 O ecrã
 
-| Onde | O que mostra | Estados além do normal |
-|---|---|---|
-| **Entrada** (`/`) | Um módulo «Pagamentos» na grelha, para quem tem `payments:read`: dono, gestor e apoio; o armazém não o vê. Com diferenças abertas, o número delas. **No código (§34.7), aceite pelo Diogo a 14/10/2026:** o rótulo é «Diferenças de pagamento» e o número não se mostra. | — |
-| **Diferenças de pagamento** (`/pagamentos/diferencas?comerciante=…`) | Dois separadores: «Por resolver» e «Resolvidas». Cada diferença: o motivo (texto, regra 3), quando chegou, a encomenda (os últimos 4 caracteres à vista), o método, o montante e o estado do pagamento. Mostra também a prova em linguagem comum, como «esperado 29,90 €, recebido 24,90 €» ou «passou de autorizado a cancelado». As resolvidas mostram o texto, quem e quando. Para o dono, em cada aberta, o botão «Resolver». Tabela a partir de 768 px, cartões abaixo (regra 5). | a carregar; erro com «Tentar outra vez»; sem diferenças («Não há diferenças por resolver.»); comerciante errado (como nas outras páginas); sem `payments:resolve` (só leitura, sem botões) |
-| **Resolver** (diálogo) | O resumo da diferença e o campo «O que se fez» (obrigatório, até 2000 caracteres). Num **pagamento incerto**: «O cliente pagou?» com «Sim, foi pago» e «Não, não foi pago», obrigatório, e a frase «Confirme no back-office do prestador antes de decidir. Se disser que foi pago, a encomenda passa a paga e segue para a fatura.» Num **reembolso**: «O estado do reembolso decide-se na devolução. Aqui só fica registado o que se fez.» Confirmar pede a autenticação recente (Q1). | `payments.invalid_transition` (o pagamento já não está incerto: «O pagamento mudou entretanto; feche e abra outra vez.»); `payments.immutable` (já resolvida por outra pessoa: dá-a por feita e relê) |
-| **A decidir** (§28) | Cada linha `fila_pagamento` passa a levar a «Diferenças de pagamento», com a diferença aberta. | — |
+| Onde                                                                 | O que mostra                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Estados além do normal                                                                                                                                                                                |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Entrada** (`/`)                                                    | Um módulo «Pagamentos» na grelha, para quem tem `payments:read`: dono, gestor e apoio; o armazém não o vê. Com diferenças abertas, o número delas. **No código (§34.7), aceite pelo Diogo a 14/10/2026:** o rótulo é «Diferenças de pagamento» e o número não se mostra.                                                                                                                                                                                                                | —                                                                                                                                                                                                     |
+| **Diferenças de pagamento** (`/pagamentos/diferencas?comerciante=…`) | Dois separadores: «Por resolver» e «Resolvidas». Cada diferença: o motivo (texto, regra 3), quando chegou, a encomenda (os últimos 4 caracteres à vista), o método, o montante e o estado do pagamento. Mostra também a prova em linguagem comum, como «esperado 29,90 €, recebido 24,90 €» ou «passou de autorizado a cancelado». As resolvidas mostram o texto, quem e quando. Para o dono, em cada aberta, o botão «Resolver». Tabela a partir de 768 px, cartões abaixo (regra 5).  | a carregar; erro com «Tentar outra vez»; sem diferenças («Não há diferenças por resolver.»); comerciante errado (como nas outras páginas); sem `payments:resolve` (só leitura, sem botões)            |
+| **Resolver** (diálogo)                                               | O resumo da diferença e o campo «O que se fez» (obrigatório, até 2000 caracteres). Num **pagamento incerto**: «O cliente pagou?» com «Sim, foi pago» e «Não, não foi pago», obrigatório, e a frase «Confirme no back-office do prestador antes de decidir. Se disser que foi pago, a encomenda passa a paga e segue para a fatura.» Num **reembolso**: «O estado do reembolso decide-se na devolução. Aqui só fica registado o que se fez.» Confirmar pede a autenticação recente (Q1). | `payments.invalid_transition` (o pagamento já não está incerto: «O pagamento mudou entretanto; feche e abra outra vez.»); `payments.immutable` (já resolvida por outra pessoa: dá-a por feita e relê) |
+| **A decidir** (§28)                                                  | Cada linha `fila_pagamento` passa a levar a «Diferenças de pagamento», com a diferença aberta.                                                                                                                                                                                                                                                                                                                                                                                          | —                                                                                                                                                                                                     |
 
 Textos em português, espanhol e inglês. A prova mostra-se pelos campos que a
 API já grava (montantes, moedas, estados, referências do prestador). Nunca
@@ -3025,8 +3048,8 @@ se a última foi há mais de 10 minutos)?**
   - os três motivos de reembolso, que antes saíam como código também em «A
     decidir»;
   - os estados do pagamento em palavras.
-- **Dois desvios do desenho, aceites pelo Diogo a 14/10/2026** (*«sim, aceito
-  os dois desvios»*; revisão do #458, P2-4):
+- **Dois desvios do desenho, aceites pelo Diogo a 14/10/2026** (_«sim, aceito
+  os dois desvios»_; revisão do #458, P2-4):
   - **o número no módulo:** a entrada não mostra o número de diferenças
     abertas. Nenhum módulo da entrada mostra números hoje, e isso pedia mais
     uma leitura à API em cada abertura da entrada. O número vê-se em «A
@@ -3063,7 +3086,6 @@ se a última foi há mais de 10 minutos)?**
     `payments.immutable` lido sempre como «já resolvida») e P3-9 (uma chave
     com `payments:resolve` resolve pela rota antiga; é anterior).
 
-
 ## 35. Encomendas: lista e ficha (issue #475, Peça 14)
 
 **Estado:** desenho escrito sob a autorização geral do Diogo de 16/10/2026
@@ -3089,12 +3111,12 @@ fiscal e o rasto: «à espera de pagamento → paga, o prestador de pagamentos,
 
 ### 35.1 O que se mostra e a quem
 
-| Entra | Quem |
-|---|---|
-| **A lista** (`GET /hub/orders`): a data, o fim do identificador, o estado e o total; as 100 mais recentes; filtro por estado. **Sem nome, e-mail, telefone, morada nem NIF** | `orders:read`: o dono, o gestor e o apoio |
-| **A ficha** (`GET /hub/orders/{id}`): estado, linhas (artigo, SKU, quantidade, preço unitário, IVA, total), totais (base, IVA, portes, total), método de pagamento, entrega (método, data-limite que o cliente viu, morada ou ponto de recolha), contacto, faturação (quem emite, estado do documento, cópia do perfil) | `orders:read` |
-| **O rasto** (`GET /hub/orders/{id}/timeline`): cada mudança de estado, quando e por quem (nome da pessoa, «chave de API», «cliente», «prestador de pagamentos»…), com o motivo | `orders:read` |
-| Uma ligação para a vista do armazém (§33) | quem tem `fulfilment:read` |
+| Entra                                                                                                                                                                                                                                                                                                                   | Quem                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **A lista** (`GET /hub/orders`): a data, o fim do identificador, o estado e o total; as 100 mais recentes; filtro por estado. **Sem nome, e-mail, telefone, morada nem NIF**                                                                                                                                            | `orders:read`: o dono, o gestor e o apoio |
+| **A ficha** (`GET /hub/orders/{id}`): estado, linhas (artigo, SKU, quantidade, preço unitário, IVA, total), totais (base, IVA, portes, total), método de pagamento, entrega (método, data-limite que o cliente viu, morada ou ponto de recolha), contacto, faturação (quem emite, estado do documento, cópia do perfil) | `orders:read`                             |
+| **O rasto** (`GET /hub/orders/{id}/timeline`): cada mudança de estado, quando e por quem (nome da pessoa, «chave de API», «cliente», «prestador de pagamentos»…), com o motivo                                                                                                                                          | `orders:read`                             |
+| Uma ligação para a vista do armazém (§33)                                                                                                                                                                                                                                                                               | quem tem `fulfilment:read`                |
 
 **Fica de fora:** qualquer acção. Cancelar, expedir, reembolsar, corrigir a
 morada ou emitir documentos **não são deste ecrã**: expedir faz-se em
@@ -3110,7 +3132,7 @@ a API recusa com 403 (`member.role_escalation`) a quem não tem `orders:read`.
 ### 35.2 Como o Hub lê (uma regra, um sítio)
 
 - **Três rotas de sessão, só de leitura**, em `apps/api/src/checkout/
-  rotas-hub-encomendas.ts`, a chamar **as mesmas funções** das rotas da
+rotas-hub-encomendas.ts`, a chamar **as mesmas funções** das rotas da
   chave (`listarEncomendas`, `lerEncomenda`, `paraEncomenda`,
   `transicoesDaEncomenda`), com o mesmo âmbito. A única novidade da API é o
   filtro `?estado=` na lista (um `where` na mesma consulta) e o `limite` na
@@ -3135,21 +3157,27 @@ a API recusa com 403 (`member.role_escalation`) a quem não tem `orders:read`.
 - **Sem cache:** as três respostas levam `Cache-Control: private, no-store`
   (têm dados pessoais), também num 403.
 - **O estado do documento fiscal** mostra o registo do Eurolify e diz-o no
-  próprio ecrã: *«a prova do que saiu é o documento emitido, não este
-  registo»* (regra fiscal 4). O Hub não decide se há ou não documento.
+  próprio ecrã: _«a prova do que saiu é o documento emitido, não este
+  registo»_ (regra fiscal 4). O Hub não decide se há ou não documento.
 
 ### 35.3 O ecrã
 
-- **Entrada:** módulo «Encomendas» (`/encomendas?comerciante=…`), entre «A
-  decidir» e «Expedir». Ícone: um saco de compras, desenhado no código.
+- **Entrada:** módulo entre «A decidir» e «Expedir», para `/encomendas?
+comerciante=…`. Ícone: um saco de compras, desenhado no código. **O rótulo do
+  módulo é «Pedidos»** (en «Orders», es «Pedidos»), não «Encomendas»: a
+  palavra «Encomendas» não cabe numa linha com a letra do navegador a 32 px e
+  o ecrã a 375 px, e as capturas recusam palavras partidas (o mesmo que
+  aconteceu com «Pagamentos», §34.7). O título do ecrã e tudo o resto dizem
+  «Encomendas», e a pesquisa de módulos encontra-o por «encomendas». **Decisão
+  de aspecto para o Diogo** (Q2).
 - **Lista:** título «Encomendas — {loja}»; o filtro «Estado» (um `select`
   com rótulo); a frase da contagem (`role="status"`: nenhuma, uma, várias, ou
-  «as 100 mais recentes»); a tabela com *Encomenda* (ligação «Encomenda de
-  {data}» e o fim do identificador), *Estado* e *Total*.
+  «as 100 mais recentes»); a tabela com _Encomenda_ (ligação «Encomenda de
+  {data}» e o fim do identificador), _Estado_ e _Total_.
 - **Ficha** (`/encomendas/ord_…?comerciante=…`): título «Encomenda de
-  {data}»; o estado e o fim do identificador; quatro cartões — *Artigos*
-  (tabela), *Totais*, *Entrega* (e *Contacto do cliente*) e *Faturação* —
-  e o *Rasto da encomenda* (lista ordenada por data).
+  {data}»; o estado e o fim do identificador; quatro cartões — _Artigos_
+  (tabela), _Totais_, _Entrega_ (e _Contacto do cliente_) e _Faturação_ —
+  e o _Rasto da encomenda_ (lista ordenada por data).
 - **Estados e cores:** o nome do estado vai sempre escrito; a cor é um reforço
   (os mesmos tokens de §33: espera, em curso, saiu, problema), nunca o único
   sinal.
@@ -3188,18 +3216,18 @@ a API recusa com 403 (`member.role_escalation`) a quem não tem `orders:read`.
 
 ### 35.5 Por onde é que isto ainda pode sair errado
 
-| Risco | O que o desenho faz |
-|---|---|
-| O Hub mostrar um valor refeito e diferente do que o servidor decidiu | Só se mostram `totais` e os `base`/`iva`/`total` gravados; testes do Hub conferem que a decisão de IVA não se percebe ⇒ não se inventa |
-| O armazém ver o contacto e a faturação por esta rota | A rota recusa 403 sem `orders:read` (teste na API que falha sem a protecção); o módulo esconde-se, mas a API é que decide |
-| Uma encomenda de outro comerciante | A leitura passa por `comComerciante` (RLS); teste: a lista de B não tem a de A, e a ficha e o rasto de A dão 404 a B; uma sessão de B com o cabeçalho de A não passa |
-| Uma lista cortada em silêncio | A API manda o `limite`; ao chegar a ele o ecrã diz «as {n} mais recentes» |
-| A lista antiga com outro filtro | Mudar o filtro limpa a lista e ignora respostas atrasadas (`ultimo`) |
-| Uma resposta guardada em cache com dados pessoais | `private, no-store` também no 403 |
-| Um 404 que revele que a encomenda existe noutra loja | A mesma mensagem para as duas |
-| «Documento emitido» lido como prova fiscal | O ecrã diz que é o registo do Eurolify; a prova é o documento (regra fiscal 4) |
-| Um estado novo na API sem texto no Hub | Sai o código; o teste `encomendas.test.ts` obriga os onze de hoje a ter texto nas três línguas. **Fica:** nada avisa quando a API ganhar um décimo segundo |
-| Uma acção por engano | Não há botões de escrita; teste: POST/PUT/PATCH/DELETE na encomenda dão erro |
+| Risco                                                                | O que o desenho faz                                                                                                                                                  |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O Hub mostrar um valor refeito e diferente do que o servidor decidiu | Só se mostram `totais` e os `base`/`iva`/`total` gravados; testes do Hub conferem que a decisão de IVA não se percebe ⇒ não se inventa                               |
+| O armazém ver o contacto e a faturação por esta rota                 | A rota recusa 403 sem `orders:read` (teste na API que falha sem a protecção); o módulo esconde-se, mas a API é que decide                                            |
+| Uma encomenda de outro comerciante                                   | A leitura passa por `comComerciante` (RLS); teste: a lista de B não tem a de A, e a ficha e o rasto de A dão 404 a B; uma sessão de B com o cabeçalho de A não passa |
+| Uma lista cortada em silêncio                                        | A API manda o `limite`; ao chegar a ele o ecrã diz «as {n} mais recentes»                                                                                            |
+| A lista antiga com outro filtro                                      | Mudar o filtro limpa a lista e ignora respostas atrasadas (`ultimo`)                                                                                                 |
+| Uma resposta guardada em cache com dados pessoais                    | `private, no-store` também no 403                                                                                                                                    |
+| Um 404 que revele que a encomenda existe noutra loja                 | A mesma mensagem para as duas                                                                                                                                        |
+| «Documento emitido» lido como prova fiscal                           | O ecrã diz que é o registo do Eurolify; a prova é o documento (regra fiscal 4)                                                                                       |
+| Um estado novo na API sem texto no Hub                               | Sai o código; o teste `encomendas.test.ts` obriga os onze de hoje a ter texto nas três línguas. **Fica:** nada avisa quando a API ganhar um décimo segundo           |
+| Uma acção por engano                                                 | Não há botões de escrita; teste: POST/PUT/PATCH/DELETE na encomenda dão erro                                                                                         |
 
 ### 35.6 O que não verifiquei
 
@@ -3224,3 +3252,6 @@ chave já permite). Querem que o NIF só saia ao dono (`customers:billing`) mesm
 numa ficha normal, para cumprir à risca a minimização de dados? Muda uma linha
 na API; o ecrã já aguenta o campo em falta. **Recomendado: sim**; fica a decisão de quem tem o papel de apoio a ver o NIF
 ao atender.
+
+**Q2.** O rótulo do módulo na entrada é «Pedidos» por não caber «Encomendas»
+(35.3). Querem manter assim, ou prefere-se outro nome curto? Muda um texto.

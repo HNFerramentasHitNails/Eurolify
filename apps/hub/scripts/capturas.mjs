@@ -5709,7 +5709,7 @@ try {
         confere(m.cortados === 0, `${nome}: nenhum rótulo cortado`);
         confere(
           JSON.stringify(m.destinos) === JSON.stringify(destinosDoDono),
-          `${nome}: os nove módulos do dono, com o comerciante no endereço`,
+          `${nome}: os dez módulos do dono, com o comerciante no endereço`,
         );
         confere(
           comVidro(vidro),
@@ -5791,9 +5791,9 @@ try {
     await p.getByRole("button", { name: "Limpar a pesquisa" }).click();
     confere(
       (await campo.inputValue()) === "" &&
-        (await p.locator(".atalho-modulo").count()) === 9 &&
+        (await p.locator(".atalho-modulo").count()) === 10 &&
         (await campo.evaluate((e) => e === document.activeElement)),
-      "entrada: «Limpar a pesquisa» volta aos nove módulos e devolve o foco ao campo",
+      "entrada: «Limpar a pesquisa» volta aos dez módulos e devolve o foco ao campo",
     );
     // Só teclado: do campo, Tab passa pelos módulos pela ordem e Enter abre.
     await campo.focus();
@@ -5955,13 +5955,14 @@ try {
             "Equipa",
             "Artigos",
             "A decidir",
+            "Pedidos",
             "Expedir",
             "Devoluções",
             "Envios",
             "Faturação",
             "Diferenças de pagamento",
           ]),
-      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios, a faturação e as diferenças de pagamento, sem as chaves",
+      "entrada: na segunda loja, o apoio vê a equipa, os artigos, «A decidir», as encomendas, «Expedir», as devoluções, os envios, a faturação e as diferenças de pagamento, sem as chaves",
     );
     await pv.getByRole("link", { name: "Mudar de comerciante" }).click();
     await pv.getByRole("heading", { name: "Escolha o comerciante" }).waitFor();
@@ -7401,26 +7402,28 @@ try {
       headers: { "cache-control": "private, no-store" },
       body: JSON.stringify(corpo),
     });
-    await contexto.route("**/hub/orders?*", (r) => {
-      const estado = new URL(r.request().url()).searchParams.get("estado");
-      const todas = [
-        { ...encomendaNaLista(1, "paga", 2959), id: ENCOMENDA_DA_FICHA },
-        encomendaNaLista(2, "a_aguardar_pagamento", 1850),
-        encomendaNaLista(3, "expedida_parcial", 12400),
-        encomendaNaLista(4, "entregue", 4590),
-        encomendaNaLista(5, "cancelada_sem_pagamento", 990),
-        encomendaNaLista(6, "devolvida_parcial", 7300),
-      ];
-      return r.fulfill(
-        json({
-          dados:
-            estado === null ? todas : todas.filter((e) => e.estado === estado),
-          limite: 100,
-        }),
-      );
-    });
-    await contexto.route("**/hub/orders", (r) =>
-      r.fulfill(json({ dados: [], limite: 100 })),
+    await contexto.route(
+      (u) => u.pathname === "/hub/orders",
+      (r) => {
+        const estado = new URL(r.request().url()).searchParams.get("estado");
+        const todas = [
+          { ...encomendaNaLista(1, "paga", 2959), id: ENCOMENDA_DA_FICHA },
+          encomendaNaLista(2, "a_aguardar_pagamento", 1850),
+          encomendaNaLista(3, "expedida_parcial", 12400),
+          encomendaNaLista(4, "entregue", 4590),
+          encomendaNaLista(5, "cancelada_sem_pagamento", 990),
+          encomendaNaLista(6, "devolvida_parcial", 7300),
+        ];
+        return r.fulfill(
+          json({
+            dados:
+              estado === null
+                ? todas
+                : todas.filter((e) => e.estado === estado),
+            limite: 100,
+          }),
+        );
+      },
     );
     await contexto.route(`**/hub/orders/${ENCOMENDA_DA_FICHA}`, (r) =>
       r.fulfill(
@@ -7511,7 +7514,7 @@ try {
         [
           "encomendas",
           `/encomendas?comerciante=mer_${comerciante}`,
-          "Entregue",
+          "6 encomendas.",
         ],
         [
           "encomenda",

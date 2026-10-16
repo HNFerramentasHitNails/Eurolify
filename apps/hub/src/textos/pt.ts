@@ -1856,7 +1856,7 @@ export const pt = {
   provaSemPormenor: "Sem pormenores.",
   diferencasAsMaisRecentes: "As {n} mais recentes.",
   // As encomendas (docs/22 §35; issue #475).
-  modulo_encomendas: "Encomendas",
+  modulo_encomendas: "Pedidos",
   termos_encomendas: "encomendas pedidos vendas clientes estados totais iva",
   encomendasTitulo: "Encomendas",
   encomendasExplicacao:
