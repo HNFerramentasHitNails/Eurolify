@@ -217,7 +217,8 @@ competências de cada um ficam como estão.
   → `gh pr create --base main --fill`.
 - **Cada um junta o que fez** (ADR-0031, desde 04/10/2026; substitui a
   aprovação cruzada do ADR-0013): documentos e código. O GitHub só junta com
-  **os testes verdes** (fluxo `verificar`). **No código**, antes de juntar, a
+  **os testes verdes** (fluxo `verificar`; num pedido só com documentos os
+  testes são saltados, #471). **No código**, antes de juntar, a
   revisão do agente que não o escreveu tem de estar publicada no pedido, com
   os P0/P1 tratados — **enquanto o Codex não volta** (ADR-0030, revê-se a
   29/11/2026), uma **sessão nova do Claude Code, sem a conversa de quem

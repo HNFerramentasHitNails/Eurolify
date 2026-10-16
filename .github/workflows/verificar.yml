@@ -19,10 +19,11 @@ concurrency:
 jobs:
   alteracoes:
     # Os minutos do Actions pagam-se (#471): num pedido, decide o que corre.
-    # Rascunho: nada. Só documentos: nada. O script da VPS, só quando muda
-    # infra/, o Dockerfile ou um fluxo. Na dúvida (um passo que falha, uma
-    # saída vazia), os trabalhos abaixo correm: só "nao" os salta.
-    if: github.event_name == 'pull_request'
+    # Rascunho: nada, nem este trabalho (decide-se na condição de cada um).
+    # Só documentos: nada. O script da VPS, só quando muda infra/, o
+    # Dockerfile ou .github/. Na dúvida (um passo que falha, uma lista vazia),
+    # os trabalhos abaixo correm: só "nao" os salta (revisão do #472, P1-1).
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -37,41 +38,40 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PEDIDO: ${{ github.event.pull_request.number }}
-          RASCUNHO: ${{ github.event.pull_request.draft }}
         run: |
           set -euo pipefail
-          if [ "$RASCUNHO" = "true" ]; then
-            echo "Rascunho: os testes correm quando sair de rascunho."
-            printf 'codigo=nao\nvps=nao\n' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           # Os nomes antigos dos ficheiros mudados de sítio também contam.
-          gh api --paginate "repos/$REPO/pulls/$PEDIDO/files" \
+          gh api --paginate "repos/$REPO/pulls/$PEDIDO/files?per_page=100" \
             --jq '.[] | .filename, (.previous_filename // empty)' > ficheiros.txt
-          # A API só lista 3000 ficheiros: acima disso, corre tudo.
-          if [ "$(wc -l < ficheiros.txt)" -ge 3000 ]; then
+          # Lista vazia: corre tudo. A API só lista 3000 ficheiros: acima
+          # disso, corre tudo.
+          if [ ! -s ficheiros.txt ] || [ "$(wc -l < ficheiros.txt)" -ge 3000 ]; then
             printf 'codigo=sim\nvps=sim\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # O docs/03 conta como código: o regras-temas.test.ts lê-o (#128).
           documentos='^(docs/|memoria/|\.agents/|\.claude/)|^[^/]+\.md$'
-          if grep -qvE "$documentos" ficheiros.txt ||
-            grep -qxF docs/03-regulamentar-ue.md ficheiros.txt; then
-            echo "codigo=sim" >> "$GITHUB_OUTPUT"
-          else
-            echo "Só documentos: os testes não correm."
-            echo "codigo=nao" >> "$GITHUB_OUTPUT"
+          # O grep sai com 1 quando não encontra e com 2 num erro: só o 1
+          # dá "nao".
+          codigo=sim
+          if ! grep -qxF docs/03-regulamentar-ue.md ficheiros.txt; then
+            r=0
+            grep -qvE "$documentos" ficheiros.txt || r=$?
+            if [ "$r" -eq 1 ]; then
+              echo "Só documentos: os testes não correm."
+              codigo=nao
+            fi
           fi
-          if grep -qE '^(infra/|Dockerfile$|\.github/)' ficheiros.txt; then
-            echo "vps=sim" >> "$GITHUB_OUTPUT"
-          else
-            echo "vps=nao" >> "$GITHUB_OUTPUT"
-          fi
+          vps=sim
+          r=0
+          grep -qE '^(infra/|Dockerfile$|\.github/)' ficheiros.txt || r=$?
+          if [ "$r" -eq 1 ]; then vps=nao; fi
+          printf 'codigo=%s\nvps=%s\n' "$codigo" "$vps" >> "$GITHUB_OUTPUT"
 
   codigo:
     needs: alteracoes
     # Chamado pelo publicar, corre sempre (o alteracoes é saltado).
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.alteracoes.outputs.codigo != 'nao') }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.alteracoes.outputs.codigo != 'nao')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # As imagens base vêm da cópia no GHCR (#268) e, se faltar, do espelho
@@ -133,7 +133,7 @@ jobs:
     # O script da VPS (C3): shellcheck e o modo que só mostra numa máquina
     # Ubuntu 26.04 vazia. Não toca na VPS.
     needs: alteracoes
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.alteracoes.outputs.vps != 'nao') }}
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.alteracoes.outputs.vps != 'nao')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -205,7 +205,7 @@ jobs:
   imagem:
     # Prova que o Dockerfile constrói; não envia nada para lado nenhum.
     needs: alteracoes
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.alteracoes.outputs.codigo != 'nao' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft && needs.alteracoes.outputs.codigo != 'nao' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
