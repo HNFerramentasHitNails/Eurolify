@@ -3148,14 +3148,34 @@ rotas-hub-encomendas.ts`, a chamar **as mesmas funções** das rotas da
   da decisão de IVA gravada na linha, a taxa (`tributada`, em centésimas de
   ponto), «Isenta» ou «Sem decisão de IVA» (`bloqueada`). Uma decisão que
   não percebe diz «IVA não legível» e não inventa.
+- **Os portes não se somam outra vez.** No servidor, a base, o IVA e o total
+  da encomenda **já incluem** os portes (`checkout/repositorio.ts`, `totais`
+  = linhas + portes). O cartão mostra *Base*, *IVA* e *Total* (total = base +
+  IVA) e, à parte, «Os portes (4,99 €) já estão incluídos…»: nunca uma linha de
+  portes na sequência que se soma (revisão do #478, P2-2).
 - **Os montantes são cêntimos** (como em §25.3); formata-se pela moeda da
   encomenda. Moedas com outras casas decimais: **não verifiquei**.
 - **A cópia do perfil de faturação** segue a regra da API: numa ficha
   pseudonimizada por um pedido de apagamento, só sai com `customers:billing`
   (o dono; `docs/23` §15.13). O Hub não decide: se vier nula e a ficha estiver
   guardada por obrigação fiscal, diz «Reservado ao dono».
+- **O NIF da cópia** vem nos campos que o checkout grava na `perfil_copia`:
+  `nome_documento`, `nif_escrito`, `nif_numero` e `pais_contribuinte` (não há
+  um campo `nif`). Mostra-se o **NIF como a pessoa o escreveu** (`nif_escrito`,
+  que o `docs/23` §3.2 manda manter sempre), ou o `nif_numero` se faltar, e o
+  país do contribuinte entre parênteses. O «NIF pela régua» com prefixo fiscal
+  calcula-se na API ao ler (`docs/23` §3.2) e não vem na cópia: o Hub não o
+  refaz. Um teste da API confere as chaves da cópia, para uma mudança de
+  nome não deixar o NIF em branco sem ninguém ver (revisão do #478, P1-1).
+  **Comportamento da API mantido:** quem tem `orders:read` vê o NIF (Q1).
 - **Sem cache:** as três respostas levam `Cache-Control: private, no-store`
   (têm dados pessoais), também num 403.
+- **Quem emite** (`emissor_fiscal`, copiado na encomenda e imutável;
+  `docs/29` §3.1, ADR-0041) diz-se sem afirmar que o Eurolify emite:
+  `eurolify` = «O software de faturação ligado ao Eurolify» (o adaptador
+  pede o documento ao software ligado); `sistema_proprio` = «O sistema do
+  próprio comerciante, fora do Eurolify»; `por_configurar` = «Por configurar:
+  o documento fica retido até haver emissor» (`docs/29` §3.1 e R3).
 - **O estado do documento fiscal** mostra o registo do Eurolify e diz-o no
   próprio ecrã: _«a prova do que saiu é o documento emitido, não este
   registo»_ (regra fiscal 4). O Hub não decide se há ou não documento.
@@ -3175,9 +3195,13 @@ comerciante=…`. Ícone: um saco de compras, desenhado no código. **O rótulo 
   «as 100 mais recentes»); a tabela com _Encomenda_ (ligação «Encomenda de
   {data}» e o fim do identificador), _Estado_ e _Total_.
 - **Ficha** (`/encomendas/ord_…?comerciante=…`): título «Encomenda de
-  {data}»; o estado e o fim do identificador; quatro cartões — _Artigos_
-  (tabela), _Totais_, _Entrega_ (e _Contacto do cliente_) e _Faturação_ —
-  e o _Rasto da encomenda_ (lista ordenada por data).
+  {data}»; o estado e o identificador completo (quebra em qualquer sítio; não
+  depende de um `title`, que não chega ao telemóvel nem ao leitor de ecrã);
+  cinco cartões — _Artigos_ (tabela), _Totais_, _Entrega_, _Contacto do
+  cliente_ e _Faturação_ — e o _Rasto da encomenda_ (lista ordenada por
+  data). Os totais e a faturação põem o rótulo e o valor **na mesma linha**
+  (grelha de duas colunas, também a 375 px); os títulos dos cartões têm todos
+  o mesmo tamanho.
 - **Estados e cores:** o nome do estado vai sempre escrito; a cor é um reforço
   (os mesmos tokens de §33: espera, em curso, saiu, problema), nunca o único
   sinal.
@@ -3207,9 +3231,13 @@ comerciante=…`. Ícone: um saco de compras, desenhado no código. **O rótulo 
   quem tem `orders:read`; o Hub não alarga o acesso: só mostra o que a API dá,
   com `no-store`. Nada disto vai para o endereço, para o armazenamento do
   navegador nem para a pesquisa de módulos.
-- **O rasto** mostra o nome de quem fez só se for membro da equipa; uma chave
+- **O rasto** mostra o nome de quem fez só se for membro da equipa (o
+  identificador compara-se sem o prefixo `per_` dos dois lados); uma chave
   mostra «Chave de API» e **nunca o identificador**; o cliente aparece como
-  «Cliente».
+  «Cliente». Cada transição leva ainda o que o rasto dos artigos já diz (de
+  onde veio, o agente de IA declarado ou comprovado, quem autorizou, ou o aviso
+  «sem autorização de uma pessoa»), pela mesma função (`rasto.ts`): o servidor
+  decide e o Hub só escolhe as palavras (revisão do #478, P2-4).
 - O texto do **motivo** de uma transição mostra-se como a API o dá: é texto
   do sistema ou de quem decidiu; **não verifiquei** se algum motivo futuro
   pode trazer dados de um cliente (ver 35.6).

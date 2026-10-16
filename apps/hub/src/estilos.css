@@ -1329,3 +1329,22 @@ textarea {
   padding-left: var(--espaco-4);
   margin: 0 0 var(--espaco-3);
 }
+
+/* Rótulo e valor na mesma linha (docs/22 §35.3): os totais e a faturação de
+   uma encomenda. Nunca em linhas separadas, também a 375 px. */
+.pares {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--espaco-1) var(--espaco-4);
+  margin: 0 0 var(--espaco-3);
+}
+.pares dt {
+  color: var(--texto-secundario);
+}
+.pares dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.referencia {
+  overflow-wrap: anywhere;
+}

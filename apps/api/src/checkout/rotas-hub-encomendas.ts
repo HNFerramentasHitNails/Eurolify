@@ -9,7 +9,11 @@ import { semPrefixo, umDe } from "../catalogo/rotas.js";
 import { ferramentasDoHub } from "../envios/rotas-hub.js";
 import { transicoesDaEncomenda } from "../stock/repositorio.js";
 import { emStock, IdEncomenda } from "../stock/rotas.js";
-import { lerEncomenda, listarEncomendas } from "./repositorio.js";
+import {
+  encomendaExiste,
+  lerEncomenda,
+  listarEncomendas,
+} from "./repositorio.js";
 import { emCheckout, paraEncomenda } from "./rotas.js";
 
 // Os ecrãs das encomendas no Hub (docs/22 §35; issue #475): a lista e a
@@ -126,7 +130,7 @@ export function rotasDasEncomendasNoHub(
         const id = semPrefixo(pedido.params.id);
         // Sem a encomenda neste comerciante é 404, não uma lista vazia.
         await emCheckout(resposta, () =>
-          lerEncomenda(base, s.comercianteId, id),
+          encomendaExiste(base, s.comercianteId, id),
         );
         return {
           dados: (await transicoesDaEncomenda(base, s.comercianteId, id)).map(

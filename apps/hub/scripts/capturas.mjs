@@ -7395,6 +7395,24 @@ try {
     regra: "nacional",
     versao_regras: "ensaio",
   });
+  // Quem mudou o estado: a Ana, que existe na equipa das capturas.
+  const anaDasEncomendas = psql(
+    "select id from pessoa where email = 'ana@exemplo.test'",
+  );
+  const rastoSimulado = (canal, autorizou) => ({
+    canal,
+    pedido: null,
+    ia: {
+      prova: "desconhecido",
+      fornecedor: null,
+      modelo: null,
+      execucao: null,
+    },
+    autorizado_por: null,
+    a_pedido_de: null,
+    a_pedido_de_tipo: null,
+    sem_autorizacao_de_pessoa: !autorizou,
+  });
   const simularEncomendas = async (contexto) => {
     const json = (corpo) => ({
       status: 200,
@@ -7432,7 +7450,16 @@ try {
           estado: "paga",
           cliente: "cus_0199e000-0000-7000-8000-000000000b11",
           perfil: "bpf_0199e000-0000-7000-8000-000000000c11",
-          perfil_copia: { nome_documento: "Ana Exemplo", nif: "999999990" },
+          // O formato REAL da cópia (checkout/repositorio.ts): sem «nif».
+          perfil_copia: {
+            tipo: "particular",
+            nome_documento: "Ana Exemplo",
+            nif_escrito: "PT 999 999 990",
+            nif_numero: "999999990",
+            pais_contribuinte: "PT",
+            morada: null,
+            outra_pessoa: false,
+          },
           guardado_por_obrigacao_fiscal: false,
           contacto: {
             nome: "Ana Exemplo",
@@ -7494,6 +7521,7 @@ try {
               em: "2026-10-11T10:11:00.000Z",
               motivo: null,
               tipo_de_autor: "consumidor",
+              ...rastoSimulado("checkout", false),
             },
             {
               de: "a_aguardar_pagamento",
@@ -7502,6 +7530,32 @@ try {
               em: "2026-10-11T10:13:00.000Z",
               motivo: null,
               tipo_de_autor: "prestador",
+              ...rastoSimulado("webhook", false),
+            },
+            {
+              de: "paga",
+              para: "em_preparacao",
+              quem: `pessoa:per_${anaDasEncomendas}`,
+              em: "2026-10-11T11:02:00.000Z",
+              motivo: "Pronta a embalar",
+              tipo_de_autor: "pessoa",
+              ...rastoSimulado("hub", true),
+              autorizado_por: `pessoa:per_${anaDasEncomendas}`,
+            },
+            {
+              de: "em_preparacao",
+              para: "expedida_parcial",
+              quem: "chave:key_0199e000-0000-7000-8000-000000000a98",
+              em: "2026-10-11T15:30:00.000Z",
+              motivo: null,
+              tipo_de_autor: "agente",
+              ...rastoSimulado("api", false),
+              ia: {
+                prova: "declarado",
+                fornecedor: "anthropic",
+                modelo: "claude",
+                execucao: null,
+              },
             },
           ],
         }),
@@ -7534,6 +7588,13 @@ try {
         await p.getByText(texto).first().waitFor();
         if (nome === "encomenda") {
           await p.getByText("Prestador de pagamentos").waitFor();
+          // O nome da pessoa (não «uma pessoa que já não está na equipa»)
+          // e o agente de IA declarado.
+          await p.getByText("Ana Teste").first().waitFor();
+          await p
+            .getByText(/Agente de IA \(declarado/)
+            .first()
+            .waitFor();
         }
         await p.waitForLoadState("networkidle");
         const largo = await p.evaluate(

@@ -1,4 +1,5 @@
 import type { EstadoEncomenda, TransicaoDaEncomenda } from "./api";
+import type { RastoDaEntrada } from "./rasto";
 import type { Textos } from "./textos";
 
 // Apoio dos ecrãs das encomendas (docs/22 §35; issue #475). O Hub só mostra
@@ -183,14 +184,27 @@ export function contactoDe(contacto: unknown): ContactoLido | null {
 
 export interface PerfilLido {
   nome: string | null;
+  /** Como a pessoa o escreveu (`nif_escrito`; docs/23 §3.2), ou só o número. */
   nif: string | null;
+  /** O país do contribuinte (`pais_contribuinte`). */
+  pais: string | null;
 }
 
-/** O nome e o NIF da cópia do perfil de faturação; null se não vier. */
+/**
+ * O nome e o NIF da cópia do perfil de faturação (`nome_documento`,
+ * `nif_escrito` ou, sem ele, `nif_numero`, `pais_contribuinte`: as chaves que
+ * o checkout grava). Mostra-se o NIF **como foi escrito**, que o docs/23 §3.2
+ * manda manter sempre; o prefixo fiscal («nif» pela régua) calcula-se na API ao
+ * ler e não vem na cópia, e o Hub não o refaz.
+ */
 export function perfilDe(perfil: unknown): PerfilLido | null {
   const p = registo(perfil);
   if (p === null) return null;
-  const lido = { nome: texto(p["nome_documento"]), nif: texto(p["nif"]) };
+  const lido = {
+    nome: texto(p["nome_documento"]),
+    nif: texto(p["nif_escrito"]) ?? texto(p["nif_numero"]),
+    pais: texto(p["pais_contribuinte"]),
+  };
   return lido.nome === null && lido.nif === null ? null : lido;
 }
 
@@ -228,11 +242,17 @@ export type QuemFez =
   | { tipo: "chave" | "sistema" | "consumidor" | "prestador" | "operador" }
   | { tipo: "desconhecido" };
 
+/** `pessoa:per_x`, `per_x` ou `x` → `x`: os dois lados comparam sem prefixo. */
+export function idDaPessoa(valor: string | null): string | null {
+  if (valor === null) return null;
+  const m = /^(?:pessoa:)?(?:per_)?(.+)$/.exec(valor);
+  return m?.[1] ?? null;
+}
+
 export function quemFez(t: TransicaoDaEncomenda): QuemFez {
   switch (t.tipo_de_autor) {
     case "pessoa": {
-      const m = /^pessoa:per_(.+)$/.exec(t.quem);
-      return { tipo: "pessoa", pessoa: m?.[1] ?? null };
+      return { tipo: "pessoa", pessoa: idDaPessoa(t.quem) };
     }
     case "agente":
     case "chave":
@@ -264,3 +284,27 @@ export const TEXTO_DO_EMISSOR: Record<string, keyof Textos> = {
   eurolify: "encomendaEmissor_eurolify",
   sistema_proprio: "encomendaEmissor_sistema_proprio",
 };
+
+/**
+ * A transição como o rasto das alterações a lê (`rasto.ts`): de onde veio, a
+ * IA, quem autorizou. O nome de quem autorizou vem da equipa, se for membro.
+ */
+export function rastoDaTransicao(
+  x: TransicaoDaEncomenda,
+  nomeDe: (pessoa: string) => string | null,
+): RastoDaEntrada {
+  const autorizou = idDaPessoa(x.autorizado_por);
+  return {
+    origem: null,
+    canal: x.canal,
+    pedido: x.pedido,
+    ia: x.ia,
+    motivo: x.motivo,
+    a_pedido_de: x.a_pedido_de,
+    tipo_de_autor: x.tipo_de_autor,
+    a_pedido_de_tipo: x.a_pedido_de_tipo,
+    sem_autorizacao_de_pessoa: x.sem_autorizacao_de_pessoa,
+    autor_autorizou: autorizou === null ? null : { nome: nomeDe(autorizou) },
+    autor_do_pedido: null,
+  };
+}

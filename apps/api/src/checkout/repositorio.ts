@@ -2189,6 +2189,22 @@ export async function lerEncomenda(
   });
 }
 
+/** Só confirma que a encomenda é deste comerciante (404 se não for). */
+export async function encomendaExiste(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+) {
+  await noCheckout(db, comercianteId, async (trx) => {
+    const e = await trx
+      .selectFrom("encomenda")
+      .select("id")
+      .where("id", "=", id)
+      .executeTakeFirst();
+    if (e === undefined) throw naoExiste("a encomenda");
+  });
+}
+
 export async function listarEncomendas(
   db: Kysely<BaseDados>,
   comercianteId: string,

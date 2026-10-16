@@ -11,6 +11,7 @@ import {
 import { ACarregar, CaixaDeErro, LigacaoInterna, useHub } from "../contexto";
 import {
   contactoDe,
+  idDaPessoa,
   contagemDaLista,
   dataLimiteDe,
   emCentimos,
@@ -24,6 +25,7 @@ import {
   nomeDoMetodo,
   perfilDe,
   quemFez,
+  rastoDaTransicao,
   taxaEmTexto,
   TEXTO_DO_DOCUMENTO,
   TEXTO_DO_EMISSOR,
@@ -37,6 +39,7 @@ import {
   type MensagemDeErro,
 } from "../erros";
 import { entradaDe } from "../modulos";
+import { linhaDoRasto } from "../rasto";
 import { preencher, TAG_LINGUA, type Lingua } from "../textos";
 
 // As encomendas no Hub (docs/22 §35; issue #475): a lista e a ficha, só
@@ -327,8 +330,8 @@ export function EncomendaPagina({
           )}
           <p>
             <Estado estado={e.estado} />{" "}
-            <code translate="no" className="secundario" title={e.id}>
-              …{idCurto(e.id)}
+            <code translate="no" className="secundario referencia">
+              {e.id}
             </code>
           </p>
           {vistaDoArmazem ? (
@@ -431,22 +434,22 @@ function Totais({ e, tag }: { e: Encomenda; tag: string }) {
   return (
     <section className="cartao" aria-labelledby="titulo-totais">
       <h2 id="titulo-totais">{t.encomendaTotais}</h2>
-      <dl>
+      <dl className="pares">
         <dt>{t.encomendaBase}</dt>
         <dd>{dinheiro(e.totais.base)}</dd>
         <dt>{t.encomendaIva}</dt>
         <dd>{dinheiro(e.totais.iva)}</dd>
-        {portes === null ? null : (
-          <>
-            <dt>{t.encomendaPortes}</dt>
-            <dd>{dinheiro(portes)}</dd>
-          </>
-        )}
         <dt>{t.encomendaTotal}</dt>
         <dd>
           <strong>{dinheiro(e.totais.total)}</strong>
         </dd>
       </dl>
+      {portes === null ? null : (
+        // Os portes já estão na base, no IVA e no total: não se somam outra vez.
+        <p className="secundario">
+          {preencher(t.encomendaIncluiPortes, { valor: dinheiro(portes) })}
+        </p>
+      )}
       <p className="secundario">
         {e.preco_inclui_iva ? t.encomendaPrecosComIva : t.encomendaPrecosSemIva}
       </p>
@@ -469,58 +472,64 @@ function Destino({ e, lingua }: { e: Encomenda; lingua: Lingua }) {
   const metodo = nomeDoMetodo(e.metodo_entrega, lingua);
   const limite = dataLimiteDe(e.metodo_entrega);
   return (
-    <section className="cartao" aria-labelledby="titulo-destino">
-      <h2 id="titulo-destino">{t.encomendaEntrega}</h2>
-      {metodo === null ? null : <p>{metodo}</p>}
-      {limite === null ? null : (
-        <p className="secundario">
-          {preencher(t.encomendaDataLimite, {
-            data: new Intl.DateTimeFormat(TAG_LINGUA[lingua], {
-              dateStyle: "medium",
-              timeZone: "UTC",
-            }).format(new Date(`${limite}T00:00:00Z`)),
-          })}
-        </p>
-      )}
-      {morada === null ? (
-        <p>{t.encomendaSemMorada}</p>
-      ) : (
-        <address className="morada">
-          {morada.ponto === null ? null : (
-            <>
-              <strong>{t.expedirPontoRecolha}</strong> {morada.ponto}
-              <br />
-            </>
-          )}
-          {morada.linhas.map((x, i) => (
-            <span key={x}>
-              {i === 0 ? "" : <br />}
-              {x}
-            </span>
-          ))}
-        </address>
-      )}
+    <>
+      <section className="cartao" aria-labelledby="titulo-destino">
+        <h2 id="titulo-destino">{t.encomendaEntrega}</h2>
+        {metodo === null ? null : <p>{metodo}</p>}
+        {limite === null ? null : (
+          <p className="secundario">
+            {preencher(t.encomendaDataLimite, {
+              data: new Intl.DateTimeFormat(TAG_LINGUA[lingua], {
+                dateStyle: "medium",
+                timeZone: "UTC",
+              }).format(new Date(`${limite}T00:00:00Z`)),
+            })}
+          </p>
+        )}
+        {morada === null ? (
+          <p>{t.encomendaSemMorada}</p>
+        ) : (
+          <address className="morada">
+            {morada.ponto === null ? null : (
+              <>
+                <strong>{t.expedirPontoRecolha}</strong> {morada.ponto}
+                <br />
+              </>
+            )}
+            {morada.linhas.map((x, i) => (
+              <span key={`${String(i)}-${x}`}>
+                {i === 0 ? "" : <br />}
+                {x}
+              </span>
+            ))}
+          </address>
+        )}
+      </section>
       {contacto === null ? null : (
-        <>
-          <h3>{t.encomendaContacto}</h3>
+        <section className="cartao" aria-labelledby="titulo-contacto">
+          <h2 id="titulo-contacto">{t.encomendaContacto}</h2>
           <p>
             {contacto.nome ?? ""}
             {contacto.email === null ? null : (
               <>
                 <br />
-                <a href={`mailto:${contacto.email}`}>{contacto.email}</a>
+                <a href={`mailto:${encodeURIComponent(contacto.email)}`}>
+                  {contacto.email}
+                </a>
               </>
             )}
             {contacto.telefone === null ? null : (
               <>
                 <br />
-                <a href={`tel:${contacto.telefone}`}>{contacto.telefone}</a>
+                <a href={`tel:${encodeURIComponent(contacto.telefone)}`}>
+                  {contacto.telefone}
+                </a>
               </>
             )}
           </p>
-        </>
+        </section>
       )}
-    </section>
+    </>
   );
 }
 
@@ -533,7 +542,7 @@ function Faturacao({ e }: { e: Encomenda }) {
   return (
     <section className="cartao" aria-labelledby="titulo-faturacao">
       <h2 id="titulo-faturacao">{t.encomendaFaturacao}</h2>
-      <dl>
+      <dl className="pares">
         <dt>{t.encomendaEmissor}</dt>
         <dd>{emissor === undefined ? e.emissor_fiscal : t[emissor]}</dd>
         <dt>{t.encomendaDocumento}</dt>
@@ -559,6 +568,7 @@ function Faturacao({ e }: { e: Encomenda }) {
                 <>
                   {" · "}
                   <code translate="no">{perfil.nif}</code>
+                  {perfil.pais === null ? null : ` (${perfil.pais})`}
                 </>
               )}
             </>
@@ -584,13 +594,15 @@ function Rasto({
   hora: (iso: string) => string;
 }) {
   const { t } = useHub();
-  const euId = eu === undefined ? null : eu.pessoa.replace(/^per_/, "");
+  const euId = eu === undefined ? null : idDaPessoa(eu.pessoa);
+  const nomeDaPessoa = (pessoa: string): string | null =>
+    membros.find((m) => idDaPessoa(m.pessoa) === pessoa)?.nome ?? null;
   const nomeDe = (q: ReturnType<typeof quemFez>): string => {
     switch (q.tipo) {
       case "pessoa":
         if (q.pessoa !== null && q.pessoa === euId) return t.encomendaPorSi;
         return (
-          membros.find((m) => m.pessoa === q.pessoa)?.nome ??
+          (q.pessoa === null ? null : nomeDaPessoa(q.pessoa)) ??
           t.diferencaPessoaDesconhecida
         );
       case "chave":
@@ -620,26 +632,41 @@ function Rasto({
         <p className="secundario">{t.encomendaRastoVazio}</p>
       ) : (
         <ol className="eventos">
-          {rasto.map((x, i) => (
-            <li key={`${x.em}-${String(i)}`}>
-              <time dateTime={x.em}>{hora(x.em)}</time>
-              {" — "}
-              {x.de === null
-                ? textoDoEstado(t, x.para)
-                : preencher(t.encomendaDePara, {
-                    de: textoDoEstado(t, x.de),
-                    para: textoDoEstado(t, x.para),
-                  })}
-              {" · "}
-              {nomeDe(quemFez(x))}
-              {x.motivo === null ? null : (
-                <>
-                  <br />
-                  <span className="secundario">{x.motivo}</span>
-                </>
-              )}
-            </li>
-          ))}
+          {rasto.map((x, i) => {
+            const linha = linhaDoRasto(rastoDaTransicao(x, nomeDaPessoa), t);
+            return (
+              <li key={`${x.em}-${String(i)}`}>
+                <time dateTime={x.em}>{hora(x.em)}</time>
+                {" — "}
+                {x.de === null
+                  ? textoDoEstado(t, x.para)
+                  : preencher(t.encomendaDePara, {
+                      de: textoDoEstado(t, x.de),
+                      para: textoDoEstado(t, x.para),
+                    })}
+                {" · "}
+                {nomeDe(quemFez(x))}
+                <br />
+                <span className="secundario">
+                  {linha.partes.join(" · ")}
+                  {" · "}
+                  {linha.autorizacao.aviso ? (
+                    <strong className="aviso-texto">
+                      {linha.autorizacao.texto}
+                    </strong>
+                  ) : (
+                    linha.autorizacao.texto
+                  )}
+                </span>
+                {linha.motivo === null ? null : (
+                  <>
+                    <br />
+                    <span className="secundario">{linha.motivo}</span>
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ol>
       )}
     </section>

@@ -1914,7 +1914,7 @@ export const pt = {
   encomendaSemMorada: "Sem morada de entrega nesta encomenda.",
   encomendaContacto: "Contacto do cliente",
   encomendaFaturacao: "Faturação",
-  encomendaEmissor: "Quem emite",
+  encomendaEmissor: "Emissor do documento",
   encomendaDocumento: "Documento fiscal",
   encomendaSemDocumento: "Ainda sem documento.",
   encomendaPerfil: "Faturado a",
@@ -1922,9 +1922,11 @@ export const pt = {
     "Reservado ao dono (ficha guardada por obrigação fiscal).",
   encomendaDocumentoAviso:
     "Este é o estado do registo no Eurolify. A prova do que saiu é o documento emitido, não este registo.",
-  encomendaEmissor_por_configurar: "Por configurar",
-  encomendaEmissor_eurolify: "O Eurolify",
-  encomendaEmissor_sistema_proprio: "O sistema próprio do comerciante",
+  encomendaEmissor_por_configurar:
+    "Por configurar: o documento fica retido até haver emissor",
+  encomendaEmissor_eurolify: "O software de faturação ligado ao Eurolify",
+  encomendaEmissor_sistema_proprio:
+    "O sistema do próprio comerciante, fora do Eurolify",
   encomendaDocumento_a_verificar: "A verificar",
   encomendaDocumento_retido: "Retido",
   encomendaDocumento_pronto: "Pronto a emitir",
@@ -1937,9 +1939,11 @@ export const pt = {
   encomendaRasto: "Rasto da encomenda",
   encomendaRastoFalhou: "Não foi possível ler o rasto desta encomenda agora.",
   encomendaRastoVazio: "Sem mudanças de estado registadas.",
-  encomendaPorSi: "si",
-  encomendaQuemDesconhecido: "quem fez não está registado",
+  encomendaPorSi: "Você",
+  encomendaQuemDesconhecido: "Autor não registado",
   encomendaDePara: "de {de} para {para}",
+  encomendaIncluiPortes:
+    "Os portes ({valor}) já estão incluídos na base, no IVA e no total.",
 };
 
 export type Textos = typeof pt;

@@ -1939,7 +1939,7 @@ export const es: Textos = {
   encomendaSemMorada: "Sin dirección de entrega en este pedido.",
   encomendaContacto: "Contacto del cliente",
   encomendaFaturacao: "Facturación",
-  encomendaEmissor: "Quién emite",
+  encomendaEmissor: "Emisor del documento",
   encomendaDocumento: "Documento fiscal",
   encomendaSemDocumento: "Todavía sin documento.",
   encomendaPerfil: "Facturado a",
@@ -1947,9 +1947,11 @@ export const es: Textos = {
     "Reservado al titular (ficha conservada por obligación fiscal).",
   encomendaDocumentoAviso:
     "Este es el estado del registro en Eurolify. La prueba de lo emitido es el documento emitido, no este registro.",
-  encomendaEmissor_por_configurar: "Por configurar",
-  encomendaEmissor_eurolify: "Eurolify",
-  encomendaEmissor_sistema_proprio: "El sistema propio del comerciante",
+  encomendaEmissor_por_configurar:
+    "Por configurar: el documento queda retenido hasta que haya emisor",
+  encomendaEmissor_eurolify: "El software de facturación conectado a Eurolify",
+  encomendaEmissor_sistema_proprio:
+    "El sistema propio del comerciante, fuera de Eurolify",
   encomendaDocumento_a_verificar: "En comprobación",
   encomendaDocumento_retido: "Retenido",
   encomendaDocumento_pronto: "Listo para emitir",
@@ -1962,7 +1964,9 @@ export const es: Textos = {
   encomendaRasto: "Historial del pedido",
   encomendaRastoFalhou: "No se pudo leer ahora el historial de este pedido.",
   encomendaRastoVazio: "Sin cambios de estado registrados.",
-  encomendaPorSi: "usted",
-  encomendaQuemDesconhecido: "quien lo hizo no consta",
+  encomendaPorSi: "Usted",
+  encomendaQuemDesconhecido: "Autor no registrado",
   encomendaDePara: "de {de} a {para}",
+  encomendaIncluiPortes:
+    "Los gastos de envío ({valor}) ya están incluidos en la base, el IVA y el total.",
 };

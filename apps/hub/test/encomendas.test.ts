@@ -12,7 +12,9 @@ import {
   ivaDaLinha,
   moradaDe,
   nomeDoMetodo,
+  idDaPessoa,
   perfilDe,
+  rastoDaTransicao,
   quemFez,
   taxaEmTexto,
   TEXTO_DO_DOCUMENTO,
@@ -20,6 +22,7 @@ import {
   textoDoEstado,
   totalDosPortes,
 } from "../src/encomendas";
+import { linhaDoRasto } from "../src/rasto";
 import { TEXTOS } from "../src/textos";
 
 // As encomendas no Hub (docs/22 §35): o Hub lê o que a API decidiu e nunca
@@ -161,9 +164,27 @@ describe("as cópias guardadas na encomenda", () => {
       contactoDe({ nome: "Rui", email: "r@x.pt", telefone: null }),
     ).toEqual({ nome: "Rui", email: "r@x.pt", telefone: null });
     expect(contactoDe({})).toBeNull();
-    expect(perfilDe({ nome_documento: "Rui Lda", nif: "999999990" })).toEqual({
-      nome: "Rui Lda",
-      nif: "999999990",
+    // O formato REAL da cópia (checkout/repositorio.ts): nif_escrito,
+    // nif_numero e pais_contribuinte; não há «nif».
+    expect(
+      perfilDe({
+        tipo: "empresa",
+        nome_documento: "Rui Lda",
+        nif_escrito: "PT 999 999 990",
+        nif_numero: "999999990",
+        pais_contribuinte: "PT",
+        morada: null,
+        outra_pessoa: false,
+      }),
+    ).toEqual({ nome: "Rui Lda", nif: "PT 999 999 990", pais: "PT" });
+    expect(
+      perfilDe({ nome_documento: "Rui", nif_numero: "999999990" }),
+    ).toEqual({ nome: "Rui", nif: "999999990", pais: null });
+    // Um campo «nif» que a API não grava não se lê.
+    expect(perfilDe({ nome_documento: "Rui", nif: "999999990" })).toEqual({
+      nome: "Rui",
+      nif: null,
+      pais: null,
     });
     expect(perfilDe(null)).toBeNull();
   });
@@ -199,6 +220,18 @@ describe("quem mudou o estado", () => {
     em: "2026-10-16T10:00:00Z",
     motivo: null,
     tipo_de_autor: tipo,
+    canal: "hub",
+    pedido: null,
+    ia: {
+      prova: "desconhecido",
+      fornecedor: null,
+      modelo: null,
+      execucao: null,
+    },
+    autorizado_por: null,
+    a_pedido_de: null,
+    a_pedido_de_tipo: null,
+    sem_autorizacao_de_pessoa: true,
   });
   it("uma pessoa vai pelo identificador; uma chave nunca mostra o identificador", () => {
     expect(quemFez(t("pessoa:per_abc", "pessoa"))).toEqual({
@@ -215,5 +248,51 @@ describe("quem mudou o estado", () => {
       tipo: "prestador",
     });
     expect(quemFez(t("x", "desconhecido"))).toEqual({ tipo: "desconhecido" });
+  });
+
+  it("o identificador da pessoa compara-se sem prefixo, dos dois lados (a equipa dá «per_…», o rasto «pessoa:per_…»)", () => {
+    expect(idDaPessoa("pessoa:per_abc")).toBe("abc");
+    expect(idDaPessoa("per_abc")).toBe("abc");
+    expect(idDaPessoa("abc")).toBe("abc");
+    expect(idDaPessoa(null)).toBeNull();
+    const equipa = [{ pessoa: "per_abc", nome: "Ana" }];
+    const quem = quemFez(t("pessoa:per_abc", "pessoa"));
+    expect(
+      quem.tipo === "pessoa" &&
+        equipa.find((m) => idDaPessoa(m.pessoa) === quem.pessoa)?.nome,
+    ).toBe("Ana");
+  });
+
+  it("o rasto lê a IA, o canal e quem autorizou, como o das alterações dos artigos", () => {
+    const agente: TransicaoDaEncomenda = {
+      ...t("chave:key_1", "agente"),
+      canal: "api",
+      ia: {
+        prova: "declarado",
+        fornecedor: "anthropic",
+        modelo: "claude",
+        execucao: null,
+      },
+      autorizado_por: "pessoa:per_abc",
+      sem_autorizacao_de_pessoa: false,
+    };
+    const r = rastoDaTransicao(agente, (p) => (p === "abc" ? "Ana" : null));
+    expect(r.ia.prova).toBe("declarado");
+    expect(r.autor_autorizou).toEqual({ nome: "Ana" });
+    const linha = linhaDoRasto(r, TEXTOS.pt);
+    expect(linha.partes.join(" ")).toContain("anthropic");
+    expect(linha.autorizacao).toEqual({
+      texto: expect.stringContaining("Ana") as string,
+      aviso: false,
+    });
+    // Sem pessoa a autorizar: o aviso.
+    const sem = linhaDoRasto(
+      rastoDaTransicao(
+        { ...agente, autorizado_por: null, sem_autorizacao_de_pessoa: true },
+        () => null,
+      ),
+      TEXTOS.pt,
+    );
+    expect(sem.autorizacao.aviso).toBe(true);
   });
 });

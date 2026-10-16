@@ -1920,7 +1920,7 @@ export const en: Textos = {
   encomendaSemMorada: "No delivery address on this order.",
   encomendaContacto: "Customer contact",
   encomendaFaturacao: "Invoicing",
-  encomendaEmissor: "Issued by",
+  encomendaEmissor: "Document issuer",
   encomendaDocumento: "Tax document",
   encomendaSemDocumento: "No document yet.",
   encomendaPerfil: "Invoiced to",
@@ -1928,9 +1928,11 @@ export const en: Textos = {
     "Restricted to the owner (record kept for a tax obligation).",
   encomendaDocumentoAviso:
     "This is the state of the record in Eurolify. The proof of what was issued is the issued document, not this record.",
-  encomendaEmissor_por_configurar: "Not set up yet",
-  encomendaEmissor_eurolify: "Eurolify",
-  encomendaEmissor_sistema_proprio: "The merchant's own system",
+  encomendaEmissor_por_configurar:
+    "Not set up yet: the document is held until there is an issuer",
+  encomendaEmissor_eurolify: "The invoicing software connected to Eurolify",
+  encomendaEmissor_sistema_proprio:
+    "The merchant's own system, outside Eurolify",
   encomendaDocumento_a_verificar: "Being checked",
   encomendaDocumento_retido: "On hold",
   encomendaDocumento_pronto: "Ready to issue",
@@ -1943,7 +1945,9 @@ export const en: Textos = {
   encomendaRasto: "Order history",
   encomendaRastoFalhou: "The history of this order could not be read now.",
   encomendaRastoVazio: "No status changes recorded.",
-  encomendaPorSi: "you",
-  encomendaQuemDesconhecido: "who did it is not recorded",
+  encomendaPorSi: "You",
+  encomendaQuemDesconhecido: "Author not recorded",
   encomendaDePara: "from {de} to {para}",
+  encomendaIncluiPortes:
+    "Shipping ({valor}) is already included in the net amount, the VAT and the total.",
 };

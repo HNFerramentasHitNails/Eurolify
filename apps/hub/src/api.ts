@@ -417,6 +417,14 @@ export interface TransicaoDaEncomenda {
   em: string;
   motivo: string | null;
   tipo_de_autor: TipoDeAutor;
+  // O rasto (docs/28 §1), como o das alterações dos artigos.
+  canal: string | null;
+  pedido: string | null;
+  ia: AlteracaoArtigo["ia"];
+  autorizado_por: string | null;
+  a_pedido_de: { pedido: string | null; quem: string | null } | null;
+  a_pedido_de_tipo: TipoDeAutor | null;
+  sem_autorizacao_de_pessoa: boolean | null;
 }
 
 /** Uma diferença da fila de pagamentos, como o Hub a lê (docs/22 §34.2). */
