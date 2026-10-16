@@ -10,6 +10,7 @@ export default defineConfig([
     ".agents/**",
     ".claude/**",
     "docs/**",
+    "apps/sdk/src/gerado/**",
     "memoria/**",
   ]),
   js.configs.recommended,

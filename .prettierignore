@@ -7,3 +7,5 @@ memoria/
 pnpm-lock.yaml
 dist/
 coverage/
+apps/sdk/src/gerado/
+apps/sdk/contrato/

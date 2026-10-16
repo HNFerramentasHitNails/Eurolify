@@ -7,7 +7,7 @@
     "node": ">=24.21.0 <25"
   },
   "scripts": {
-    "lint": "eslint . && prettier --check .",
+    "lint": "pnpm --filter @eurolify/sdk gerar && eslint . && prettier --check .",
     "formatar": "prettier --write .",
     "tipos": "pnpm -r run tipos",
     "teste": "pnpm -r run teste",

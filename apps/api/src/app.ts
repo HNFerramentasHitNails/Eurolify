@@ -324,6 +324,12 @@ export function criarApp(
         `rota ${String(rota.method)} ${rota.url} com sessão sem config.hub (docs/21 §3)`,
       );
     }
+    // O âmbito pedido vai para o contrato (`x-ambito`): é daí que o SDK separa
+    // a API da Loja da de Administração, sem o decidir por conta própria
+    // (docs/39 §3).
+    if (esquema !== undefined) {
+      (esquema as Record<string, unknown>)["x-ambito"] = ambito;
+    }
     if (ambito !== "publico" && esquema !== undefined) {
       esquema.security =
         ambito === "sessao" || ambito === "sessao_comerciante"
