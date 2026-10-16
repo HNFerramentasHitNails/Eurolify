@@ -13,6 +13,16 @@ Tarefa #471, pedido #472.
 - `AGENTS.md`: testes na sessão antes do push, um push por pedido.
 - Nota no ADR-0031.
 
+## Decisão do Diogo, 16/10/2026: o repositório passa a público
+
+*«vou colocar publico»*; *«já está público»* (confirmado por `list_repos`,
+`visibility: public`). Num repositório público os minutos dos executores
+normais não se pagam. Antes da mudança procurou-se no histórico (1 374
+commits): chaves privadas, tokens do GitHub, chaves da Stripe e da AWS,
+endereços IP e e-mails. Nada de secreto; fica à vista o nome da VPS (ADR-0018),
+o desenho da segurança, as decisões de negócio e o e-mail dos commits. Desde
+14/10/2026 às 15:16 UTC todas as execuções davam «startup_failure».
+
 ## Números (com data e como se contaram)
 
 - 16/10/2026: o Eurolify é o único privado dos repositórios destes trabalhos
