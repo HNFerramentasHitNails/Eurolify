@@ -410,3 +410,77 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
 - **P3-4 já estava garantido:** um país só pode estar num mercado activo da
   loja (migração 0017), por isso a escolha do mercado pelo país não é
   ambígua.
+
+## 14. Limpeza dos carrinhos e tecto (parte 2; issue #479; migração 0109)
+
+Fecha dois pontos que a §13 deixou abertos: «a limpeza dos carrinhos
+expirados» e, da revisão do #276, a P2-9 («falta um limite por chave e um
+tecto de carrinhos abertos»). Nenhuma regra fiscal ou legal nova: é higiene
+e defesa. Os números abaixo são **valores nossos, a medir** (`docs/18` §6:
+nenhum número é decisão); mudam-se numa constante, não numa regra.
+
+**O que se apaga e quando.** Um carrinho só se apaga se, ao mesmo tempo:
+
+1. está `aberto` (nunca `em_checkout` nem `convertido`);
+2. expirou há mais de **7 dias** (`expira_em`; a folga evita a corrida com
+   quem ainda o está a usar no limite do prazo; valor nosso);
+3. **nunca teve uma sessão de checkout**, seja qual for o estado dela. A
+   sessão aponta para o carrinho (chave estrangeira sem cascata, 0041) e as
+   sessões não se apagam (P2-3, §13): é a própria base que recusa apagar o
+   que uma sessão ou uma encomenda ainda liga. Os carrinhos que chegaram a
+   ter sessão **ficam** (sem dados pessoais: a sessão perde-os aos 7 dias,
+   0077) até a função de retenção da P2-3 existir. É uma limitação dita, não
+   escondida.
+
+Apagam-se as linhas do carrinho com ele (cascata da 0041). Em lotes de 500 por
+comerciante, até 20 lotes por volta, como a limpeza das sessões.
+
+**Quando corre.** Na **mesma volta horária** da limpeza das sessões
+(`checkout/limpeza-sessoes.ts`, já agendada no arranque): não há agendamento
+novo nem se mexe no arranque da API. A volta passa a devolver também
+`carrinhos`. A função é do dono da base (`SECURITY DEFINER`), só apaga no
+comerciante do contexto e a API não ganha `DELETE` sobre o carrinho.
+
+**Dados pessoais.** O carrinho não tem e-mail, nome nem morada (§3.1,
+§7: «sem dados pessoais»); tem o segredo só em resumo SHA-256. A retenção
+do carrinho (30 dias, §7) mantém-se; a limpeza só retira o que já passou. O
+e-mail da sessão não se toca aqui (migração 0077).
+
+**Isolamento entre comerciantes.** A função exige o comerciante do contexto
+(RLS forçada da 0041) e filtra por ele; a volta percorre, um a um, os
+comerciantes com chave pública (`chave_api`, a única porta que cria
+carrinhos), e um que falhe não pára os outros (como na limpeza das sessões).
+
+**O tecto e o limite por chave (P2-9).** A chave pública está no browser:
+quem a lê cria carrinhos sem fim.
+- **Tecto:** no máximo **20 000 carrinhos abertos e não expirados por
+  loja** (valor nosso). Passado o tecto, `POST /store/carts` responde 429
+  `cart.limit_reached`. A contagem corre sob um bloqueio por loja, para dois
+  pedidos em paralelo não passarem os dois.
+- **Limite por chave:** **1 200 pedidos por minuto** em toda a API da Loja
+  e **60 carrinhos novos por minuto**, por chave (valores nossos), contados em
+  memória como o limite por IP (`base/limite.ts`); cada processo conta os seus.
+  Responde 429 `rate_limit.exceeded` com `Retry-After`. Soma-se ao limite por
+  IP, não o substitui.
+
+**Por onde é que isto ainda pode sair errado.**
+- Os contadores por chave estão em memória: com mais de uma instância da API,
+  o limite real é o número de instâncias vezes o valor. Hoje é uma VPS, uma
+  API.
+- Quem tem várias chaves (ou várias lojas) tem vários limites; o tecto é por
+  loja, não por comerciante. Um atacante com a chave de uma loja só enche a
+  loja dela.
+- O tecto conta abertos não expirados: um carrinho expirado há menos de 7 dias
+  não conta mas ainda ocupa a base até à limpeza (folga curta, medida a 7 dias).
+- Um carrinho que chegou a ter sessão não se apaga (acima): a base continua a
+  crescer com esses, devagar (um por checkout iniciado). A P2-3 trata-os.
+- A volta horária falhada deixa acumular; a falha fica nos registos por
+  comerciante (`checkout: a limpeza dos carrinhos falhou`) mas não há alarme.
+- O `expira_em` do carrinho não se renova ao mexer (§3.1 diz «30 dias sem
+  mexer», o código conta desde a criação). Não se alterou aqui; fica dito.
+
+**Não verifiquei:** a carga real (quantos carrinhos abertos tem uma loja
+normal; os 20 000 e os 1 200/60 por minuto são palpites a medir); o tempo da
+volta com milhões de carrinhos; o comportamento com duas instâncias da API a
+limpar ao mesmo tempo (o `SKIP LOCKED` deve bastar, não testado com duas
+ligações reais além do teste de bloqueio).
