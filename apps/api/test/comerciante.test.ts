@@ -187,6 +187,7 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0101_envios_volumes",
         "0102_tarefas_motivo_no_apagamento",
         "0103_envios_chave_anterior",
+        "0109_checkout_limpeza_carrinhos",
       ]);
     });
 

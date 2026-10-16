@@ -27,6 +27,7 @@ export type CodigoErroCheckout =
   | "cart.secret_invalid"
   | "cart.min_quantity"
   | "cart.too_many_lines"
+  | "cart.limit_reached"
   | "legal.version_immutable"
   | "legal.duplicate"
   | "orders.immutable";
@@ -59,6 +60,8 @@ export const ESTADO_DO_CODIGO: Record<CodigoErroCheckout, number> = {
   "cart.secret_invalid": 404,
   "cart.min_quantity": 422,
   "cart.too_many_lines": 422,
+  // O tecto de carrinhos abertos da loja (docs/25 §14).
+  "cart.limit_reached": 429,
   "legal.version_immutable": 409,
   "legal.duplicate": 409,
   "orders.immutable": 409,

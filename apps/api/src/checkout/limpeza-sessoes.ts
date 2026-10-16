@@ -11,6 +11,8 @@ export const QUEM_DA_LIMPEZA = "sistema:checkout";
 
 export interface VoltaDaLimpeza {
   limpas: number;
+  /** Carrinhos expirados apagados (docs/25 §14; migração 0109). */
+  carrinhos: number;
   /** Comerciantes cuja volta falhou, com o nome do erro (sem dados). */
   falhas: { comerciante: string; erro: string }[];
 }
@@ -20,7 +22,7 @@ export async function correrLimpezaDasSessoes(
   db: Kysely<BaseDados>,
   porVolta = 500,
 ): Promise<VoltaDaLimpeza> {
-  const volta: VoltaDaLimpeza = { limpas: 0, falhas: [] };
+  const volta: VoltaDaLimpeza = { limpas: 0, carrinhos: 0, falhas: [] };
   const { rows } = await sql<{
     c: string;
   }>`select checkout_comerciantes_com_sessoes_a_limpar() as c`.execute(db);
@@ -51,7 +53,47 @@ export async function correrLimpezaDasSessoes(
       });
     }
   }
+  await correrLimpezaDosCarrinhos(db, volta, porVolta);
   return volta;
+}
+
+/**
+ * Os carrinhos abertos que expiraram há mais de 7 dias e nunca tiveram
+ * sessão (docs/25 §14), comerciante a comerciante, na mesma volta. Um
+ * comerciante que falhe não pára os outros.
+ */
+async function correrLimpezaDosCarrinhos(
+  db: Kysely<BaseDados>,
+  volta: VoltaDaLimpeza,
+  porVolta: number,
+) {
+  const { rows } = await sql<{
+    c: string;
+  }>`select checkout_comerciantes_com_carrinhos_a_limpar() as c`.execute(db);
+  for (const { c } of rows) {
+    try {
+      volta.carrinhos += await comComerciante(db, c, async (trx) => {
+        await sql`select set_config('eurolify.quem', ${QUEM_DA_LIMPEZA}, true)`.execute(
+          trx,
+        );
+        let total = 0;
+        for (let i = 0; i < 20; i++) {
+          const { rows: x } = await sql<{
+            n: number;
+          }>`select checkout_carrinhos_limpar(${porVolta}) as n`.execute(trx);
+          const n = x[0]?.n ?? 0;
+          total += n;
+          if (n < porVolta) break;
+        }
+        return total;
+      });
+    } catch (erro) {
+      volta.falhas.push({
+        comerciante: c,
+        erro: erro instanceof Error ? erro.name : "erro",
+      });
+    }
+  }
 }
 
 /** De hora a hora; a primeira volta logo ao arrancar. */
@@ -71,8 +113,17 @@ export function agendarLimpezaDasSessoes(
         if (v.limpas > 0) {
           registo.info({ limpas: v.limpas }, "checkout: sessões limpas");
         }
+        if (v.carrinhos > 0) {
+          registo.info(
+            { carrinhos: v.carrinhos },
+            "checkout: carrinhos expirados apagados",
+          );
+        }
         for (const f of v.falhas) {
-          registo.error(f, "checkout: a limpeza das sessões falhou");
+          registo.error(
+            f,
+            "checkout: a limpeza das sessões ou dos carrinhos falhou",
+          );
         }
       })
       .catch((erro: unknown) => {

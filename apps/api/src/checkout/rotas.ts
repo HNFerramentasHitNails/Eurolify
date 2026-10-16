@@ -6,6 +6,11 @@ import { createHash } from "node:crypto";
 import { sql } from "kysely";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { comIdempotencia } from "../base/idempotencia.js";
+import {
+  LIMITE_CARRINHOS_NOVOS,
+  LIMITE_CHAVE_LOJA,
+  LimitePorIp,
+} from "../base/limite.js";
 import { TIPOS_TEXTO_LEGAL, type BaseDados } from "../base/esquema.js";
 import { escrever, idCom, semPrefixo, umDe } from "../catalogo/rotas.js";
 import { chaveDo } from "../identidade/autenticacao.js";
@@ -442,6 +447,40 @@ export function rotasDoCheckout(
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
   const loja = { ambito: "storefront" as const, loja: true };
   const publico = { ambito: "publico" as const, loja: true };
+
+  // O limite por chave pública da loja (docs/25 §14; P2-9 do #276), a somar
+  // ao limite por IP do `app.ts`. Em memória, por processo; a chave conta-se
+  // pelo identificador, nunca pelo segredo.
+  {
+    const porChave = new LimitePorIp(LIMITE_CHAVE_LOJA);
+    const carrinhosNovos = new LimitePorIp(LIMITE_CARRINHOS_NOVOS);
+    const arrumar = setInterval(() => {
+      porChave.limpar();
+      carrinhosNovos.limpar();
+    }, LIMITE_CHAVE_LOJA.janelaMs);
+    arrumar.unref();
+    instancia.addHook("onClose", (_instancia, feito) => {
+      clearInterval(arrumar);
+      feito();
+    });
+    instancia.addHook("onRequest", async (pedido, resposta) => {
+      if (pedido.routeOptions.config.ambito !== "storefront") return;
+      if (pedido.chave === null) return;
+      const id = `key_${pedido.chave.chaveId}`;
+      let espera = porChave.contarChave(id);
+      if (
+        espera === 0 &&
+        pedido.method === "POST" &&
+        pedido.routeOptions.url === "/store/carts"
+      ) {
+        espera = carrinhosNovos.contarChave(id);
+      }
+      if (espera > 0) {
+        void resposta.header("Retry-After", String(espera));
+        throw erroBase("rate_limit.exceeded");
+      }
+    });
+  }
 
   // ------------------------------------------------- API da Loja: carrinho
 

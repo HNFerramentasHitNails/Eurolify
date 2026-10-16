@@ -29,6 +29,20 @@ export interface LimitesHub {
  */
 export const LIMITE_LOJA: RegraLimite = { pedidos: 300, janelaMs: 60_000 };
 
+/**
+ * Os limites por chave pública da loja (docs/25 §14; P2-9 do #276). Valores
+ * nossos, a medir (docs/18 §6): todos os pedidos da API da Loja e, à parte,
+ * os carrinhos novos.
+ */
+export const LIMITE_CHAVE_LOJA: RegraLimite = {
+  pedidos: 1200,
+  janelaMs: 60_000,
+};
+export const LIMITE_CARRINHOS_NOVOS: RegraLimite = {
+  pedidos: 60,
+  janelaMs: 60_000,
+};
+
 export const LIMITES_HUB: LimitesHub = {
   publicas: { pedidos: 20, janelaMs: 60_000 },
   todas: { pedidos: 300, janelaMs: 60_000 },
@@ -96,7 +110,14 @@ export class LimitePorIp {
 
   /** Conta um pedido. Devolve 0 se passa, ou os segundos até poder voltar. */
   contar(ip: string): number {
-    const chave = chaveDoIp(ip);
+    return this.contarChave(chaveDoIp(ip));
+  }
+
+  /**
+   * Conta um pedido de uma chave qualquer (o identificador de uma chave de
+   * API, não um IP; docs/25 §14). Mesmas janelas e mesmo tecto de memória.
+   */
+  contarChave(chave: string): number {
     const t = this.agora();
     let conta = this.contas.get(chave);
     if (conta === undefined || t - conta.desde >= this.regra.janelaMs) {

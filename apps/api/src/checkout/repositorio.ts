@@ -162,13 +162,36 @@ const naoExiste = (o: string) =>
 
 // ------------------------------------------------------------- Carrinho
 
+/**
+ * O tecto de carrinhos abertos (não expirados) por loja: a chave pública está
+ * no browser e, sem tecto, quem a lê enche a base (docs/25 §14, P2-9 do
+ * #276). Valor nosso, a medir (docs/18 §6).
+ */
+export const TECTO_CARRINHOS_ABERTOS = 20_000;
+
 export async function criarCarrinho(
   db: Kysely<BaseDados>,
   comercianteId: string,
   lojaId: string,
   dados: { canal: string; mercado: string; lingua: string },
+  tecto: number = TECTO_CARRINHOS_ABERTOS,
 ): Promise<{ id: string; segredo: string }> {
   return noCheckout(db, comercianteId, async (trx) => {
+    // Um bloqueio por loja até ao fim da transacção: dois pedidos em paralelo
+    // não passam os dois o tecto.
+    await sql`select pg_advisory_xact_lock(hashtextextended(${`carrinhos:${lojaId}`}, 0))`.execute(
+      trx,
+    );
+    const { rows: abertos } = await sql<{ n: string }>`
+      select count(*)::text as n from carrinho
+      where comerciante_id = ${comercianteId}::uuid and loja_id = ${lojaId}::uuid
+        and estado = 'aberto' and expira_em > now()`.execute(trx);
+    if (Number(abertos[0]?.n ?? "0") >= tecto) {
+      throw new ErroCheckout(
+        "cart.limit_reached",
+        "cart.limit_reached: a loja tem carrinhos abertos a mais; tente daqui a pouco",
+      );
+    }
     const mercado = await trx
       .selectFrom("mercado")
       .innerJoin("canal_mercado", "canal_mercado.mercado_id", "mercado.id")
@@ -236,7 +259,8 @@ async function carrinhoDe(
     throw new ErroCheckout("cart.secret_invalid", "o carrinho não existe");
   }
   // Expirado conta-se pelo relógio; não se grava aqui (o erro desfaria a
-  // escrita): a limpeza dos carrinhos é uma tarefa à parte (parte 2).
+  // escrita): a limpeza dos carrinhos é uma tarefa à parte (docs/25 §14,
+  // `limpeza-sessoes.ts`).
   if (c.estado !== "convertido" && c.passou_prazo) {
     throw new ErroCheckout(
       "cart.not_open",
