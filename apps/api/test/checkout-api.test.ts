@@ -16,6 +16,7 @@ import {
 } from "../src/comerciante/repositorio.js";
 import { criarChave } from "../src/identidade/repositorio.js";
 import {
+  anunciarReducao,
   criarCanal,
   criarLista,
   criarMercado,
@@ -117,7 +118,9 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
    * 6,15 €), os textos legais publicados para PT/pt/consumidor e um método
    * de entrega de 4,99 €, grátis a partir de 50,00 €.
    */
-  async function cenario() {
+  async function cenario(
+    opcoes: { incluiIva?: boolean; comConteudo?: boolean } = {},
+  ) {
     const c = await registarComerciante(base.api, {
       nome: "Loja",
       lingua: "pt",
@@ -143,6 +146,9 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       moeda: "EUR",
       linguas: ["pt"],
       lingua_principal: "pt",
+      ...(opcoes.incluiIva === undefined
+        ? {}
+        : { preco_inclui_iva: opcoes.incluiIva }),
     });
     const lista = await criarLista(base.api, c, {
       mercado_id: mercado,
@@ -160,7 +166,14 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       c,
       { tipo: "fisico", nome: "Gel UV", categoria_fiscal: "normal" },
       [
-        { sku: "GEL-001", unidade_de_venda: "unidade", peso_g: 30 },
+        {
+          sku: "GEL-001",
+          unidade_de_venda: "unidade",
+          peso_g: 30,
+          ...(opcoes.comConteudo === true
+            ? { conteudo_quantidade: 15, conteudo_unidade: "ml" as const }
+            : {}),
+        },
         { sku: "GEL-002", unidade_de_venda: "unidade", peso_g: 30 },
       ],
     );
@@ -2124,5 +2137,455 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     await expect(espanha("Espanha 2")).rejects.toThrow(
       /country_in_other_market/,
     );
+  });
+
+  // ----------------------------------- API da Loja: mercados e preços (#481)
+
+  const daLoja = (s: Cenario) => ({ authorization: `Bearer ${s.publica}` });
+  const precosDa = (s: Cenario, variantes: string[], extra = "") =>
+    pedir(
+      "GET",
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=${variantes.map((v) => `var_${v}`).join(",")}${extra}`,
+      undefined,
+      daLoja(s),
+    );
+  /** As linhas de `dados` de um pedido de preços que tem de dar 200. */
+  const linhasDe = async (r: PromiseLike<Resposta>) =>
+    (await ok(r))["dados"] as Json[];
+
+  it("a Loja: o preço a mostrar é o que o resumo do checkout cobra, com o IVA do Motor (mercado com IVA)", async () => {
+    const s = await cenario();
+    const mercados = await ok(
+      pedir("GET", "/store/markets", undefined, daLoja(s)),
+    );
+    expect(mercados).toMatchObject({
+      total: 1,
+      ha_mais: false,
+      dados: [
+        {
+          id: `mkt_${s.mercado}`,
+          paises: ["PT"],
+          moeda: "EUR",
+          linguas: ["pt"],
+          lingua_principal: "pt",
+          preco_inclui_iva: true,
+        },
+      ],
+    });
+    const r = await precosDa(
+      s,
+      [s.v1, s.v2],
+      "&country=PT&postal_code=1000-001",
+    );
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.headers["cache-control"]).toBe("no-store");
+    const corpo = r.json<Json>();
+    expect(corpo).toMatchObject({
+      mercado: `mkt_${s.mercado}`,
+      moeda: "EUR",
+      preco_inclui_iva: true,
+      pais: "PT",
+      indisponiveis: [],
+    });
+    const dados = corpo["dados"] as Json[];
+    expect(dados[0]).toMatchObject({
+      variante: `var_${s.v1}`,
+      quantidade: 1,
+      preco_a_mostrar: 1230,
+      total_linha: 1230,
+      iva: {
+        resultado: "tributada",
+        taxa: 2300,
+        pais_imposto: "PT",
+        verificado: false,
+        versao_regras: expect.any(String) as unknown,
+      },
+      reducao: null,
+      quantidade_minima: 1,
+      multiplo: 1,
+      preco_personalizado: false,
+    });
+    expect(dados[1]).toMatchObject({
+      variante: `var_${s.v2}`,
+      preco_a_mostrar: 615,
+      quantidade: 2,
+      total_linha: 1230,
+      quantidade_minima: 2,
+    });
+    expect(dados[0]).not.toHaveProperty("montante");
+    // O mesmo que o carrinho e o resumo do checkout cobram (uma unidade).
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    expect(
+      await ok(
+        pedir("GET", `/store/carts/${k.carrinho}`, undefined, k.segredo),
+      ),
+    ).toMatchObject({ linhas: [{ preco_unitario: 1230 }] });
+    await preencher(s, k.token);
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/summary`)),
+    ).toMatchObject({
+      linhas: [{ total: dados[0]?.["preco_a_mostrar"] }],
+    });
+    // Sem país, num mercado com IVA no preço: o preço de lista e o IVA por decidir.
+    expect((await linhasDe(precosDa(s, [s.v1])))[0]).toMatchObject({
+      preco_a_mostrar: 1230,
+      iva: { resultado: "por_decidir", motivo: "pais_em_falta" },
+    });
+    // A Madeira: o Motor bloqueia, e o checkout também; a Loja não mostra preço.
+    expect(
+      (
+        await linhasDe(precosDa(s, [s.v1], "&country=PT&postal_code=9000-018"))
+      )[0],
+    ).toMatchObject({
+      preco_a_mostrar: null,
+      iva: { resultado: "bloqueada", motivo: "territorio_por_validar" },
+    });
+    // Código postal em falta onde o Motor o pede.
+    expect(
+      (await linhasDe(precosDa(s, [s.v1], "&country=PT")))[0],
+    ).toMatchObject({
+      preco_a_mostrar: null,
+      iva: { resultado: "bloqueada", motivo: "codigo_postal_em_falta" },
+    });
+  });
+
+  it("a Loja: num mercado sem IVA no preço, o preço a mostrar leva o IVA do Motor (e é o do resumo); sem país não há preço", async () => {
+    const s = await cenario({ incluiIva: false });
+    const semPaisNaoIva = (await linhasDe(precosDa(s, [s.v1])))[0];
+    expect(semPaisNaoIva).not.toHaveProperty("montante");
+    expect(semPaisNaoIva).toMatchObject({
+      preco_a_mostrar: null,
+      total_linha: null,
+      preco_por_unidade: null,
+      iva: { resultado: "por_decidir" },
+    });
+    const r = await ok(precosDa(s, [s.v1], "&country=PT&postal_code=1000-001"));
+    expect(r).toMatchObject({ preco_inclui_iva: false });
+    // 12,30 € + 23 % (2,83 €, metade para cima) = 15,13 €.
+    expect((r["dados"] as Json[])[0]).toMatchObject({
+      preco_a_mostrar: 1513,
+      total_linha: 1513,
+      iva: { resultado: "tributada", taxa: 2300 },
+    });
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/summary`)),
+    ).toMatchObject({ linhas: [{ total: 1513, base: 1230, valor_iva: 283 }] });
+  });
+
+  it("a Loja: a redução, o preço de referência e o preço por unidade com o IVA", async () => {
+    const s = await cenario({ comConteudo: true });
+    const certo = "&country=PT&postal_code=1000-001";
+    // 12,30 € / 15 ml = 820,00 €/l.
+    expect((await linhasDe(precosDa(s, [s.v1], certo)))[0]).toMatchObject({
+      preco_por_unidade: { valor: "820.0000", unidade: "l", inclui_iva: true },
+    });
+    // Uma linha com 40 dias de história, e a redução (docs/20 §10.2).
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${s.c}, true)`.execute(
+        trx,
+      );
+      await sql`insert into historico_preco (comerciante_id, lista_id, variante_id, montante,
+                  gratuito, saiu, moeda, preco_inclui_iva, em_vigor_desde, definido_por)
+                values (${s.c}, ${s.lista}, ${s.v1}, 1230, false, false,
+                  'EUR', true, now() - make_interval(hours => 960), 'teste:antes')`.execute(
+        trx,
+      );
+    });
+    await anunciarReducao(base.api, s.c, QUEM, s.lista, s.v1, {
+      montante: 990,
+    });
+    expect((await linhasDe(precosDa(s, [s.v1], certo)))[0]).toMatchObject({
+      preco_a_mostrar: 990,
+      reducao: { preco_referencia: 1230, fim: null },
+      preco_por_unidade: { valor: "660.0000", unidade: "l" },
+    });
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/summary`)),
+    ).toMatchObject({
+      linhas: [
+        {
+          total: 990,
+          preco_lista: 1230,
+          reducao: { preco_referencia: 1230 },
+          preco_por_unidade: { valor: "660.0000", unidade: "l" },
+        },
+      ],
+    });
+  });
+
+  it("a Loja: sem país o Motor também bloqueia (categoria por validar); só a entrega em falta fica por decidir", async () => {
+    const s = await cenario();
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${s.c}, true)`.execute(
+        trx,
+      );
+      await sql`insert into categoria_fiscal values ('teste_por_validar', 'Teste', 'Test', 'por_validar')`.execute(
+        trx,
+      );
+      await sql`update artigo set categoria_fiscal = 'teste_por_validar' where id = ${s.artigo}`.execute(
+        trx,
+      );
+    });
+    for (const extra of ["", "&country=PT&postal_code=1000-001"]) {
+      const l = (await linhasDe(precosDa(s, [s.v1], extra)))[0];
+      expect(l).toMatchObject({
+        preco_a_mostrar: null,
+        total_linha: null,
+        iva: { resultado: "bloqueada", motivo: "categoria_por_validar" },
+      });
+    }
+  });
+
+  it("a Loja: a quantidade decide o IVA sobre a linha inteira, como o checkout (3 × 10,01 € a 23 % sem IVA no preço = 36,94 €)", async () => {
+    const s = await cenario({ incluiIva: false });
+    await definirPreco(base.api, s.c, QUEM, s.lista, s.v1, { montante: 1001 });
+    const l = (
+      await linhasDe(
+        precosDa(s, [s.v1], "&country=PT&postal_code=1000-001&quantity=3"),
+      )
+    )[0];
+    // Uma unidade: 1001 + 230 = 12,31 €; a linha: 3003 + 691 = 36,94 € (não 36,93 €).
+    expect(l).toMatchObject({
+      quantidade: 3,
+      quantidade_valida: true,
+      preco_a_mostrar: 1231,
+      total_linha: 3694,
+    });
+    const k = await checkoutCom(s, [[s.v1, 3]]);
+    await preencher(s, k.token);
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/summary`)),
+    ).toMatchObject({ linhas: [{ total: 3694 }] });
+    // A quantidade mínima por omissão; uma que o checkout recusaria não dá total.
+    expect(
+      (
+        await linhasDe(precosDa(s, [s.v2], "&country=PT&postal_code=1000-001"))
+      )[0],
+    ).toMatchObject({ quantidade: 2, quantidade_valida: true });
+    expect(
+      (
+        await linhasDe(
+          precosDa(s, [s.v2], "&country=PT&postal_code=1000-001&quantity=1"),
+        )
+      )[0],
+    ).toMatchObject({ quantidade_valida: false, total_linha: null });
+  });
+
+  it("a Loja: o preço por unidade sai do preço final com IVA, na Loja e no resumo do checkout (mercado sem IVA no preço)", async () => {
+    const s = await cenario({ incluiIva: false, comConteudo: true });
+    const l = (
+      await linhasDe(precosDa(s, [s.v1], "&country=PT&postal_code=1000-001"))
+    )[0];
+    // 15,13 € / 15 ml = 1008,6667 €/l (e não 12,30 € / 15 ml = 820 €/l).
+    expect(l).toMatchObject({
+      preco_a_mostrar: 1513,
+      preco_por_unidade: { valor: "1008.6667", unidade: "l", inclui_iva: true },
+    });
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/summary`)),
+    ).toMatchObject({
+      linhas: [{ preco_por_unidade: { valor: "1008.6667", unidade: "l" } }],
+    });
+  });
+
+  it("a Loja: só a chave pública da loja; a de servidor e a de outro comerciante não veem nada; o que o checkout não venderia vem em indisponíveis", async () => {
+    const s = await cenario();
+    const t = await cenario();
+    const dePrecos = (c: Cenario, m: Cenario) =>
+      `/store/prices?channel=chn_${c.canal}&market=mkt_${m.mercado}&variants=var_${m.v1}`;
+    // Sem chave, ou com a de servidor (não tem `storefront`).
+    for (const url of ["/store/markets", dePrecos(s, s)]) {
+      expect((await pedir("GET", url)).statusCode).toBe(401);
+      const srv = await pedir("GET", url, undefined, {
+        authorization: `Bearer ${s.servidor}`,
+      });
+      expect(srv.statusCode).toBe(403);
+      expect(srv.json<Json>()["codigo"]).toBe("auth.forbidden");
+    }
+    // A chave pública de B só vê os mercados de B; os de A não existem para ela.
+    const deB = await ok(pedir("GET", "/store/markets", undefined, daLoja(t)));
+    expect((deB["dados"] as Json[]).map((m) => m["id"])).toEqual([
+      `mkt_${t.mercado}`,
+    ]);
+    expect(
+      await codigo(pedir("GET", dePrecos(s, s), undefined, daLoja(t))),
+    ).toEqual([404, "prices.not_found"]);
+    // O canal de A com o mercado de B: o mesmo que não existir.
+    expect(
+      await codigo(pedir("GET", dePrecos(s, t), undefined, daLoja(t))),
+    ).toEqual([404, "prices.not_found"]);
+    expect(
+      await codigo(
+        pedir(
+          "GET",
+          `/store/markets?channel=chn_${s.canal}`,
+          undefined,
+          daLoja(t),
+        ),
+      ),
+    ).toEqual([404, "prices.not_found"]);
+    // Variantes de B pedidas por A: indisponíveis, sem preço.
+    const cruzado = await ok(precosDa(s, [t.v1, randomUUID(), s.v1]));
+    expect((cruzado["dados"] as Json[]).map((p) => p["variante"])).toEqual([
+      `var_${s.v1}`,
+    ]);
+    expect(cruzado["indisponiveis"]).toHaveLength(2);
+    expect(cruzado["indisponiveis"]).toContain(`var_${t.v1}`);
+    // Uma publicação retirada: nada se vende nem se mostra (como no checkout).
+    const r = await publicar(base.api, s.c, QUEM, {
+      artigo_id: s.artigo,
+      canal_id: s.canal,
+      mercado_id: s.mercado,
+    });
+    if (r.publicacao === null) throw new Error("sem publicação");
+    await retirarPublicacao(base.api, s.c, QUEM, r.publicacao.id);
+    const retirada = await ok(precosDa(s, [s.v1]));
+    expect(retirada["dados"]).toEqual([]);
+    expect(retirada["indisponiveis"]).toEqual([`var_${s.v1}`]);
+  });
+
+  it("a Loja: duas lojas do mesmo comerciante: a chave de uma não vê os mercados nem os preços da outra", async () => {
+    const s = await cenario();
+    const entidade = await comComerciante(
+      base.api,
+      s.c,
+      async (trx) =>
+        (
+          await trx
+            .selectFrom("loja")
+            .select("entidade_legal_id")
+            .executeTakeFirstOrThrow()
+        ).entidade_legal_id,
+    );
+    const loja2 = await criarLoja(base.api, s.c, {
+      entidade_legal_id: entidade,
+      nome: "Outra loja",
+    });
+    const publica2 = (
+      await criarChave(base.dono, s.c, {
+        tipo: "publica",
+        lojaId: loja2,
+        criadaPor: "operador:teste",
+        nome: "Loja 2",
+        ambitos: ["storefront"],
+      })
+    ).segredo;
+    const da2 = { authorization: `Bearer ${publica2}` };
+    // A loja 2 não tem mercados; os da loja 1 não lhe aparecem.
+    expect(
+      await ok(pedir("GET", "/store/markets", undefined, da2)),
+    ).toMatchObject({ total: 0, dados: [] });
+    expect(
+      await codigo(
+        pedir(
+          "GET",
+          `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=var_${s.v1}`,
+          undefined,
+          da2,
+        ),
+      ),
+    ).toEqual([404, "prices.not_found"]);
+    expect(
+      await codigo(
+        pedir("GET", `/store/markets?channel=chn_${s.canal}`, undefined, da2),
+      ),
+    ).toEqual([404, "prices.not_found"]);
+  });
+
+  it("a Loja: mercado inexistente, arquivado ou de outro canal; país que o mercado não serve; pedidos mal formados; limite por IP", async () => {
+    const s = await cenario();
+    const url = (mercado: string, extra = "") =>
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${mercado}&variants=var_${s.v1}${extra}`;
+    expect(
+      await codigo(pedir("GET", url(randomUUID()), undefined, daLoja(s))),
+    ).toEqual([404, "prices.not_found"]);
+    // Um país que não é do mercado: o checkout mudaria de mercado; aqui recusa.
+    expect(
+      await codigo(
+        pedir("GET", url(s.mercado, "&country=ES"), undefined, daLoja(s)),
+      ),
+    ).toEqual([422, "prices.country_not_in_market"]);
+    // Pedidos mal formados.
+    for (const mau of [
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}`,
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=var_x`,
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=var_${s.v1}&country=pt`,
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=var_${s.v1}&postal_code=1000-001`,
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=${Array.from({ length: 101 }, () => `var_${randomUUID()}`).join(",")}`,
+    ]) {
+      expect((await pedir("GET", mau, undefined, daLoja(s))).statusCode).toBe(
+        400,
+      );
+    }
+    const mercadosVistos = async () =>
+      (
+        (await ok(pedir("GET", "/store/markets", undefined, daLoja(s))))[
+          "dados"
+        ] as Json[]
+      ).map((m) => m["id"]);
+    const outro = await criarMercado(base.api, s.c, {
+      loja_id: s.loja,
+      nome: "Espanha",
+      paises: ["ES"],
+      moeda: "EUR",
+      linguas: ["es"],
+      lingua_principal: "es",
+    });
+    await criarLista(base.api, s.c, {
+      mercado_id: outro,
+      nome: "Base ES",
+      tipo: "base",
+    });
+    // Em rascunho, não se vê.
+    expect(await mercadosVistos()).toEqual([`mkt_${s.mercado}`]);
+    // Activo mas sem nenhum canal: não se pode comprar, não se mostra.
+    const versaoActiva = await mudarEstadoMercado(
+      base.api,
+      s.c,
+      outro,
+      1,
+      "activo",
+    );
+    expect(await mercadosVistos()).toEqual([`mkt_${s.mercado}`]);
+    await definirMercadosDoCanal(base.api, s.c, s.canal, [s.mercado, outro]);
+    const dois = await mercadosVistos();
+    expect(dois).toHaveLength(2);
+    expect(dois).toContain(`mkt_${outro}`);
+    // Arquivado, deixa de existir para a Loja.
+    await mudarEstadoMercado(base.api, s.c, outro, versaoActiva, "arquivado");
+    expect(await mercadosVistos()).toEqual([`mkt_${s.mercado}`]);
+    expect(
+      await codigo(pedir("GET", url(outro), undefined, daLoja(s))),
+    ).toEqual([404, "prices.not_found"]);
+    // As rotas da Loja contam no limite por IP.
+    const pequena = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      undefined,
+      undefined,
+      { pedidos: 2, janelaMs: 60_000 },
+    );
+    try {
+      const estados: number[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        const x = await pequena.inject({
+          method: "GET",
+          url: "/store/markets",
+          headers: daLoja(s),
+        });
+        estados.push(x.statusCode);
+      }
+      expect(estados).toEqual([200, 200, 429]);
+    } finally {
+      await pequena.close();
+    }
   });
 });

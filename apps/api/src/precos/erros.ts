@@ -16,6 +16,7 @@ export type CodigoErroPrecos =
   | "prices.version_conflict"
   | "prices.name_required"
   | "prices.country_invalid"
+  | "prices.country_not_in_market"
   | "prices.currency_invalid"
   | "prices.language_invalid"
   | "prices.main_language_not_listed"
