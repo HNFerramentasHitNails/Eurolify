@@ -1755,6 +1755,55 @@ export interface TabelaNotificacao {
   terminada_em: ColumnType<Date | null, never, never>;
 }
 
+export const ESTADOS_SUBSCRICAO_WEBHOOK = [
+  "activa",
+  "pausada",
+  "desactivada",
+] as const;
+export type EstadoSubscricaoWebhook =
+  (typeof ESTADOS_SUBSCRICAO_WEBHOOK)[number];
+export const ESTADOS_ENTREGA_WEBHOOK = [
+  "pendente",
+  "entregue",
+  "desistida",
+  "cancelada",
+] as const;
+export type EstadoEntregaWebhook = (typeof ESTADOS_ENTREGA_WEBHOOK)[number];
+
+/** As subscrições dos webhooks de saída (docs/38; migração 0107). */
+export interface TabelaWebhookSubscricao {
+  id: ColumnType<string, string, never>;
+  comerciante_id: ColumnType<string, string, never>;
+  url: ColumnType<string, string, string>;
+  descricao: ColumnType<string | null, string | null, string | null>;
+  eventos: ColumnType<string[], string[], string[]>;
+  segredo_cifra: ColumnType<Buffer, Buffer, never>;
+  chave_versao: ColumnType<string, string, never>;
+  estado: ColumnType<EstadoSubscricaoWebhook, never, EstadoSubscricaoWebhook>;
+  criada_em: ColumnType<Date, never, never>;
+  criada_por: ColumnType<string, string, never>;
+  actualizada_em: ColumnType<Date, never, Date>;
+  actualizada_por: ColumnType<string | null, never, string | null>;
+  versao: ColumnType<number, never, number>;
+}
+
+/** As entregas dos webhooks (docs/38; migração 0107). */
+export interface TabelaWebhookEntrega {
+  id: ColumnType<string, never, never>;
+  comerciante_id: ColumnType<string, never, never>;
+  subscricao_id: ColumnType<string, never, never>;
+  evento_id: ColumnType<string, never, never>;
+  estado: ColumnType<EstadoEntregaWebhook, never, EstadoEntregaWebhook>;
+  tentativas: ColumnType<number, never, number>;
+  reenvios: ColumnType<number, never, number>;
+  proxima_em: ColumnType<Date, never, Date>;
+  prazo_ate: ColumnType<Date, never, Date>;
+  ultimo_estado_http: ColumnType<number | null, never, number | null>;
+  ultimo_erro: ColumnType<string | null, never, string | null>;
+  criada_em: ColumnType<Date, never, never>;
+  terminada_em: ColumnType<Date | null, never, Date | null>;
+}
+
 export interface BaseDados {
   comerciante: TabelaComerciante;
   entidade_legal: TabelaEntidadeLegal;
@@ -1852,6 +1901,8 @@ export interface BaseDados {
   linha_livre_resolucao: TabelaLinhaLivreResolucao;
   devolucao: TabelaDevolucao;
   notificacao: TabelaNotificacao;
+  webhook_subscricao: TabelaWebhookSubscricao;
+  webhook_entrega: TabelaWebhookEntrega;
   linha_devolucao: TabelaLinhaDevolucao;
   problema: TabelaProblema;
   reembolso: TabelaReembolso;

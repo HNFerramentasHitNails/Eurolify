@@ -22,7 +22,7 @@
 | Tabelas da idempotência e dos eventos (outbox) | idempotência: **feita** na 0012 (#118), limpeza na 0013; eventos: **feita** na 0021 (§5) | o desenho está aqui; a idempotência liga-se às rotas de escrita, os eventos escrevem-nos gatilhos da base |
 | `Idempotency-Key` nas rotas | com a primeira rota de escrita | precisa do comerciante de quem chama |
 | Limites de pedidos | com a fatia «identidade» | são «por chave e por loja» (regra 6) |
-| Publicador do outbox (webhooks) | com os webhooks | o evento grava-se já; publica-se depois |
+| Publicador do outbox (webhooks) | desenhado no [`docs/38`](38-webhooks-de-saida.md), à espera do OK do Diogo | o evento grava-se já; publica-se depois |
 
 ## 2. Erros (RFC 9457)
 
@@ -182,7 +182,11 @@ cortada em silêncio).
   ler nem para inserir: é mais fechado do que a proposta inicial («a API só
   faz `INSERT`»), porque um evento forjado seria aceite pelo publicador como
   verdadeiro.
-- **O publicador** (com os webhooks; revisão do #143, P2-3):
+- **O publicador** (com os webhooks; revisão do #143, P2-3).
+  **Substituído pelo [`docs/38`](38-webhooks-de-saida.md), à espera do OK do
+  Diogo**: em vez de um utilizador da base próprio, funções do dono presas ao
+  comerciante (`webhook_distribuir`, 0108); a distribuição só toma os tipos do
+  catálogo e cria uma entrega por subscrição. O que segue é o desenho antigo:
   - terá um utilizador da base próprio, criado fora das migrações (o
     migrador não cria papéis), com `BYPASSRLS` como o `eurolify_limpeza`
     (§4), `SELECT` na tabela e `UPDATE` só em `publicado_em`, `tentativas` e

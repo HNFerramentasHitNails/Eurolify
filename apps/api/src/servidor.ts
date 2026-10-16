@@ -7,6 +7,12 @@ import { agendarTrabalhoEnvios } from "./envios/etiquetas.js";
 import { agendarEncomendasParadas } from "./envios/paradas.js";
 import { adaptadorSendcloud } from "./envios/sendcloud.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
+import { lerChavesWebhooks } from "./webhooks/chave.js";
+import { emissorHttps } from "./webhooks/emissor.js";
+import {
+  agendarWebhooks,
+  type ConfigWebhooks,
+} from "./webhooks/repositorio.js";
 import { adaptadorEuPago } from "./pagamentos/eupago.js";
 import { agendarTarefasPagamentos } from "./pagamentos/repositorio.js";
 import { agendarAvisosDePrazo } from "./posvenda/prazo.js";
@@ -178,6 +184,13 @@ const envios: ConfigEnvios = {
   ...lerChavesEnvios(process.env),
 };
 
+// Os webhooks de saída (docs/38): a chave que cifra os segredos das
+// subscrições. Sem ela, não se criam subscrições e o publicador não corre.
+const webhooks: ConfigWebhooks = {
+  emissor: emissorHttps(),
+  ...lerChavesWebhooks(process.env),
+};
+
 const app = criarApp(
   {
     // Um identificador por pedido que não recomeça a cada arranque: é o
@@ -198,6 +211,7 @@ const app = criarApp(
   pagamentos,
   faturacao,
   envios,
+  webhooks,
 );
 
 // As tarefas agendadas correm com o canal «sistema» no rasto de auditoria
@@ -335,6 +349,15 @@ const pararEnvios =
       )
     : () => undefined;
 
+// O publicador dos webhooks (docs/38 §7), de 15 em 15 segundos. Só com a
+// chave dos segredos.
+const pararWebhooks =
+  base !== undefined && webhooks.chave !== undefined
+    ? comRasto({ canal: "sistema", pedido: "tarefa:webhooks" }, () =>
+        agendarWebhooks(base, webhooks, app.log),
+      )
+    : () => undefined;
+
 // As encomendas paradas perto da data-limite (docs/36 §18), de hora a hora:
 // não dependem da chave das credenciais (revisão do #426, P2-2).
 const pararParadas =
@@ -356,6 +379,7 @@ const pararSessoes =
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.once(sinal, () => {
     pararEnvios();
+    pararWebhooks();
     pararParadas();
     pararSessoes();
     pararApagamentos();

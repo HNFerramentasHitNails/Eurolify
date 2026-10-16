@@ -247,6 +247,11 @@ const FUNCOES_DA_API = [
   "vies_por_consultar",
   "vies_registar",
   "vies_requerente",
+  // Os webhooks de saída (0107 e 0108): a volta do publicador (a lista dos
+  // comerciantes, a distribuição e a leitura do evento de uma entrega).
+  "webhook_comerciantes",
+  "webhook_distribuir",
+  "webhook_evento_da_entrega",
 ];
 
 const RASTO = [

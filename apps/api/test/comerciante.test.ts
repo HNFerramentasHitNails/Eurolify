@@ -187,6 +187,8 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
         "0101_envios_volumes",
         "0102_tarefas_motivo_no_apagamento",
         "0103_envios_chave_anterior",
+        "0107_webhooks_subscricoes_e_entregas",
+        "0108_webhooks_distribuicao",
       ]);
     });
 
@@ -290,6 +292,9 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
           // O prazo dos ficheiros das etiquetas de devolução (0093): escreve-o
           // o gatilho, lê-o a função da volta.
           "etiqueta_devolucao_prazo",
+          // Os comerciantes com webhooks (0107): escreve-a o gatilho das
+          // subscrições, lê-a a função da volta do publicador.
+          "webhook_comerciante",
         ].includes(t);
       // As tabelas globais do Motor de IVA (0040): iguais para todos os
       // comerciantes, a API só as lê, sem RLS.
@@ -335,10 +340,10 @@ describe.skipIf(URL_BASE === undefined)("domínio Comerciante na base", () => {
       // (0085), as correcções da expedição (0086), os pedidos do titular
       // recebidos (0092) e a etiqueta de devolução, o ficheiro e o
       // histórico dela (0093), as recusas da empresa do emissor (0097) e o
-      // seguimento de cada volume (0101).
+      // seguimento de cada volume (0101) e as 2 dos webhooks (0107).
       expect(
         rows.filter((r) => !interna(r.tabela) && !global(r.tabela)),
-      ).toHaveLength(100);
+      ).toHaveLength(102);
     });
 
     it("a lista de estados do código é a mesma que a base aceita", async () => {
