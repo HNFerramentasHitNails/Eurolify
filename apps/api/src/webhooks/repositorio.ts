@@ -18,6 +18,8 @@ import { UrlRecusada, validarUrlDeWebhook } from "./url.js";
 export interface ConfigWebhooks {
   /** A chave que cifra os segredos (WEBHOOKS_CHAVE); sem ela, 503. */
   chave?: ChavePagamentos;
+  /** A chave anterior, na troca: só decifra (nunca cifra). */
+  chaveAnterior?: ChavePagamentos;
   /** O envio HTTP; por omissão, o verdadeiro (servidor.ts). */
   emissor?: Emissor;
 }
@@ -114,6 +116,11 @@ export async function criarSubscricao(
     );
   }
   const url = urlValida(dados.url);
+  // Dois pedidos ao mesmo tempo não passam do limite: o bloqueio é do
+  // comerciante e dura até ao fim da transacção (revisão do #477, P3-4).
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`webhooks:${comercianteId}`}, 0))`.execute(
+    trx,
+  );
   const { count } = await trx
     .selectFrom("webhook_subscricao")
     .select((eb) => eb.fn.countAll<string>().as("count"))
@@ -241,6 +248,15 @@ export async function mudarSubscricao(
     })
     .where("id", "=", id)
     .execute();
+  if (mudanca.estado === "desactivada") {
+    // As entregas por enviar acabam já (P3-3).
+    await trx
+      .updateTable("webhook_entrega")
+      .set({ estado: "cancelada", terminada_em: new Date() })
+      .where("subscricao_id", "=", id)
+      .where("estado", "=", "pendente")
+      .execute();
+  }
   return trx
     .selectFrom("webhook_subscricao")
     .select(COLUNAS)
@@ -406,7 +422,9 @@ interface Tomada {
 /**
  * Uma volta: em cada comerciante com webhooks, distribui os eventos novos e
  * envia as entregas vencidas, uma a uma. Um erro num comerciante não pára os
- * outros.
+ * outros, e cada comerciante tem um tecto de tempo por volta (o que ficar
+ * por enviar fica vencido para a seguinte): um receptor lento não pára os
+ * dos outros (revisão do #477, P1-1).
  */
 export async function correrWebhooks(
   db: Kysely<BaseDados>,
@@ -414,6 +432,8 @@ export async function correrWebhooks(
   opcoes: {
     agora?: () => Date;
     porVolta?: number;
+    /** O tecto de tempo por comerciante em cada volta (por omissão, 60 s). */
+    tectoMs?: number;
     /** Só estes comerciantes (os testes, que partilham a base). */
     comerciantes?: string[];
   } = {},
@@ -430,6 +450,7 @@ export async function correrWebhooks(
   if (cfg.chave === undefined || emissor === undefined) return r;
   const agora = opcoes.agora ?? (() => new Date());
   const porVolta = opcoes.porVolta ?? 50;
+  const tecto = opcoes.tectoMs ?? 60_000;
   const { rows } = await sql<{
     c: string;
   }>`select webhook_comerciantes() as c`.execute(db);
@@ -462,7 +483,9 @@ export async function correrWebhooks(
       r.erros.push(`${c}: ${codigoDe(erro)}`);
       continue;
     }
+    const inicio = performance.now();
     for (const id of ids) {
+      if (performance.now() - inicio > tecto) break;
       try {
         await enviarUma(db, cfg, emissor, c, id, agora, r);
       } catch (erro) {
@@ -472,6 +495,15 @@ export async function correrWebhooks(
   }
   return r;
 }
+
+type ValoresDaEntrega = {
+  estado?: EstadoEntregaWebhook;
+  tentativas?: number;
+  proxima_em?: Date;
+  ultimo_estado_http?: number | null;
+  ultimo_erro?: string | null;
+  terminada_em?: Date | null;
+};
 
 /** Envia uma entrega, em três passos: a vez, o envio fora da transacção, o resultado. */
 export async function enviarUma(
@@ -503,8 +535,8 @@ export async function enviarUma(
       .where("id", "=", d.subscricao_id)
       .executeTakeFirstOrThrow();
     if (s.estado !== "activa") {
-      // Desactivada: acaba. Pausada: espera, sem gastar tentativas; se o
-      // prazo passar, desiste na volta seguinte à retoma.
+      // Desactivada: acaba (a mudança de estado já as cancela; isto é a
+      // rede). Pausada: espera, sem gastar tentativas.
       if (s.estado === "desactivada") {
         await trx
           .updateTable("webhook_entrega")
@@ -521,15 +553,29 @@ export async function enviarUma(
       }
       return null;
     }
+    const { rows } = await sql<EventoDaBase>`
+      select * from webhook_evento_da_entrega(${id}::uuid)`.execute(trx);
+    const evento = rows[0];
+    if (evento === undefined) {
+      // Sem evento não há o que enviar nem o que repetir: desiste, com o
+      // código, para uma pessoa ver (P3-8).
+      await trx
+        .updateTable("webhook_entrega")
+        .set({
+          estado: "desistida",
+          ultimo_erro: "webhooks.event_missing",
+          terminada_em: agora(),
+        })
+        .where("id", "=", id)
+        .execute();
+      r.desistidas += 1;
+      return null;
+    }
     await trx
       .updateTable("webhook_entrega")
       .set({ proxima_em: minutos(agora(), VEZ_MINUTOS) })
       .where("id", "=", id)
       .execute();
-    const { rows } = await sql<EventoDaBase>`
-      select * from webhook_evento_da_entrega(${id}::uuid)`.execute(trx);
-    const evento = rows[0];
-    if (evento === undefined) throw new Error("webhooks.event_missing");
     return {
       entregaId: id,
       tentativa: d.tentativas + 1,
@@ -542,17 +588,21 @@ export async function enviarUma(
     };
   });
   if (t === null) return;
+  // A chave do segredo: a actual ou, na troca, a anterior (só para decifrar).
+  const chaveDoSegredo = [chave, cfg.chaveAnterior].find(
+    (k) => k?.versao === t.chaveVersao,
+  );
   // 2. O envio, fora da transacção.
   let resultado: { estado: number } | { erro: string };
   try {
-    if (t.chaveVersao !== chave.versao) {
+    if (chaveDoSegredo === undefined) {
       resultado = { erro: "webhooks.key_unavailable" };
     } else {
       const segredo = decifrar(
         t.segredoCifra,
         t.subscricaoId,
         "webhook_segredo",
-        chave,
+        chaveDoSegredo,
       );
       const corpo = corpoDoEvento(t.evento);
       resultado = await emissor({
@@ -576,9 +626,44 @@ export async function enviarUma(
   } catch {
     resultado = { erro: "webhooks.internal" };
   }
-  // 3. O resultado, noutra transacção; um erro da base aqui sobe.
+  // 3. O resultado, noutra transacção; um erro da base aqui sobe. Só grava
+  // se a entrega ainda é a que se reservou (pendente, na mesma tentativa):
+  // uma volta presa não escreve por cima de outra (P2-1).
   const fim = agora();
   await comComerciante(db, c, async (trx) => {
+    const gravar = async (valores: ValoresDaEntrega) =>
+      (
+        await trx
+          .updateTable("webhook_entrega")
+          .set(valores)
+          .where("id", "=", t.entregaId)
+          .where("estado", "=", "pendente")
+          .where("tentativas", "=", t.tentativa - 1)
+          .executeTakeFirst()
+      ).numUpdatedRows > 0n;
+    // Sem a chave, nada se enviou: não gasta tentativa e volta daqui a pouco
+    // (ou desiste no prazo), em vez de matar a subscrição em silêncio (P2-4).
+    if ("erro" in resultado && resultado.erro === "webhooks.key_unavailable") {
+      if (fim.getTime() >= t.prazoAte.getTime()) {
+        if (
+          await gravar({
+            estado: "desistida",
+            ultimo_erro: resultado.erro,
+            terminada_em: fim,
+          })
+        ) {
+          r.desistidas += 1;
+        }
+      } else if (
+        await gravar({
+          ultimo_erro: resultado.erro,
+          proxima_em: minutos(fim, VEZ_MINUTOS),
+        })
+      ) {
+        r.repetir += 1;
+      }
+      return;
+    }
     const certo =
       "estado" in resultado &&
       resultado.estado >= 200 &&
@@ -593,28 +678,17 @@ export async function enviarUma(
           : "webhooks.http_status",
     };
     if (certo) {
-      await trx
-        .updateTable("webhook_entrega")
-        .set({ ...base, estado: "entregue", terminada_em: fim })
-        .where("id", "=", t.entregaId)
-        .execute();
-      r.entregues += 1;
+      if (await gravar({ ...base, estado: "entregue", terminada_em: fim })) {
+        r.entregues += 1;
+      }
       return;
     }
     const seguinte = depoisDeFalhar(t.tentativa, fim, t.prazoAte);
     if (seguinte.desistir) {
-      await trx
-        .updateTable("webhook_entrega")
-        .set({ ...base, estado: "desistida", terminada_em: fim })
-        .where("id", "=", t.entregaId)
-        .execute();
-      r.desistidas += 1;
-    } else {
-      await trx
-        .updateTable("webhook_entrega")
-        .set({ ...base, proxima_em: seguinte.proximaEm })
-        .where("id", "=", t.entregaId)
-        .execute();
+      if (await gravar({ ...base, estado: "desistida", terminada_em: fim })) {
+        r.desistidas += 1;
+      }
+    } else if (await gravar({ ...base, proxima_em: seguinte.proximaEm })) {
       r.repetir += 1;
     }
   });

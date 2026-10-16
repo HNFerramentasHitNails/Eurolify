@@ -7,6 +7,7 @@ import { agendarTrabalhoEnvios } from "./envios/etiquetas.js";
 import { agendarEncomendasParadas } from "./envios/paradas.js";
 import { adaptadorSendcloud } from "./envios/sendcloud.js";
 import { chavePagamentos } from "./pagamentos/cifra.js";
+import { lerChavesWebhooks } from "./webhooks/chave.js";
 import { emissorHttps } from "./webhooks/emissor.js";
 import {
   agendarWebhooks,
@@ -185,17 +186,9 @@ const envios: ConfigEnvios = {
 
 // Os webhooks de saída (docs/38): a chave que cifra os segredos das
 // subscrições. Sem ela, não se criam subscrições e o publicador não corre.
-const textoChaveWebhooks = process.env["WEBHOOKS_CHAVE"]?.trim();
 const webhooks: ConfigWebhooks = {
   emissor: emissorHttps(),
-  ...(textoChaveWebhooks === undefined || textoChaveWebhooks === ""
-    ? {}
-    : {
-        chave: chavePagamentos(
-          textoChaveWebhooks,
-          process.env["WEBHOOKS_CHAVE_VERSAO"]?.trim() || "1",
-        ),
-      }),
+  ...lerChavesWebhooks(process.env),
 };
 
 const app = criarApp(

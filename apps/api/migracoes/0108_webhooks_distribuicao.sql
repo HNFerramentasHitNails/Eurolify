@@ -10,11 +10,23 @@
 --   entrega por cada subscrição **activa**, que já existia quando o evento
 --   foi escrito e que pediu esse tipo, e marca o evento como publicado
 --   («distribuído»). Um evento anterior a todas as subscrições fica
---   publicado sem entregas (docs/38 §5);
+--   publicado sem entregas (docs/38 §5). **Só toma os tipos do catálogo**
+--   (os da CHECK da 0107): os outros (`order.*`, `payment.*`…) ficam por
+--   publicar, para quem os vier a tratar (revisão do #477, P2-2);
 -- - `webhook_evento_da_entrega(id)`: o evento de uma entrega **deste**
 --   comerciante, para montar o corpo. O corpo só leva os campos permitidos
 --   (lista no código; `quem` nunca sai: docs/06, CH).
 SET LOCAL lock_timeout = '10s';
+
+-- O índice do publicador: por comerciante e só os tipos do catálogo (o da
+-- 0021 não tinha o comerciante e cresce com os eventos que o publicador não
+-- toma; revisão do #477, P2-5). O predicado da consulta tem de ser este.
+CREATE INDEX evento_saida_por_publicar_webhooks
+  ON evento_saida (comerciante_id, criado_em, id)
+  WHERE publicado_em IS NULL AND tipo IN
+    ('product.published', 'product.unpublished', 'product.archived',
+     'price.changed', 'market.activated', 'market.archived');
+DROP INDEX evento_saida_por_publicar;
 
 CREATE FUNCTION webhook_distribuir(p_limite integer) RETURNS integer
   LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
@@ -31,6 +43,8 @@ BEGIN
   FOR e IN
     SELECT x.id, x.tipo, x.criado_em FROM public.evento_saida x
     WHERE x.comerciante_id = public.comerciante_actual() AND x.publicado_em IS NULL
+      AND x.tipo IN ('product.published', 'product.unpublished', 'product.archived',
+                     'price.changed', 'market.activated', 'market.archived')
     ORDER BY x.criado_em, x.id
     LIMIT p_limite
     FOR UPDATE SKIP LOCKED
@@ -54,7 +68,7 @@ CREATE FUNCTION webhook_evento_da_entrega(p_entrega uuid)
   RETURNS TABLE (id uuid, tipo text, versao_esquema integer, agregado_tipo text,
                  agregado_id uuid, dados jsonb, criado_em timestamptz)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
-  SELECT x.id, x.tipo, x.versao_esquema, x.agregado_tipo, x.agregado_id, x.dados, x.criado_em
+  SELECT x.id, x.tipo, x.versao_esquema, x.agregado_tipo, x.agregado_id, x.dados - 'quem', x.criado_em
   FROM public.webhook_entrega d
   JOIN public.evento_saida x ON x.id = d.evento_id AND x.comerciante_id = d.comerciante_id
   WHERE d.id = p_entrega AND d.comerciante_id = public.comerciante_actual()

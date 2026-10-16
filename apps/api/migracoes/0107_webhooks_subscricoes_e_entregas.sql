@@ -92,7 +92,7 @@ CREATE TABLE webhook_entrega (
   terminada_em timestamptz,
   UNIQUE (subscricao_id, evento_id)
 );
-CREATE INDEX webhook_entrega_por_enviar ON webhook_entrega (proxima_em, id)
+CREATE INDEX webhook_entrega_por_enviar ON webhook_entrega (comerciante_id, proxima_em, id)
   WHERE estado = 'pendente';
 CREATE INDEX webhook_entrega_por_comerciante
   ON webhook_entrega (comerciante_id, criada_em DESC, id);

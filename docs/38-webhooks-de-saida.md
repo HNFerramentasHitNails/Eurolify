@@ -24,12 +24,12 @@
 | Entra (fatia 1) | Fica para depois |
 |---|---|
 | Subscrições por comerciante: endereço https, tipos de evento, segredo cifrado, estado | Âmbito próprio `webhooks:*` e aplicações de terceiros com OAuth (§4) |
-| A distribuição dos eventos da outbox (0021) pelas subscrições | Eventos que ainda ninguém escreve (`order.*`, `customer.*`…): entram com o domínio que os escreve |
+| A distribuição dos eventos da outbox (0021) pelas subscrições | Os outros eventos que **já se escrevem** na outbox (`order.*`, `payment.*`, `customer.*`, `shipment.*`, `task.*`, desde as 0040 a 0102): entram no catálogo um a um, depois de decidir campo a campo o que sai. Até lá a distribuição **não lhes toca** e ficam por publicar |
 | Assinatura HMAC com carimbo e janela contra repetição | Rotação do segredo com período de sobreposição (dois segredos válidos) |
 | Novas tentativas com recuo durante 72 h; desistência | Pausa automática da subscrição que só falha (§7) |
 | Registo de entregas e botão de reenviar (API de Administração) | Ecrã no Hub (`eurolify-design`); a API chega-lhe |
 | Defesa contra SSRF (endereços privados) | Lista de endereços IP de saída fixos para o receptor filtrar |
-| Evento de teste (`ping`) | Prazo de guarda e limpeza dos eventos publicados e das entregas (§7) |
+| O envio é pelo registo de entregas e pelo reenvio | Um evento de teste (`ping`) e o prazo de guarda e limpeza dos eventos publicados e das entregas (§7) |
 
 ## 2. Fluxo
 
@@ -112,9 +112,11 @@ Os tipos subscritíveis são os que a outbox já escreve (`docs/18` §5):
 `product.published`, `product.unpublished`, `product.archived`,
 `price.changed`, `market.activated`, `market.archived`. Um evento novo só
 passa a sair quando se acrescenta ao catálogo do código (`eventos.ts`), à
-lista do CHECK e a este quadro. Um evento só chega a subscrições **que já
-existiam quando foi escrito** e estavam **activas**: não há reenvio do passado
-nem do que se perdeu durante uma pausa (§10).
+lista do CHECK e a este quadro. A distribuição (`webhook_distribuir`) só toma
+os tipos do catálogo: os outros eventos da outbox ficam por publicar. Um
+evento só chega a subscrições **que já existiam quando foi escrito** e estavam
+**activas** quando a distribuição o tomou: não há reenvio do passado nem do
+que se perdeu durante uma pausa (§10).
 
 ## 6. O pedido
 
@@ -148,11 +150,23 @@ carimbo está dentro do que se assina.
   `desistida`. São 10 tentativas ao todo.
 - Um 2xx é sucesso. **Qualquer outro código repete**, incluindo 4xx: um erro
   do receptor costuma corrigir-se em horas (**M**). Redirecções não se seguem
-  (contam como falha). Tempo limite de 10 s por pedido; a resposta não se lê.
+  (contam como falha). **Prazo total de 10 s por pedido**, DNS e ligação
+  incluídos (cabeçalhos a pingar ou `100 Continue` sem fim não o adiam); depois
+  do código HTTP a ligação fecha-se sem ler a resposta. Cada comerciante tem um
+  tecto de 60 s por volta: o que ficar por enviar vence na volta seguinte e um
+  receptor lento não pára os dos outros.
 - Se o processo parar a meio, a entrega volta passados 10 minutos (pode sair
   duas vezes: por isso o `Eurolify-Event-Id`).
 - Subscrição **pausada**: as entregas por enviar esperam (sem gastar
-  tentativas); **desactivada**: cancelam-se.
+  tentativas, a olhar de 10 em 10 minutos) e não recebe eventos novos;
+  **desactivada**: as entregas por enviar cancelam-se logo, no mesmo pedido
+  que desactiva.
+- O resultado só se grava se a entrega ainda estiver `pendente` na mesma
+  tentativa que se reservou: uma volta presa não escreve por cima de outra.
+- Sem a chave do segredo (troca da `WEBHOOKS_CHAVE` sem a anterior) a entrega
+  **não gasta tentativa**: espera 10 minutos e tenta outra vez, até ao prazo.
+  `WEBHOOKS_CHAVE_ANTERIOR` (com `_VERSAO`) só decifra, nunca cifra.
+- Uma entrega cujo evento não existe desiste logo (`webhooks.event_missing`).
 - **Reenviar** (botão): volta a `pendente`, com o recuo e o prazo de 72 h de
   novo.
 - Falta (§10): pausa automática de uma subscrição que só falha, e o prazo de
@@ -206,11 +220,13 @@ sobreposição fica para depois).
 | Entregas por enviar de uma subscrição pausada para sempre | Aberto: sem prazo de limpeza |
 | O receptor está sempre em baixo e queima o recuo de milhares de eventos | Aberto: falta a pausa automática (proposta: pausar depois de 20 entregas desistidas seguidas e avisar a equipa pela fila de notificações, `docs/34`) |
 | Ordem dos eventos | Garantida só dentro da mesma linha de origem (`docs/18` §5); as entregas vencidas enviam-se por `proxima_em`, e um 500 de um evento deixa o seguinte passar à frente. O receptor ordena por `criado_em` do corpo |
-| Uma volta de 50 entregas bloqueia nas respostas lentas (10 s cada) | Aberto: o envio é em série por volta; com poucos comerciantes chega, com muitos pede concorrência limitada |
+| Uma volta de 50 entregas bloqueia nas respostas lentas | Mitigado: prazo total de 10 s por pedido e tecto de 60 s por comerciante; o envio continua em série (com muitos comerciantes pede concorrência limitada) |
 | Duas instâncias da API a correr o publicador | Mitigado: `FOR UPDATE SKIP LOCKED` na distribuição e na vez; pode haver envio duplicado (acima) |
 | Relógio do receptor desfasado mais de 300 s | Recusa legítima; documentar a janela |
 | Alguém com a chave do dono cria um webhook para exfiltrar | Mitigado: só vão identificadores e `keys:write` é do dono; criar fica no rasto (`criada_por`); **falta** a tabela de auditoria imutável das mudanças às subscrições |
-| Os próprios testes não tocam a rede nem o DNS reais | Não verificado: o emissor verdadeiro (HTTPS a sério) não se testou contra um servidor; só a recusa de endereços |
+| Os próprios testes não tocam a rede nem o DNS reais | Parcial: o emissor verdadeiro testa-se contra servidores locais lentos (sem TLS); o TLS a sério e o DNS real não se verificaram |
+| O IP público da própria VPS e o `192.88.99.0/24` passam o filtro de endereços | Aceite enquanto a API é de confiança; ao abrir a terceiros, acrescentar o IP da VPS à recusa |
+| `webhook_comerciantes()` está ao alcance da API (dá os identificadores dos comerciantes com webhooks) e o URL completo aparece a quem só lê | Aceite, dito ao Diogo |
 
 ## 11. Decisões para o Diogo
 

@@ -512,7 +512,8 @@ describe.skipIf(URL_BASE === undefined)("webhooks de saída", () => {
       agora: () => new Date(Date.now() + 3_600_000),
     });
     expect(enviados).toHaveLength(0);
-    expect(v.canceladas).toBe(1);
+    // Desactivar já as cancelou (P3-3): a volta não tem nada a cancelar.
+    expect(v.canceladas).toBe(0);
     expect((await entregas(a.dono))[0]).toMatchObject({ estado: "cancelada" });
     expect(
       codigo(
@@ -585,6 +586,206 @@ describe.skipIf(URL_BASE === undefined)("webhooks de saída", () => {
     const tipos = r["dados"] as { tipo: string; campos: string[] }[];
     expect(tipos.map((t) => t.tipo)).toContain("price.changed");
     expect(JSON.stringify(tipos)).not.toContain('"quem"');
+  });
+
+  it("revisão do #477, P2-1: um resultado atrasado não escreve por cima de outra volta", async () => {
+    const a = await comerciante();
+    const s = await subscrever(a.dono);
+    await evento(a.c, "product.published", publicado(""));
+    // Durante o envio, outra volta entrega a mesma entrega.
+    const concorrente: Emissor = async () => {
+      await sql`update webhook_entrega set estado = 'entregue', tentativas = 1,
+        terminada_em = now() where subscricao_id = ${s.id.slice(4)}`.execute(
+        base.dono,
+      );
+      return { estado: 500 };
+    };
+    const v = await correrWebhooks(
+      base.api,
+      { chave, emissor: concorrente },
+      { comerciantes: ativos },
+    );
+    expect(v).toMatchObject({ repetir: 0, desistidas: 0, entregues: 0 });
+    expect((await entregas(a.dono))[0]).toMatchObject({
+      estado: "entregue",
+      tentativas: 1,
+      ultimo_erro: null,
+      ultimo_estado_http: null,
+    });
+  });
+
+  it("revisão do #477, P2-1: nem sobre uma tentativa de outra volta que falhou e deixou pendente", async () => {
+    const a = await comerciante();
+    const s = await subscrever(a.dono);
+    await evento(a.c, "product.published", publicado(""));
+    const concorrente: Emissor = async () => {
+      await sql`update webhook_entrega set tentativas = 1, ultimo_erro = 'webhooks.timeout'
+        where subscricao_id = ${s.id.slice(4)}`.execute(base.dono);
+      return { estado: 500 };
+    };
+    const v = await correrWebhooks(
+      base.api,
+      { chave, emissor: concorrente },
+      { comerciantes: ativos },
+    );
+    expect(v.repetir).toBe(0);
+    expect((await entregas(a.dono))[0]).toMatchObject({
+      estado: "pendente",
+      tentativas: 1,
+      ultimo_erro: "webhooks.timeout",
+    });
+  });
+
+  it("revisão do #477, P2-2: só se distribuem os tipos do catálogo; os outros ficam por publicar", async () => {
+    const a = await comerciante();
+    await subscrever(a.dono);
+    const fora = await evento(a.c, "order.placed", { ordem: 1 });
+    const dentro = await evento(a.c, "product.published", publicado(""));
+    await voltaDoPublicador();
+    const { rows } = await sql<{ id: string; publicado: boolean }>`
+      select id, publicado_em is not null as publicado from evento_saida
+      where id in (${fora}, ${dentro})`.execute(base.dono);
+    expect(rows.find((r) => r.id === fora)?.publicado).toBe(false);
+    expect(rows.find((r) => r.id === dentro)?.publicado).toBe(true);
+  });
+
+  it("revisão do #477, P2-4: na troca da chave a anterior decifra; sem ela não se gasta tentativa", async () => {
+    const a = await comerciante();
+    await subscrever(a.dono);
+    await evento(a.c, "product.published", publicado(""));
+    const nova = chavePagamentos(randomBytes(32).toString("base64"), "2");
+    enviados.length = 0;
+    guiao = [];
+    // Só a chave nova: a subscrição foi cifrada com a «1», não se envia, a
+    // entrega espera e fica com 0 tentativas.
+    const sem = await correrWebhooks(
+      base.api,
+      { chave: nova, emissor },
+      { comerciantes: ativos },
+    );
+    expect(sem).toMatchObject({ repetir: 1, desistidas: 0 });
+    expect(enviados).toHaveLength(0);
+    expect((await entregas(a.dono))[0]).toMatchObject({
+      estado: "pendente",
+      tentativas: 0,
+      ultimo_erro: "webhooks.key_unavailable",
+    });
+    // Com a anterior para decifrar, na volta seguinte entrega-se.
+    const com = await correrWebhooks(
+      base.api,
+      { chave: nova, chaveAnterior: chave, emissor },
+      { comerciantes: ativos, agora: () => new Date(Date.now() + 3_600_000) },
+    );
+    expect(com).toMatchObject({ entregues: 1 });
+    expect(enviados).toHaveLength(1);
+    // Uma subscrição nova cifra com a chave actual (a anterior nunca cifra).
+    const app2 = criarApp(
+      { logger: false },
+      undefined,
+      base.api,
+      undefined,
+      undefined,
+      undefined,
+      { pedidos: 100_000, janelaMs: 60_000 },
+      undefined,
+      undefined,
+      undefined,
+      { chave: nova, chaveAnterior: chave, emissor },
+    );
+    const r = await app2.inject({
+      method: "POST",
+      url: "/webhook-subscriptions",
+      headers: {
+        authorization: `Bearer ${a.dono}`,
+        "idempotency-key": randomUUID(),
+        "content-type": "application/json",
+      },
+      payload: JSON.stringify({
+        url: "https://alfa.example/h2",
+        eventos: ["price.changed"],
+      }),
+    });
+    expect(r.statusCode, r.body).toBe(201);
+    await app2.close();
+    const { rows } = await sql<{ chave_versao: string }>`
+      select chave_versao from webhook_subscricao where comerciante_id = ${a.c}
+      order by criada_em`.execute(base.dono);
+    expect(rows.map((x) => x.chave_versao)).toEqual(["1", "2"]);
+  });
+
+  it("revisão do #477, P3-4: o limite de subscrições aguenta pedidos ao mesmo tempo", async () => {
+    const a = await comerciante();
+    const respostas = await Promise.all(
+      Array.from({ length: 26 }, (_v, i) =>
+        pedir(a.dono, "POST", "/webhook-subscriptions", {
+          url: `https://alfa.example/h${String(i)}`,
+          eventos: ["product.published"],
+        }),
+      ),
+    );
+    const estados = respostas.map((r) => r.statusCode).sort();
+    expect(estados.filter((e) => e === 201)).toHaveLength(20);
+    expect(estados.filter((e) => e === 409)).toHaveLength(6);
+    expect(
+      ok(await pedir(a.dono, "GET", "/webhook-subscriptions"))["dados"],
+    ).toHaveLength(20);
+  });
+
+  it("revisão do #477, P3-8: uma entrega sem evento desiste com o código e não repete", async () => {
+    const a = await comerciante();
+    const s = await subscrever(a.dono);
+    await sql`insert into webhook_entrega (comerciante_id, subscricao_id, evento_id, proxima_em, prazo_ate)
+      values (${a.c}, ${s.id.slice(4)}, ${randomUUID()}, now() - interval '1 minute',
+              now() + interval '72 hours')`.execute(base.dono);
+    enviados.length = 0;
+    const v = await voltaDoPublicador();
+    expect(v).toMatchObject({ desistidas: 1, repetir: 0 });
+    expect(v.erros).toEqual([]);
+    expect(enviados).toHaveLength(0);
+    expect((await entregas(a.dono))[0]).toMatchObject({
+      estado: "desistida",
+      ultimo_erro: "webhooks.event_missing",
+    });
+    expect((await voltaDoPublicador()).desistidas).toBe(0);
+  });
+
+  it("revisão do #477, P1-1: o tecto de tempo por comerciante deixa o resto para a volta seguinte", async () => {
+    const a = await comerciante();
+    await subscrever(a.dono);
+    for (let i = 0; i < 3; i++) {
+      await evento(a.c, "product.published", publicado(""));
+    }
+    const lento: Emissor = async (p) => {
+      await new Promise((r) => setTimeout(r, 80));
+      return emissor(p);
+    };
+    enviados.length = 0;
+    guiao = [];
+    const v = await correrWebhooks(
+      base.api,
+      { chave, emissor: lento },
+      { comerciantes: ativos, tectoMs: 40 },
+    );
+    expect(v.entregues).toBeGreaterThanOrEqual(1);
+    expect(v.entregues).toBeLessThan(3);
+    // O que ficou vence na volta seguinte.
+    await voltaDoPublicador();
+    expect(enviados).toHaveLength(3);
+  });
+
+  it("revisão do #477, P3-1: a função que dá o evento já não traz o `quem`", async () => {
+    const a = await comerciante();
+    await subscrever(a.dono);
+    await evento(a.c, "product.published", publicado(""));
+    await voltaDoPublicador();
+    const id = ((await entregas(a.dono))[0]?.["id"] as string).slice(4);
+    await comComerciante(base.api, a.c, async (trx) => {
+      const { rows } = await sql<{ dados: Json }>`
+        select dados from webhook_evento_da_entrega(${id}::uuid)`.execute(trx);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.dados).not.toHaveProperty("quem");
+      expect(rows[0]?.dados).toHaveProperty("artigo_id");
+    });
   });
 
   it("sem a chave dos segredos não se cria subscrição (503)", async () => {

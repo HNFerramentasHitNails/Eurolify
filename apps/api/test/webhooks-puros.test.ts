@@ -201,9 +201,9 @@ describe("o endereço (docs/38 §8: SSRF)", () => {
   });
 
   it("o emissor verdadeiro recusa o nome que resolve para um endereço privado (DNS) sem ligar", async () => {
-    const emissor = emissorHttps(() =>
-      Promise.resolve([{ address: "10.0.0.5", family: 4 }]),
-    );
+    const emissor = emissorHttps({
+      resolver: () => Promise.resolve([{ address: "10.0.0.5", family: 4 }]),
+    });
     expect(
       await emissor({
         url: "https://alfa.example/h",
@@ -212,12 +212,13 @@ describe("o endereço (docs/38 §8: SSRF)", () => {
       }),
     ).toEqual({ erro: "webhooks.address_refused" });
     // Um nome com um endereço público e outro privado também se recusa.
-    const misto = emissorHttps(() =>
-      Promise.resolve([
-        { address: "8.8.8.8", family: 4 },
-        { address: "127.0.0.1", family: 4 },
-      ]),
-    );
+    const misto = emissorHttps({
+      resolver: () =>
+        Promise.resolve([
+          { address: "8.8.8.8", family: 4 },
+          { address: "127.0.0.1", family: 4 },
+        ]),
+    });
     expect(
       await misto({
         url: "https://alfa.example/h",
