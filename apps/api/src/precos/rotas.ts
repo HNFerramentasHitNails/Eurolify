@@ -559,24 +559,38 @@ const IvaDaLoja = Type.Object({
   }),
   pais_imposto: Type.Union([Type.String(), Type.Null()]),
   motivo: Type.Union([Type.String(), Type.Null()]),
+  verificado: Type.Boolean({
+    description:
+      "Falso enquanto a regra ou a taxa forem C (por validar): não se mostra como certa",
+  }),
+  versao_regras: Type.String(),
 });
 
 const PrecoDaLojaEsquema = Type.Object({
   variante: Type.String({ description: "var_…" }),
-  montante: Type.Integer({
-    description:
-      "O que a lista cobra (o da redução em vigor, se houver), em cêntimos, com ou sem IVA como o mercado",
-  }),
   gratuito: Type.Boolean(),
+  quantidade: Type.Integer({
+    description: "A usada no total da linha: a pedida, ou a mínima da variante",
+  }),
+  quantidade_valida: Type.Boolean({
+    description:
+      "Falso se não cumpre a mínima e o múltiplo (o checkout recusa)",
+  }),
   preco_a_mostrar: Type.Union([Type.Integer(), Type.Null()], {
     description:
-      "O preço final do Motor de IVA para o país pedido, em cêntimos; nulo se o IVA não se sabe (sem `country` num mercado sem IVA no preço) ou o Motor bloqueia",
+      "O preço final de uma unidade, em cêntimos, com o IVA do Motor de IVA; nulo se o IVA não se sabe (sem `country` num mercado sem IVA no preço) ou o Motor bloqueia. Não há montante sem IVA na resposta",
+  }),
+  total_linha: Type.Union([Type.Integer(), Type.Null()], {
+    description:
+      "O total da linha de `quantidade` unidades, decidido sobre a linha toda como o checkout; nulo sem preço ou com quantidade inválida",
   }),
   iva: IvaDaLoja,
   reducao: Type.Union([
     Type.Object({
-      preco_referencia: Type.Integer(),
-      preco_referencia_a_mostrar: Type.Union([Type.Integer(), Type.Null()]),
+      preco_referencia: Type.Union([Type.Integer(), Type.Null()], {
+        description:
+          "O preço riscado (30 dias, C), na mesma base de IVA do preço a mostrar",
+      }),
       fim: Type.Union([Instante, Type.Null()]),
     }),
     Type.Null(),
@@ -618,6 +632,13 @@ const ConsultaPrecosDaLoja = Type.Object(
     }),
     country: Type.Optional(Pais),
     postal_code: Type.Optional(Type.String({ minLength: 1, maxLength: 20 })),
+    quantity: Type.Optional(
+      Type.String({
+        pattern: "^[1-9][0-9]{0,6}$",
+        description:
+          "Unidades da linha (1 a 1 000 000); por omissão, a quantidade mínima de cada variante",
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -677,7 +698,7 @@ function rotasDaLoja(instancia: FastifyInstance, base: Kysely<BaseDados>) {
       config: loja,
       schema: {
         description:
-          "O preço **a mostrar** de variantes num canal × mercado da loja (docs/20 §7.2): o mesmo que o checkout cobra, com o IVA do Motor de IVA para o `country` (e `postal_code`, onde o Motor o pede), a redução e o preço de referência, o preço por unidade, a quantidade mínima e o múltiplo. Sem `country`, só há preço a mostrar num mercado cujo preço já inclui o IVA. As variantes que o checkout não venderia vêm em `indisponiveis`. O total de uma linha com várias unidades decide-se no checkout sobre a linha toda (arredondamento ao nível da linha).",
+          "O preço **a mostrar** de variantes num canal × mercado da loja (docs/20 §7.2): o mesmo que o checkout cobra, com o IVA do Motor de IVA para o `country` (e `postal_code`, onde o Motor o pede), a redução e o preço de referência, o preço por unidade, a quantidade mínima e o múltiplo. Sem `country`, só há preço a mostrar num mercado cujo preço já inclui o IVA (e o Motor não bloqueia por outro motivo). `quantity` (por omissão, a mínima de cada variante) dá o `total_linha`. As variantes que o checkout não venderia vêm em `indisponiveis`.",
         querystring: ConsultaPrecosDaLoja,
         response: {
           200: Type.Object({
@@ -694,6 +715,18 @@ function rotasDaLoja(instancia: FastifyInstance, base: Kysely<BaseDados>) {
     },
     async (pedido, resposta) => {
       void resposta.header("cache-control", "no-store");
+      if (
+        pedido.query.postal_code !== undefined &&
+        pedido.query.country === undefined
+      ) {
+        throw erroBase("request.invalid", "`postal_code` pede `country`");
+      }
+      if (
+        pedido.query.quantity !== undefined &&
+        Number(pedido.query.quantity) > 1_000_000
+      ) {
+        throw erroBase("request.invalid", "`quantity` até 1 000 000");
+      }
       const ids = [...new Set(pedido.query.variants.split(","))];
       const r = await emPrecos(resposta, () =>
         precosDaLoja(
@@ -710,6 +743,9 @@ function rotasDaLoja(instancia: FastifyInstance, base: Kysely<BaseDados>) {
             ...(pedido.query.postal_code === undefined
               ? {}
               : { codigo_postal: pedido.query.postal_code }),
+            ...(pedido.query.quantity === undefined
+              ? {}
+              : { quantidade: Number(pedido.query.quantity) }),
           },
         ),
       );
@@ -720,17 +756,17 @@ function rotasDaLoja(instancia: FastifyInstance, base: Kysely<BaseDados>) {
         pais: r.pais,
         dados: r.dados.map((p) => ({
           variante: `var_${p.variante_id}`,
-          montante: p.montante,
           gratuito: p.gratuito,
+          quantidade: p.quantidade,
+          quantidade_valida: p.quantidade_valida,
           preco_a_mostrar: p.preco_a_mostrar,
+          total_linha: p.total_linha,
           iva: p.iva,
           reducao:
             p.reducao === null
               ? null
               : {
                   preco_referencia: p.reducao.preco_referencia,
-                  preco_referencia_a_mostrar:
-                    p.reducao.preco_referencia_a_mostrar,
                   fim: iso(p.reducao.fim),
                 },
           preco_por_unidade: p.preco_por_unidade,

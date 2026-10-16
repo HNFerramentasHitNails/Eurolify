@@ -14,7 +14,11 @@ import {
 import { comComerciante } from "../comerciante/repositorio.js";
 import { decidirIva, type Decisao } from "../iva/decisao.js";
 import { carregarTabelas, comercianteParaDecisao } from "../iva/repositorio.js";
-import { precosParaVenda, type PrecoParaVenda } from "../precos/repositorio.js";
+import {
+  precoPorUnidade,
+  precosParaVenda,
+  type PrecoParaVenda,
+} from "../precos/repositorio.js";
 import { metodosDoMercado } from "../pagamentos/repositorio.js";
 import { documentoDaEncomenda } from "../faturacao/repositorio.js";
 import {
@@ -1623,6 +1627,24 @@ export async function calcularResumo(
     if (decisao.resultado === "bloqueada" && s.entrega !== null) {
       bloqueios.push({ onde: `var_${p.variante_id}`, motivo: decisao.motivo });
     }
+    // O preço por unidade de medida sai do preço final de uma unidade (com o
+    // IVA do Motor, docs/20 §3.7), não do montante da lista: num mercado sem
+    // IVA no preço são diferentes (revisão do #483, P3-1).
+    const unitario = decidir(v.categoria_fiscal, preco.montante);
+    const finalUnitario =
+      unitario.resultado !== "bloqueada"
+        ? unitario.total
+        : mercado.preco_inclui_iva
+          ? preco.montante
+          : null;
+    const porUnidade =
+      finalUnitario === null
+        ? null
+        : precoPorUnidade(
+            finalUnitario,
+            preco.conteudo_quantidade,
+            preco.conteudo_unidade,
+          );
     linhas.push({
       variante_id: p.variante_id,
       sku: v.sku,
@@ -1633,7 +1655,7 @@ export async function calcularResumo(
         lista_id: preco.lista_id,
         montante_lista: preco.montante_lista,
         reducao: preco.reducao,
-        preco_por_unidade: preco.preco_por_unidade,
+        preco_por_unidade: porUnidade,
       },
       decisao,
       ...montanteDe(decisao),

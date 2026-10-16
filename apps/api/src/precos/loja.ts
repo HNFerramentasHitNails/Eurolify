@@ -31,7 +31,8 @@ async function naLoja<T>(
   fn: Parameters<typeof comComerciante<T>>[2],
 ): Promise<T> {
   try {
-    return await comComerciante(db, comercianteId, fn);
+    // Só se lê: transacção READ ONLY (não abre uma de escrita para o público).
+    return await comComerciante(db, comercianteId, fn, { soLeitura: true });
   } catch (erro) {
     throw traduzir(erro);
   }
@@ -63,21 +64,22 @@ export async function mercadosDaLoja(
       if (canal?.estado !== "activo") throw naoExiste("o canal");
     }
     const base = () => {
-      let q = trx
+      const q = trx
         .selectFrom("mercado")
         .where("mercado.loja_id", "=", lojaId)
         .where("mercado.estado", "=", "activo");
+      // Só mercados que se podem comprar: com um canal activo (o de `channel`,
+      // se vier, senão qualquer um da loja).
+      let sub = trx
+        .selectFrom("canal_mercado")
+        .innerJoin("canal", "canal.id", "canal_mercado.canal_id")
+        .select("canal_mercado.mercado_id")
+        .where("canal.estado", "=", "activo")
+        .where("canal.loja_id", "=", lojaId);
       if (canalId !== undefined) {
-        q = q.where(
-          "mercado.id",
-          "in",
-          trx
-            .selectFrom("canal_mercado")
-            .select("canal_mercado.mercado_id")
-            .where("canal_mercado.canal_id", "=", canalId),
-        );
+        sub = sub.where("canal_mercado.canal_id", "=", canalId);
       }
-      return q;
+      return q.where("mercado.id", "in", sub);
     };
     return pagina(
       (d, n) => {
@@ -112,8 +114,9 @@ export async function mercadosDaLoja(
 
 export interface IvaMostrado {
   /**
-   * `tributada` ou `isenta` (decidido pelo Motor para `pais`), `bloqueada`
-   * (o checkout também recusaria) ou `por_decidir` (sem `pais`).
+   * `tributada` ou `isenta` (decidido pelo Motor), `bloqueada` (o checkout
+   * também recusaria) ou `por_decidir` (o Motor só espera pela entrega:
+   * `entrega_em_falta`, sem `pais`).
    */
   resultado: "tributada" | "isenta" | "bloqueada" | "por_decidir";
   /** Centésimas de ponto (2300 = 23 %); vazio se não há decisão. */
@@ -121,25 +124,37 @@ export interface IvaMostrado {
   pais_imposto: string | null;
   /** Em `bloqueada`, o motivo do Motor; em `por_decidir`, `pais_em_falta`. */
   motivo: string | null;
+  /**
+   * Falso enquanto a regra ou a taxa forem **C** (ainda nenhuma está
+   * validada): a loja não a mostra como certa (AGENTS.md, fiscal, ponto 7).
+   */
+  verificado: boolean;
+  versao_regras: string;
 }
 
 export interface PrecoDaLoja {
   variante_id: string;
-  /** O que a lista cobra (o da redução em vigor, se houver), no sentido do mercado. */
-  montante: number;
   gratuito: boolean;
+  /** A quantidade usada: a pedida, ou a mínima da variante. */
+  quantidade: number;
+  /** Falso se não cumpre a quantidade mínima e o múltiplo (o checkout recusa). */
+  quantidade_valida: boolean;
   /**
-   * O preço final a mostrar, em cêntimos: o montante com o IVA do Motor para
-   * o país dado. Nulo quando o IVA não se sabe (sem país num mercado sem
-   * IVA no preço) ou o Motor bloqueia: nunca se mostra um preço que o
-   * checkout não respeitaria.
+   * O preço final de **uma unidade**, em cêntimos, com o IVA do Motor. Nulo
+   * quando o IVA não se sabe (sem país num mercado sem IVA no preço) ou o
+   * Motor bloqueia: nunca se mostra um preço que o checkout não respeitaria.
+   * Nunca se devolve o montante da lista sem IVA como se fosse preço.
    */
   preco_a_mostrar: number | null;
+  /**
+   * O total da linha, decidido sobre a linha toda como o checkout (arredondamento
+   * da linha); nulo sem preço ou com quantidade inválida.
+   */
+  total_linha: number | null;
   iva: IvaMostrado;
   reducao: {
-    /** O preço riscado: o mais baixo dos 30 dias anteriores (docs/20 §3.6). */
-    preco_referencia: number;
-    preco_referencia_a_mostrar: number | null;
+    /** O preço riscado (o mais baixo dos 30 dias, docs/20 §3.6), na mesma base de IVA do preço a mostrar; nulo se este é nulo. */
+    preco_referencia: number | null;
     fim: Date | null;
   } | null;
   preco_por_unidade: {
@@ -161,20 +176,27 @@ export interface PrecosDaLoja {
   indisponiveis: string[];
 }
 
-const ivaDe = (d: Decisao): IvaMostrado =>
-  d.resultado === "bloqueada"
+const ivaDe = (d: Decisao): IvaMostrado => {
+  const marca = {
+    verificado: d.evidencia.verificado,
+    versao_regras: d.versao_regras,
+  };
+  return d.resultado === "bloqueada"
     ? {
         resultado: "bloqueada",
         taxa: null,
         pais_imposto: null,
         motivo: d.motivo,
+        ...marca,
       }
     : {
         resultado: d.resultado,
         taxa: d.taxa,
         pais_imposto: d.pais_imposto,
         motivo: null,
+        ...marca,
       };
+};
 
 /**
  * O preço a mostrar destas variantes no canal × mercado da loja da chave, com
@@ -194,6 +216,8 @@ export async function precosDaLoja(
     variantes: string[];
     pais?: string;
     codigo_postal?: string;
+    /** Por omissão, a quantidade mínima de cada variante. */
+    quantidade?: number;
   },
   momento: Date = new Date(),
 ): Promise<PrecosDaLoja> {
@@ -273,15 +297,18 @@ export async function precosDaLoja(
         perfil: null,
       });
     /**
-     * O IVA e o preço final de um montante. Sem país, só há preço se o do
-     * mercado já inclui o IVA (é o que o cliente paga, salvo uma isenção que
-     * só a morada decide e que só o baixa); senão, nulo.
+     * O IVA e o preço final de um montante: **sempre** pelo Motor, também sem
+     * entrega (ele bloqueia antes de olhar para a morada, por exemplo numa
+     * categoria por validar). Só `entrega_em_falta` fica `por_decidir`; aí só
+     * há preço se o do mercado já inclui o IVA (é o que o cliente paga, salvo
+     * uma isenção que só a morada decide e que só o baixa).
      */
     const mostrar = (
       categoria: string,
       montante: number,
     ): { preco: number | null; iva: IvaMostrado } => {
-      if (entrega === null) {
+      const d = decidir(categoria, montante);
+      if (d.resultado === "bloqueada" && d.motivo === "entrega_em_falta") {
         return {
           preco: mercado.preco_inclui_iva ? montante : null,
           iva: {
@@ -289,10 +316,11 @@ export async function precosDaLoja(
             taxa: null,
             pais_imposto: null,
             motivo: "pais_em_falta",
+            verificado: false,
+            versao_regras: d.versao_regras,
           },
         };
       }
-      const d = decidir(categoria, montante);
       return {
         preco: d.resultado === "bloqueada" ? null : d.total,
         iva: ivaDe(d),
@@ -308,7 +336,14 @@ export async function precosDaLoja(
         indisponiveis.push(id);
         continue;
       }
+      const quantidade = dados.quantidade ?? p.quantidade_minima;
+      const valida =
+        quantidade >= p.quantidade_minima && quantidade % p.multiplo === 0;
       const m = mostrar(v.categoria_fiscal, p.montante);
+      // O total da linha decide-se sobre a linha toda, como o checkout.
+      const linha = valida
+        ? mostrar(v.categoria_fiscal, p.montante * quantidade).preco
+        : null;
       // O preço por unidade sai do preço final (docs/20 §3.7); sem preço
       // final, não se mostra um sem IVA.
       const unidade =
@@ -317,16 +352,17 @@ export async function precosDaLoja(
           : precoPorUnidade(m.preco, p.conteudo_quantidade, p.conteudo_unidade);
       linhas.push({
         variante_id: id,
-        montante: p.montante,
         gratuito: p.gratuito,
+        quantidade,
+        quantidade_valida: valida,
         preco_a_mostrar: m.preco,
+        total_linha: m.preco === null ? null : linha,
         iva: m.iva,
         reducao:
           p.reducao === null
             ? null
             : {
-                preco_referencia: p.reducao.preco_referencia,
-                preco_referencia_a_mostrar: mostrar(
+                preco_referencia: mostrar(
                   v.categoria_fiscal,
                   p.reducao.preco_referencia,
                 ).preco,

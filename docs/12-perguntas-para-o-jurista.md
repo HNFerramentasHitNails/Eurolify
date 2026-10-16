@@ -213,6 +213,8 @@ Os textos e fluxos abaixo são servidos pelo Eurolify em todas as lojas.
    §10): «30 dias» como 720 horas antes do início da redução; e o preço
    «praticado» como o preço da lista nesse tempo, mesmo que o produto não
    estivesse à venda (mercado ainda não aberto). Estão certas?
+   E o preço de referência mostrado na Loja leva a taxa de IVA de hoje ou a
+   do período dos 30 dias (`20-dominio-precos-e-mercados.md` §10.7)?
 8. **Imagens do catálogo com pessoas** (`14-dominio-catalogo.md` §3.5,
    issue #179): o comerciante envia fotografias dos artigos, e algumas
    mostram pessoas (um modelo, um funcionário). O Eurolify guarda-as e

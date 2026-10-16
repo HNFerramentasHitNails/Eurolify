@@ -2190,9 +2190,16 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     const dados = corpo["dados"] as Json[];
     expect(dados[0]).toMatchObject({
       variante: `var_${s.v1}`,
-      montante: 1230,
+      quantidade: 1,
       preco_a_mostrar: 1230,
-      iva: { resultado: "tributada", taxa: 2300, pais_imposto: "PT" },
+      total_linha: 1230,
+      iva: {
+        resultado: "tributada",
+        taxa: 2300,
+        pais_imposto: "PT",
+        verificado: false,
+        versao_regras: expect.any(String) as unknown,
+      },
       reducao: null,
       quantidade_minima: 1,
       multiplo: 1,
@@ -2201,8 +2208,11 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     expect(dados[1]).toMatchObject({
       variante: `var_${s.v2}`,
       preco_a_mostrar: 615,
+      quantidade: 2,
+      total_linha: 1230,
       quantidade_minima: 2,
     });
+    expect(dados[0]).not.toHaveProperty("montante");
     // O mesmo que o carrinho e o resumo do checkout cobram (uma unidade).
     const k = await checkoutCom(s, [[s.v1, 1]]);
     expect(
@@ -2241,9 +2251,11 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
 
   it("a Loja: num mercado sem IVA no preço, o preço a mostrar leva o IVA do Motor (e é o do resumo); sem país não há preço", async () => {
     const s = await cenario({ incluiIva: false });
-    expect((await linhasDe(precosDa(s, [s.v1])))[0]).toMatchObject({
-      montante: 1230,
+    const semPaisNaoIva = (await linhasDe(precosDa(s, [s.v1])))[0];
+    expect(semPaisNaoIva).not.toHaveProperty("montante");
+    expect(semPaisNaoIva).toMatchObject({
       preco_a_mostrar: null,
+      total_linha: null,
       preco_por_unidade: null,
       iva: { resultado: "por_decidir" },
     });
@@ -2251,8 +2263,8 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     expect(r).toMatchObject({ preco_inclui_iva: false });
     // 12,30 € + 23 % (2,83 €, metade para cima) = 15,13 €.
     expect((r["dados"] as Json[])[0]).toMatchObject({
-      montante: 1230,
       preco_a_mostrar: 1513,
+      total_linha: 1513,
       iva: { resultado: "tributada", taxa: 2300 },
     });
     const k = await checkoutCom(s, [[s.v1, 1]]);
@@ -2285,13 +2297,8 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       montante: 990,
     });
     expect((await linhasDe(precosDa(s, [s.v1], certo)))[0]).toMatchObject({
-      montante: 990,
       preco_a_mostrar: 990,
-      reducao: {
-        preco_referencia: 1230,
-        preco_referencia_a_mostrar: 1230,
-        fim: null,
-      },
+      reducao: { preco_referencia: 1230, fim: null },
       preco_por_unidade: { valor: "660.0000", unidade: "l" },
     });
     const k = await checkoutCom(s, [[s.v1, 1]]);
@@ -2307,6 +2314,83 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
           preco_por_unidade: { valor: "660.0000", unidade: "l" },
         },
       ],
+    });
+  });
+
+  it("a Loja: sem país o Motor também bloqueia (categoria por validar); só a entrega em falta fica por decidir", async () => {
+    const s = await cenario();
+    await base.dono.transaction().execute(async (trx) => {
+      await sql`select set_config('eurolify.comerciante', ${s.c}, true)`.execute(
+        trx,
+      );
+      await sql`insert into categoria_fiscal values ('teste_por_validar', 'Teste', 'Test', 'por_validar')`.execute(
+        trx,
+      );
+      await sql`update artigo set categoria_fiscal = 'teste_por_validar' where id = ${s.artigo}`.execute(
+        trx,
+      );
+    });
+    for (const extra of ["", "&country=PT&postal_code=1000-001"]) {
+      const l = (await linhasDe(precosDa(s, [s.v1], extra)))[0];
+      expect(l).toMatchObject({
+        preco_a_mostrar: null,
+        total_linha: null,
+        iva: { resultado: "bloqueada", motivo: "categoria_por_validar" },
+      });
+    }
+  });
+
+  it("a Loja: a quantidade decide o IVA sobre a linha inteira, como o checkout (3 × 10,01 € a 23 % sem IVA no preço = 36,94 €)", async () => {
+    const s = await cenario({ incluiIva: false });
+    await definirPreco(base.api, s.c, QUEM, s.lista, s.v1, { montante: 1001 });
+    const l = (
+      await linhasDe(
+        precosDa(s, [s.v1], "&country=PT&postal_code=1000-001&quantity=3"),
+      )
+    )[0];
+    // Uma unidade: 1001 + 230 = 12,31 €; a linha: 3003 + 691 = 36,94 € (não 36,93 €).
+    expect(l).toMatchObject({
+      quantidade: 3,
+      quantidade_valida: true,
+      preco_a_mostrar: 1231,
+      total_linha: 3694,
+    });
+    const k = await checkoutCom(s, [[s.v1, 3]]);
+    await preencher(s, k.token);
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/summary`)),
+    ).toMatchObject({ linhas: [{ total: 3694 }] });
+    // A quantidade mínima por omissão; uma que o checkout recusaria não dá total.
+    expect(
+      (
+        await linhasDe(precosDa(s, [s.v2], "&country=PT&postal_code=1000-001"))
+      )[0],
+    ).toMatchObject({ quantidade: 2, quantidade_valida: true });
+    expect(
+      (
+        await linhasDe(
+          precosDa(s, [s.v2], "&country=PT&postal_code=1000-001&quantity=1"),
+        )
+      )[0],
+    ).toMatchObject({ quantidade_valida: false, total_linha: null });
+  });
+
+  it("a Loja: o preço por unidade sai do preço final com IVA, na Loja e no resumo do checkout (mercado sem IVA no preço)", async () => {
+    const s = await cenario({ incluiIva: false, comConteudo: true });
+    const l = (
+      await linhasDe(precosDa(s, [s.v1], "&country=PT&postal_code=1000-001"))
+    )[0];
+    // 15,13 € / 15 ml = 1008,6667 €/l (e não 12,30 € / 15 ml = 820 €/l).
+    expect(l).toMatchObject({
+      preco_a_mostrar: 1513,
+      preco_por_unidade: { valor: "1008.6667", unidade: "l", inclui_iva: true },
+    });
+    const k = await checkoutCom(s, [[s.v1, 1]]);
+    await preencher(s, k.token);
+    expect(
+      await ok(pedir("GET", `/checkout/${k.token}/summary`)),
+    ).toMatchObject({
+      linhas: [{ preco_por_unidade: { valor: "1008.6667", unidade: "l" } }],
     });
   });
 
@@ -2432,6 +2516,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}`,
       `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=var_x`,
       `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=var_${s.v1}&country=pt`,
+      `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=var_${s.v1}&postal_code=1000-001`,
       `/store/prices?channel=chn_${s.canal}&market=mkt_${s.mercado}&variants=${Array.from({ length: 101 }, () => `var_${randomUUID()}`).join(",")}`,
     ]) {
       expect((await pedir("GET", mau, undefined, daLoja(s))).statusCode).toBe(
@@ -2459,6 +2544,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
     });
     // Em rascunho, não se vê.
     expect(await mercadosVistos()).toEqual([`mkt_${s.mercado}`]);
+    // Activo mas sem nenhum canal: não se pode comprar, não se mostra.
     const versaoActiva = await mudarEstadoMercado(
       base.api,
       s.c,
@@ -2466,6 +2552,7 @@ describe.skipIf(URL_BASE === undefined)("API do checkout", () => {
       1,
       "activo",
     );
+    expect(await mercadosVistos()).toEqual([`mkt_${s.mercado}`]);
     await definirMercadosDoCanal(base.api, s.c, s.canal, [s.mercado, outro]);
     const dois = await mercadosVistos();
     expect(dois).toHaveLength(2);
