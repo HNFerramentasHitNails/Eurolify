@@ -317,9 +317,14 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 
 ## Agentes
 
-Não pôr vários agentes em paralelo sem perguntar — nos sistemas actuais já se
-esvaziou a janela de créditos de 5 horas num só pedido. Um agente dirigido a
-uma pergunta concreta, sim; e destilar o que devolver.
+**Agentes em paralelo autorizados** (Diogo, 16/10/2026: *«Se for necessário
+abrires mais agentes/sessões, podes fazer, mas desde que trabalham juntos e que
+não se atrapalham um ao outro»*): cada agente numa tarefa, num ramo e numa
+cópia de trabalho próprios (`isolation: "worktree"`), em domínios que não
+mexem nos mesmos ficheiros; a sessão que os lança reparte as migrações (um
+número para cada um), junta os pedidos um a um e destila o que devolvem.
+Nos sistemas actuais já se esvaziou a janela de créditos de 5 horas num só
+pedido: não mais agentes do que os que andam de facto.
 
 **Agentes em vez de sessões** (ADR-0035, Diogo, 04/10/2026): o trabalho fica
 na sessão onde começou, e as revisões e as tarefas de apoio fazem-se com
