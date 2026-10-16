@@ -162,13 +162,57 @@ const naoExiste = (o: string) =>
 
 // ------------------------------------------------------------- Carrinho
 
+/**
+ * O tecto de carrinhos **com linhas**, abertos e não expirados, por loja
+ * (docs/25 §14, P2-9 do #276). Valor nosso, a medir (docs/18 §6). Ao chegar
+ * lá a loja **não fecha**: `aoPassarOTecto` decide, e só se recusa quem ele
+ * mandar esperar.
+ */
+export const TECTO_CARRINHOS_COM_LINHAS = 20_000;
+
+/** Um carrinho sem linhas vive 24 h; com linhas, 30 dias desde a última mudança. */
+const SEM_LINHAS = sql<Date>`now() + interval '24 hours'`;
+const COM_LINHAS = sql<Date>`now() + interval '30 days'`;
+
+export interface OpcoesDoTecto {
+  tecto?: number;
+  /**
+   * Chamado quando a loja já tem `tecto` carrinhos com linhas (com quantos).
+   * Devolve os segundos que quem pede deve esperar, ou 0 para o deixar passar.
+   * Sem ele, ninguém é recusado.
+   */
+  aoPassarOTecto?: (carrinhos: number) => number;
+}
+
 export async function criarCarrinho(
   db: Kysely<BaseDados>,
   comercianteId: string,
   lojaId: string,
   dados: { canal: string; mercado: string; lingua: string },
+  opcoes: OpcoesDoTecto = {},
 ): Promise<{ id: string; segredo: string }> {
+  const tecto = opcoes.tecto ?? TECTO_CARRINHOS_COM_LINHAS;
   return noCheckout(db, comercianteId, async (trx) => {
+    // A contagem pára no tecto (nunca lê mais linhas do que ele).
+    const { rows: abertos } = await sql<{ n: string }>`
+      select count(*)::text as n from (
+        select 1 from carrinho k
+        where k.comerciante_id = ${comercianteId}::uuid
+          and k.loja_id = ${lojaId}::uuid
+          and k.estado = 'aberto' and k.expira_em > now()
+          and exists (select from linha_carrinho l where l.carrinho_id = k.id)
+        limit ${tecto}) x`.execute(trx);
+    const n = Number(abertos[0]?.n ?? "0");
+    if (n >= tecto && opcoes.aoPassarOTecto !== undefined) {
+      const espera = opcoes.aoPassarOTecto(n);
+      if (espera > 0) {
+        throw new ErroCheckout(
+          "cart.limit_reached",
+          "cart.limit_reached: a loja tem muitos carrinhos abertos e este endereço já criou muitos; tente mais tarde",
+          { espera_s: espera },
+        );
+      }
+    }
     const mercado = await trx
       .selectFrom("mercado")
       .innerJoin("canal_mercado", "canal_mercado.mercado_id", "mercado.id")
@@ -236,7 +280,8 @@ async function carrinhoDe(
     throw new ErroCheckout("cart.secret_invalid", "o carrinho não existe");
   }
   // Expirado conta-se pelo relógio; não se grava aqui (o erro desfaria a
-  // escrita): a limpeza dos carrinhos é uma tarefa à parte (parte 2).
+  // escrita): a limpeza dos carrinhos é a da volta horária (docs/25 §14,
+  // `limpeza-sessoes.ts`).
   if (c.estado !== "convertido" && c.passou_prazo) {
     throw new ErroCheckout(
       "cart.not_open",
@@ -381,6 +426,13 @@ export async function porLinha(
     }
     conferirQuantidade(dados.quantidade, preco);
     await abrirParaMexer(trx, c.id);
+    // Com linhas, o carrinho vive 30 dias desde a última mudança (docs/25
+    // §14); sem elas, 24 h.
+    await trx
+      .updateTable("carrinho")
+      .set({ expira_em: COM_LINHAS })
+      .where("id", "=", c.id)
+      .execute();
     const existente = await trx
       .selectFrom("linha_carrinho")
       .select("id")
@@ -432,6 +484,18 @@ export async function tirarLinha(
       .where("carrinho_id", "=", c.id)
       .executeTakeFirst();
     if (r.numDeletedRows === 0n) throw naoExiste("a linha");
+    // Sem linhas, volta às 24 h (docs/25 §14).
+    const resto = await trx
+      .selectFrom("linha_carrinho")
+      .select("id")
+      .where("carrinho_id", "=", c.id)
+      .limit(1)
+      .executeTakeFirst();
+    await trx
+      .updateTable("carrinho")
+      .set({ expira_em: resto === undefined ? SEM_LINHAS : COM_LINHAS })
+      .where("id", "=", c.id)
+      .execute();
   });
 }
 

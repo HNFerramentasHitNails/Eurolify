@@ -264,7 +264,9 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
 
 `checkout.legal_text_missing`, `checkout.vat_blocked` (com o motivo do Motor),
 `checkout.total_changed`, `checkout.variant_unavailable`,
-`checkout.no_delivery_method`, `checkout.expired`, `cart.min_quantity`.
+`checkout.no_delivery_method`, `checkout.expired`, `cart.min_quantity`,
+`cart.limit_reached` (429, com `Retry-After`: a loja está no tecto de carrinhos
+com linhas e este endereço já criou muitos; §14).
 
 ### 8.5 Eventos
 
@@ -357,7 +359,7 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
   o checkout sem conta não tem perfil com VIES. Pode comprar como
   consumidor.
 - **Por fazer na parte 2:** as páginas do checkout, a limpeza dos carrinhos
-  expirados e o envio da confirmação (Q4, com o fornecedor de e-mail). Os
+  expirados (**feita**, §14) e o envio da confirmação (Q4, com o fornecedor de e-mail). Os
   dados das sessões já se limpam: ao criar a encomenda e 7 dias depois de a
   sessão expirar ou ser abandonada (`docs/23` §15.4 e §15.10, migração
   0077).
@@ -410,3 +412,115 @@ registos técnicos, só identificadores (`eu-gdpr-privacy`, regra 7).
 - **P3-4 já estava garantido:** um país só pode estar num mercado activo da
   loja (migração 0017), por isso a escolha do mercado pelo país não é
   ambígua.
+
+## 14. Limpeza dos carrinhos e tecto (parte 2; issue #479; migração 0109)
+
+Fecha dois pontos que a §13 deixou abertos: «a limpeza dos carrinhos
+expirados» e, da revisão do #276, a P2-9 («falta um limite por chave e um
+tecto de carrinhos abertos»). Nenhuma regra fiscal ou legal nova: é higiene
+e defesa. Os números abaixo são **valores nossos, a medir** (`docs/18` §6:
+nenhum número é decisão); mudam-se numa constante, não numa regra.
+
+**Princípio (revisão do #482): uma protecção contra abuso nunca fecha a loja
+aos clientes dela.** A chave pública está no browser e qualquer pessoa a lê;
+por isso nenhum contador é partilhado por todos os visitantes e, no tecto,
+só se recusa o endereço que está a abusar.
+
+**A vida do carrinho.**
+- Um carrinho **sem linhas** expira em **24 h** (por omissão na base, 0109).
+- Ao pôr uma linha passa a **30 dias desde essa mudança** (cada linha posta ou
+  mudada renova os 30 dias; resolve também o «30 dias sem mexer» do §3.1, que
+  antes contava desde a criação); se tirar a última, volta às 24 h.
+- Os carrinhos que já existiam antes da 0109 ficam como estão (30 dias desde a
+  criação): o RLS forçado impede o dono de os alterar sem contexto e ainda não
+  há dados reais (ADR-0019). Não contam para o tecto se não tiverem linhas.
+
+**O que se apaga e quando.** Um carrinho só se apaga se, ao mesmo tempo:
+1. está `aberto` (nunca `em_checkout` nem `convertido`; o estado `expirado`
+   existe no desenho mas **nenhum código o escreve**, o prazo conta-se pelo
+   relógio: se um dia for escrito, a limpeza não lhe toca e não falha);
+2. expirou há mais de **7 dias** (`expira_em`; a folga evita a corrida com
+   quem ainda o está a usar no limite do prazo);
+3. **nunca teve uma sessão de checkout**, seja qual for o estado dela. A
+   sessão aponta para o carrinho (chave estrangeira sem cascata, 0041) e as
+   sessões não se apagam (P2-3): é a própria base que recusa apagar o que uma
+   sessão ou uma encomenda ainda liga.
+
+**Rede temporária, com data de fim.** Os carrinhos que chegaram a ter sessão
+**ficam** (sem dados pessoais: a sessão perde-os aos 7 dias, 0077) até a
+função de retenção da P2-3 existir. A P2-3 tem de estar feita **antes de
+qualquer dado real e, o mais tardar, a 31/03/2027** (fim do ensaio, ADR-0019;
+data proposta aqui, a confirmar pelo Diogo ou pelo Bruno), e passa a tratar
+também estes carrinhos.
+
+Apagam-se as linhas do carrinho com ele (cascata da 0041). Em lotes de 500 por
+comerciante, até 20 lotes por volta, como a limpeza das sessões.
+
+**Quando corre.** Na **mesma volta horária** da limpeza das sessões
+(`checkout/limpeza-sessoes.ts`, já agendada no arranque): não há agendamento
+novo nem se mexe no arranque da API. A volta devolve também `carrinhos`; os
+registos dizem «checkout: carrinhos expirados apagados» e, se falhar,
+«checkout: a limpeza das sessões falhou» ou «checkout: a limpeza dos carrinhos
+falhou» (cada falha traz a `tarefa`). A função é do dono da base
+(`SECURITY DEFINER`), só apaga no comerciante do contexto e a API não ganha
+`DELETE` sobre o carrinho.
+
+**Dados pessoais.** O carrinho não tem e-mail, nome nem morada (§3.1, §7);
+tem o segredo só em resumo SHA-256. O IP de quem pede só serve de chave dos
+contadores em memória e nunca se regista nem se guarda. O e-mail da sessão não
+se toca aqui (migração 0077).
+
+**Isolamento entre comerciantes.** A função exige o comerciante do contexto
+(RLS forçada da 0041) e filtra por ele; a volta percorre, um a um, os
+comerciantes com chave pública (`chave_api`, a única porta que cria
+carrinhos), e um que falhe não pára os outros. O tecto e os limites contam por
+loja.
+
+**O tecto e os limites (P2-9) e o efeito de cada um.**
+
+| Protecção | Valor (nosso, a medir) | Efeito quando se atinge |
+|---|---|---|
+| Carrinhos novos (`POST /store/carts`) por **IP e por loja** | 20 por minuto | só esse IP recebe 429 `rate_limit.exceeded` com `Retry-After`; os outros visitantes e a outra chave da loja não notam (o contador é por IP e loja, não por chave) |
+| Tecto de carrinhos **com linhas**, abertos e não expirados, por loja | 20 000 | a loja **continua a vender**; regista-se o alarme `checkout.cart_ceiling` (1 por hora e loja) e só se recusa o IP que já criou mais de 15 carrinhos nessa loja na última hora (429 `cart.limit_reached` com `Retry-After`) |
+
+Os carrinhos sem linhas não contam para o tecto (valem 24 h e são limitados
+pelo contador por IP). Não há contador por chave partilhado: um que valesse
+para toda a loja deixava um só IP, ou poucos, gastá-lo e fechar a loja. O
+limite geral por IP do `app.ts` (300 pedidos por minuto) continua a valer para
+todas as rotas da loja e do checkout alojado e conta tudo, incluindo leituras
+(não verifiquei se há outras rotas do âmbito `storefront` fora do checkout).
+
+**O alarme.** Hoje é um registo estruturado da API
+(`{evento: "checkout.cart_ceiling", loja, carrinhos}` com a mensagem «checkout:
+a loja chegou ao tecto de carrinhos com linhas»). **Falta:** a verificação
+diária da VPS (`infra/vps/ficheiros/sbin/eurolify-verificacao`) ler este
+evento; as outras verificações lêem funções da base com o papel de limpeza, e
+o carrinho tem RLS forçada, por isso exige função e permissão novas
+(`infra/vps` e `preparar.sh`), que não entram neste pedido. Até lá, o alarme só
+se vê nos registos da API (`docker logs eurolify-api`).
+
+**Por onde é que isto ainda pode sair errado.**
+- Os contadores estão em memória: com mais de uma instância da API, o limite
+  real é o número de instâncias vezes o valor. Hoje é uma VPS, uma API. Ao
+  reiniciar a API, voltam a zero.
+- Um IP partilhado (escritório, rede móvel) conta como um só: 20 carrinhos
+  novos por minuto nessa loja chegam a um uso normal, mas é um palpite a medir.
+- Quem tem muitos IPs (rede de máquinas) passa o contador por IP: enche o
+  tecto, o alarme dispara e **a loja não fecha**, mas a base cresce até alguém
+  agir (apagar à mão, bloquear os IP no proxy). Nada disto é automático.
+- Acima do tecto, um cliente verdadeiro que já criou mais de 15 carrinhos na
+  última hora nessa loja também espera (improvável; o alarme avisa antes).
+- O tecto conta até 20 000 linhas com `LIMIT` e índice
+  `(comerciante, loja, expira_em)`; o custo com a loja cheia não foi medido.
+- Um carrinho expirado há menos de 7 dias não conta para o tecto mas ainda
+  ocupa a base até à limpeza.
+- A volta horária falhada deixa acumular; a falha fica nos registos, sem
+  alarme na VPS (como o do tecto).
+- Os carrinhos que chegaram a ter sessão não se apagam até à P2-3 (acima).
+
+**Não verifiquei:** a carga real (quantos carrinhos com linhas tem uma loja
+normal; os números são palpites a medir); o tempo da volta com milhões de
+carrinhos; duas instâncias da API a limpar ao mesmo tempo (o `SKIP LOCKED`
+deve bastar, só testado com ligações em bloqueio); o ramo
+`merchant.context_required` da função, que não se alcança (sem contexto o
+`comerciante_actual()` falha antes, no cast para uuid).

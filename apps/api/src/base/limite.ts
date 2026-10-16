@@ -29,6 +29,26 @@ export interface LimitesHub {
  */
 export const LIMITE_LOJA: RegraLimite = { pedidos: 300, janelaMs: 60_000 };
 
+/**
+ * Os carrinhos novos (`POST /store/carts`) por IP **e por loja** (docs/25
+ * §14). Nunca partilhado: a chave pública está no browser e um contador por
+ * chave deixava um só visitante fechar a loja a todos os outros. Valor nosso,
+ * a medir (docs/18 §6).
+ */
+export const LIMITE_CARRINHOS_NOVOS: RegraLimite = {
+  pedidos: 20,
+  janelaMs: 60_000,
+};
+
+/**
+ * Com a loja no tecto de carrinhos com linhas, só se recusa o IP que já criou
+ * mais de 15 carrinhos nessa loja na última hora (docs/25 §14). Valor nosso.
+ */
+export const LIMITE_CARRINHOS_NO_TECTO: RegraLimite = {
+  pedidos: 15,
+  janelaMs: 60 * 60_000,
+};
+
 export const LIMITES_HUB: LimitesHub = {
   publicas: { pedidos: 20, janelaMs: 60_000 },
   todas: { pedidos: 300, janelaMs: 60_000 },
@@ -96,7 +116,14 @@ export class LimitePorIp {
 
   /** Conta um pedido. Devolve 0 se passa, ou os segundos até poder voltar. */
   contar(ip: string): number {
-    const chave = chaveDoIp(ip);
+    return this.contarChave(chaveDoIp(ip));
+  }
+
+  /**
+   * Conta um pedido de uma chave qualquer (o identificador de uma chave de
+   * API, não um IP; docs/25 §14). Mesmas janelas e mesmo tecto de memória.
+   */
+  contarChave(chave: string): number {
     const t = this.agora();
     let conta = this.contas.get(chave);
     if (conta === undefined || t - conta.desde >= this.regra.janelaMs) {

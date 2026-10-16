@@ -49,6 +49,9 @@ const FUNCOES_DA_API = [
   "chave_revogar_pela_api",
   "chave_revogar_pela_sessao",
   // As sessões de checkout sem dados pessoais (0077): a tarefa corre pela API.
+  // Os carrinhos expirados sem checkout (0109): a tarefa corre pela API.
+  "checkout_carrinhos_limpar",
+  "checkout_comerciantes_com_carrinhos_a_limpar",
   "checkout_comerciantes_com_sessoes_a_limpar",
   // O checkout alojado (0041): do token para a sessão, sem RLS.
   "checkout_resolver",
