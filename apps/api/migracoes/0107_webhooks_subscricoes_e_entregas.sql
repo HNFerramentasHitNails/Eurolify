@@ -74,7 +74,10 @@ CREATE TABLE webhook_entrega (
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   comerciante_id uuid NOT NULL REFERENCES comerciante (id),
   subscricao_id uuid NOT NULL REFERENCES webhook_subscricao (id),
-  evento_id uuid NOT NULL REFERENCES evento_saida (id),
+  -- Sem chave estrangeira para a outbox: um evento não se apaga (0021) e a
+  -- chave tornava o TRUNCATE recusado por outro erro que não o do rasto.
+  -- A função de distribuição (0108) é quem escreve este campo.
+  evento_id uuid NOT NULL,
   estado text NOT NULL DEFAULT 'pendente'
     CHECK (estado IN ('pendente', 'entregue', 'desistida', 'cancelada')),
   tentativas integer NOT NULL DEFAULT 0 CHECK (tentativas >= 0),
