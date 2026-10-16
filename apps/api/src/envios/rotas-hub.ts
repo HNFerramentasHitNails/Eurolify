@@ -53,6 +53,7 @@ import {
 // recusa a repetição de uma alteração.
 
 type Ambito =
+  | "orders:read"
   | "shipping:read"
   | "shipping:accounts"
   | "shipping:write"
@@ -64,6 +65,7 @@ type Ambito =
   | "returns:write";
 
 const RECUSA: Record<Ambito, string> = {
+  "orders:read": "o papel não vê as encomendas",
   "shipping:read": "o papel não vê os envios",
   "shipping:accounts": "o papel não gere as contas de transportadora",
   "shipping:write":

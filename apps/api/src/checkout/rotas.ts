@@ -1560,7 +1560,7 @@ export function rotasDoCheckout(
  * apagamento, a cópia do perfil de faturação (nome, NIF, morada fiscal) só
  * sai a quem tem customers:billing (`comCopiaFiscal`; docs/23 §15.13, EN).
  */
-const paraEncomenda = (
+export const paraEncomenda = (
   r: Awaited<ReturnType<typeof lerEncomenda>>,
   comCopiaFiscal: boolean,
 ) => ({
