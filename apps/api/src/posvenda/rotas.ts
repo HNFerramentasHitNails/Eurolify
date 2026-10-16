@@ -14,8 +14,10 @@ import {
 import { escrever, idCom, iso, semPrefixo, umDe } from "../catalogo/rotas.js";
 import { encomendaDaSessao, naSessao } from "../checkout/repositorio.js";
 import { emCheckout, Token } from "../checkout/rotas.js";
+import { CamposDoRasto, respostasDoRasto } from "../base/rasto-resposta.js";
 import { chaveDo } from "../identidade/autenticacao.js";
 import { ErroPosVenda, ESTADO_DO_CODIGO, traduzir } from "./erros.js";
+import { rastoDaPosVenda, type AlvoDoRasto } from "./rasto.js";
 import {
   anularReembolso,
   cancelarDevolucao,
@@ -1229,4 +1231,124 @@ export function rotasDaPosVenda(
         ),
       ),
   );
+
+  // ------------------------------------------------ O rasto (docs/30 §16)
+
+  // Uma rota por coisa que tem rasto, com o mesmo corpo (docs/28 §4): os
+  // pedidos, as devoluções (com a etiqueta e as decisões de higiene) e os
+  // problemas pedem `returns:read`; os reembolsos, `refunds:read`.
+  const rotasDoRasto: {
+    caminho: string;
+    alvo: AlvoDoRasto;
+    ambito: "returns:read" | "refunds:read";
+    id: typeof IdPedido;
+    descricao: string;
+  }[] = [
+    {
+      caminho: "/withdrawals/:id/timeline",
+      alvo: "withdrawal",
+      ambito: "returns:read",
+      id: IdPedido,
+      descricao: "um pedido de livre resolução",
+    },
+    {
+      caminho: "/returns/:id/timeline",
+      alvo: "return",
+      ambito: "returns:read",
+      id: IdDevolucao,
+      descricao: "uma devolução, com a etiqueta e as decisões de higiene",
+    },
+    {
+      caminho: "/problems/:id/timeline",
+      alvo: "problem",
+      ambito: "returns:read",
+      id: IdProblema,
+      descricao: "um problema",
+    },
+    {
+      caminho: "/refunds/:id/timeline",
+      alvo: "refund",
+      ambito: "refunds:read",
+      id: IdReembolso,
+      descricao: "um reembolso",
+    },
+  ];
+  for (const r of rotasDoRasto) {
+    rotas.get(
+      r.caminho,
+      {
+        config: { ambito: r.ambito },
+        schema: {
+          description: `As transições de ${r.descricao} (de, para, quem, quando, o motivo), com de onde vieram, a IA, quem autorizou e o aviso «sem autorização de uma pessoa» (docs/28 §1 e §3.6; docs/30 §16). Só se acrescenta; as de antes da migração 0110 não existem.`,
+          params: Type.Object({ id: r.id }),
+          response: {
+            200: Type.Object({
+              dados: Type.Array(
+                Type.Object({
+                  entidade: Type.Union(
+                    [
+                      Type.Literal("withdrawal"),
+                      Type.Literal("return"),
+                      Type.Literal("return_label"),
+                      Type.Literal("problem"),
+                      Type.Literal("refund"),
+                    ],
+                    {
+                      description:
+                        "De que registo é a transição; a etiqueta de devolução aparece na devolução",
+                    },
+                  ),
+                  campo: Type.Union(
+                    [Type.Literal("estado"), Type.Literal("decisao_higiene")],
+                    {
+                      description:
+                        "O que mudou: o estado, ou a decisão de higiene de uma linha (docs/30 §15)",
+                    },
+                  ),
+                  linha: Type.Union([Type.String(), Type.Null()], {
+                    description:
+                      "Só na decisão de higiene: a linha da encomenda (oli_…)",
+                  }),
+                  de: Type.Union([Type.String(), Type.Null()]),
+                  para: Type.String(),
+                  quem: Type.String(),
+                  em: Type.String({ format: "date-time" }),
+                  ...CamposDoRasto,
+                }),
+              ),
+            }),
+            ...RESPOSTA_DE_ERRO,
+          },
+        },
+      },
+      async (pedido, resposta) =>
+        emPosVenda(resposta, async () => ({
+          dados: (
+            await rastoDaPosVenda(
+              base,
+              chaveDo(pedido).comercianteId,
+              r.alvo,
+              semPrefixo(pedido.params.id),
+            )
+          ).map((t) => ({
+            entidade: ENTIDADE_NA_API[t.entidade],
+            campo: t.campo,
+            linha: comPrefixo("oli", t.linha_encomenda_id),
+            de: t.de,
+            para: t.para,
+            quem: t.quem,
+            em: t.em.toISOString(),
+            ...respostasDoRasto(t),
+          })),
+        })),
+    );
+  }
 }
+
+const ENTIDADE_NA_API = {
+  pedido_livre_resolucao: "withdrawal",
+  devolucao: "return",
+  etiqueta_devolucao: "return_label",
+  problema: "problem",
+  reembolso: "refund",
+} as const;

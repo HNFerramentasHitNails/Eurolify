@@ -1993,6 +1993,20 @@ export async function exportarCliente(
           "em",
           "canal",
         ]),
+        // O mesmo para a pós-venda (0110; docs/30 §16): os passos do pedido,
+        // da devolução, da etiqueta, do problema e do reembolso.
+        estados_da_posvenda: await daEncomenda("transicao_posvenda", [
+          "id",
+          "encomenda_id",
+          "entidade",
+          "entidade_id",
+          "campo",
+          "linha_encomenda_id",
+          "de",
+          "para",
+          "em",
+          "canal",
+        ]),
         estados_dos_pagamentos:
           idsPagamentos.length === 0
             ? []

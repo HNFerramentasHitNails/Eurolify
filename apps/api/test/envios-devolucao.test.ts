@@ -157,6 +157,18 @@ describe.skipIf(URL_BASE === undefined)(
       expect(f.statusCode).toBe(200);
       expect(f.headers["content-type"]).toBe("application/pdf");
       expect(await codigo(pedir(rma))).toEqual([409, "shipping.label_exists"]);
+      // A etiqueta também fica no rasto da devolução (docs/30 §16).
+      const rasto = (await ok(s.adm("GET", `/returns/${rma}/timeline`)))[
+        "dados"
+      ] as Record<string, unknown>[];
+      expect(
+        rasto
+          .filter((t) => t["entidade"] === "return_label")
+          .map((t) => [t["de"], t["para"]]),
+      ).toEqual([
+        [null, "a_pedir"],
+        ["a_pedir", "emitida"],
+      ]);
     });
 
     it("serviços que não servem a volta: de pontos, de outro país, ou que pedem o telefone", async () => {

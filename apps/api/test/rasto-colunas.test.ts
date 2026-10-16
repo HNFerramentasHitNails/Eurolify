@@ -299,6 +299,8 @@ describe.skipIf(URL_BASE === undefined)(
         "transicao_encomenda",
         "transicao_estado",
         "transicao_pagamento",
+        // O rasto da pós-venda (0110; docs/30 §16).
+        "transicao_posvenda",
       ]);
     });
   },
