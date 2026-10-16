@@ -2189,20 +2189,39 @@ export async function lerEncomenda(
   });
 }
 
+/** Só confirma que a encomenda é deste comerciante (404 se não for). */
+export async function encomendaExiste(
+  db: Kysely<BaseDados>,
+  comercianteId: string,
+  id: string,
+) {
+  await noCheckout(db, comercianteId, async (trx) => {
+    const e = await trx
+      .selectFrom("encomenda")
+      .select("id")
+      .where("id", "=", id)
+      .executeTakeFirst();
+    if (e === undefined) throw naoExiste("a encomenda");
+  });
+}
+
 export async function listarEncomendas(
   db: Kysely<BaseDados>,
   comercianteId: string,
   limite: number,
+  estado?: string,
 ) {
-  return noCheckout(db, comercianteId, (trx) =>
-    trx
+  return noCheckout(db, comercianteId, (trx) => {
+    let q = trx
       .selectFrom("encomenda")
-      .select(["id", "estado", "total", "moeda", "cliente_id", "criada_em"])
+      .select(["id", "estado", "total", "moeda", "cliente_id", "criada_em"]);
+    if (estado !== undefined) q = q.where("estado", "=", estado as never);
+    return q
       .orderBy("criada_em", "desc")
       .orderBy("id", "desc")
       .limit(limite)
-      .execute(),
-  );
+      .execute();
+  });
 }
 
 export async function listarCheckouts(

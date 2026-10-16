@@ -1254,6 +1254,19 @@ textarea {
 .estado-encomenda[data-estado="expedida"] {
   color: var(--estado-encomenda-em-curso);
 }
+.estado-encomenda[data-estado="a_aguardar_pagamento"] {
+  color: var(--estado-devolucao-espera);
+}
+.estado-encomenda[data-estado="entregue"],
+.estado-encomenda[data-estado="concluida"] {
+  color: var(--estado-expedicao-saiu);
+}
+.estado-encomenda[data-estado="cancelada_sem_pagamento"],
+.estado-encomenda[data-estado="cancelada"],
+.estado-encomenda[data-estado="devolvida_parcial"],
+.estado-encomenda[data-estado="devolvida"] {
+  color: var(--estado-expedicao-problema);
+}
 .estado-expedicao[data-estado="criada"] {
   color: var(--estado-expedicao-criada);
 }
@@ -1315,4 +1328,23 @@ textarea {
 .eventos {
   padding-left: var(--espaco-4);
   margin: 0 0 var(--espaco-3);
+}
+
+/* Rótulo e valor na mesma linha (docs/22 §35.3): os totais e a faturação de
+   uma encomenda. Nunca em linhas separadas, também a 375 px. */
+.pares {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--espaco-1) var(--espaco-4);
+  margin: 0 0 var(--espaco-3);
+}
+.pares dt {
+  color: var(--texto-secundario);
+}
+.pares dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.referencia {
+  overflow-wrap: anywhere;
 }
