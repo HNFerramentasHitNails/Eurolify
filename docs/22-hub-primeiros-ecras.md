@@ -3063,3 +3063,164 @@ se a última foi há mais de 10 minutos)?**
     `payments.immutable` lido sempre como «já resolvida») e P3-9 (uma chave
     com `payments:resolve` resolve pela rota antiga; é anterior).
 
+
+## 35. Encomendas: lista e ficha (issue #475, Peça 14)
+
+**Estado:** desenho escrito sob a autorização geral do Diogo de 16/10/2026
+(avançar sem consultar a cada passo); **o aspecto fica à espera do OK dele no
+pedido**.
+
+É a Peça 14 da Fase 1 (`docs/10` §6.1: «sem ecrãs de encomendas nem de
+definições»). A API das encomendas já existe (`docs/27`; `GET /orders`,
+`GET /orders/{id}`, `GET /orders/{id}/timeline`, `orders:read`) e o Hub tem
+só a vista do armazém («Expedir», §33), que não mostra preços, nem contacto,
+nem faturação. Falta ao dono, ao gestor e ao apoio ver uma encomenda inteira.
+
+Skills seguidas: `eurolify-design`, `eurolify-hub-modular`,
+`eurolify-hub-glass-responsive`, `eurolify-hub-quality-gate`,
+`order-fulfilment`, `eu-gdpr-privacy`.
+
+Ex.: o apoio da «Loja Exemplo» recebe uma pergunta sobre a encomenda de
+16/10/2026 às 10:12, terminada em …7c1d. Abre «Encomendas», filtra por «Paga»,
+carrega nela e vê dois artigos, o total de 29,59 € (base, IVA e portes), a
+morada de entrega, o método de pagamento (MB WAY), o estado do documento
+fiscal e o rasto: «à espera de pagamento → paga, o prestador de pagamentos,
+10:13».
+
+### 35.1 O que se mostra e a quem
+
+| Entra | Quem |
+|---|---|
+| **A lista** (`GET /hub/orders`): a data, o fim do identificador, o estado e o total; as 100 mais recentes; filtro por estado. **Sem nome, e-mail, telefone, morada nem NIF** | `orders:read`: o dono, o gestor e o apoio |
+| **A ficha** (`GET /hub/orders/{id}`): estado, linhas (artigo, SKU, quantidade, preço unitário, IVA, total), totais (base, IVA, portes, total), método de pagamento, entrega (método, data-limite que o cliente viu, morada ou ponto de recolha), contacto, faturação (quem emite, estado do documento, cópia do perfil) | `orders:read` |
+| **O rasto** (`GET /hub/orders/{id}/timeline`): cada mudança de estado, quando e por quem (nome da pessoa, «chave de API», «cliente», «prestador de pagamentos»…), com o motivo | `orders:read` |
+| Uma ligação para a vista do armazém (§33) | quem tem `fulfilment:read` |
+
+**Fica de fora:** qualquer acção. Cancelar, expedir, reembolsar, corrigir a
+morada ou emitir documentos **não são deste ecrã**: expedir faz-se em
+«Expedir» (§33), as devoluções em «Devoluções» (`docs/36` §22.10), as
+diferenças de pagamento em §34, e o resto continua pela API. **Nenhuma
+acção nova de negócio.**
+
+**O armazém não vê o módulo** (`orders:read` não está no papel, `docs/21` §5;
+a encomenda traz o contacto e a faturação): tem «Expedir». O módulo, como os
+outros, esconde-se por `ambitoNecessario`, mas **esconder não é autorizar**:
+a API recusa com 403 (`member.role_escalation`) a quem não tem `orders:read`.
+
+### 35.2 Como o Hub lê (uma regra, um sítio)
+
+- **Três rotas de sessão, só de leitura**, em `apps/api/src/checkout/
+  rotas-hub-encomendas.ts`, a chamar **as mesmas funções** das rotas da
+  chave (`listarEncomendas`, `lerEncomenda`, `paraEncomenda`,
+  `transicoesDaEncomenda`), com o mesmo âmbito. A única novidade da API é o
+  filtro `?estado=` na lista (um `where` na mesma consulta) e o `limite` na
+  resposta, para o ecrã dizer «as 100 mais recentes» em vez de cortar em
+  silêncio.
+- **O estado vem da API.** O Hub só escolhe o texto de cada um dos onze
+  (`a_aguardar_pagamento`, `paga`, `em_preparacao`, `expedida_parcial`,
+  `expedida`, `entregue`, `concluida`, `cancelada_sem_pagamento`,
+  `cancelada`, `devolvida_parcial`, `devolvida`); um estado que o Hub não
+  conhece sai como a API o deu.
+- **Os totais e o IVA vêm da API.** O Hub não soma, não arredonda e não
+  escolhe taxas: mostra `totais`, `base`/`iva`/`total` de cada linha e,
+  da decisão de IVA gravada na linha, a taxa (`tributada`, em centésimas de
+  ponto), «Isenta» ou «Sem decisão de IVA» (`bloqueada`). Uma decisão que
+  não percebe diz «IVA não legível» e não inventa.
+- **Os montantes são cêntimos** (como em §25.3); formata-se pela moeda da
+  encomenda. Moedas com outras casas decimais: **não verifiquei**.
+- **A cópia do perfil de faturação** segue a regra da API: numa ficha
+  pseudonimizada por um pedido de apagamento, só sai com `customers:billing`
+  (o dono; `docs/23` §15.13). O Hub não decide: se vier nula e a ficha estiver
+  guardada por obrigação fiscal, diz «Reservado ao dono».
+- **Sem cache:** as três respostas levam `Cache-Control: private, no-store`
+  (têm dados pessoais), também num 403.
+- **O estado do documento fiscal** mostra o registo do Eurolify e diz-o no
+  próprio ecrã: *«a prova do que saiu é o documento emitido, não este
+  registo»* (regra fiscal 4). O Hub não decide se há ou não documento.
+
+### 35.3 O ecrã
+
+- **Entrada:** módulo «Encomendas» (`/encomendas?comerciante=…`), entre «A
+  decidir» e «Expedir». Ícone: um saco de compras, desenhado no código.
+- **Lista:** título «Encomendas — {loja}»; o filtro «Estado» (um `select`
+  com rótulo); a frase da contagem (`role="status"`: nenhuma, uma, várias, ou
+  «as 100 mais recentes»); a tabela com *Encomenda* (ligação «Encomenda de
+  {data}» e o fim do identificador), *Estado* e *Total*.
+- **Ficha** (`/encomendas/ord_…?comerciante=…`): título «Encomenda de
+  {data}»; o estado e o fim do identificador; quatro cartões — *Artigos*
+  (tabela), *Totais*, *Entrega* (e *Contacto do cliente*) e *Faturação* —
+  e o *Rasto da encomenda* (lista ordenada por data).
+- **Estados e cores:** o nome do estado vai sempre escrito; a cor é um reforço
+  (os mesmos tokens de §33: espera, em curso, saiu, problema), nunca o único
+  sinal.
+- **Vazio, a carregar, erro:** «Ainda não há encomendas.» / «Não há
+  encomendas neste estado.»; «A carregar…»; uma encomenda que não existe ou é
+  de outra loja diz «Esta encomenda não existe, ou não é desta loja» (404;
+  nunca se distingue «não existe» de «é de outro comerciante»). Se o rasto
+  falhar, a ficha fica e o cartão do rasto di-lo.
+- **Mobile (375 px):** a tabela vira cartões com o rótulo de cada célula
+  (`data-rotulo`, o padrão `.tabela-larga`, que vale até 60 em ≈ 960 px); os
+  cartões da ficha empilham-se; as moradas e os identificadores partem em
+  qualquer sítio (`overflow-wrap`). **Tablet (768 px):** o mesmo padrão em
+  cartões, com mais largura. **Desktop (1280 px):** a coluna de leitura do Hub,
+  tabelas em tabela.
+  Vidro funcional como nos outros ecrãs, com o alternativo opaco.
+- **Acessibilidade:** um só `h1`; secções com `aria-labelledby`; cabeçalhos de
+  tabela com `scope`; a ligação de cada encomenda leva o fim do identificador
+  no nome (duas encomendas no mesmo minuto não se confundem); datas em
+  `<time>`; o contacto em ligações `mailto:` e `tel:`; o foco do filtro não se
+  perde ao mudar de estado; sem informação só pela cor; texto a 200 %.
+
+### 35.4 Dados pessoais (`eu-gdpr-privacy`)
+
+- **A lista não tem dados pessoais**, nem o título da janela. O cliente é
+  um identificador interno que nem se mostra.
+- **A ficha tem o contacto, a morada e o NIF**, que a rota da chave já dá a
+  quem tem `orders:read`; o Hub não alarga o acesso: só mostra o que a API dá,
+  com `no-store`. Nada disto vai para o endereço, para o armazenamento do
+  navegador nem para a pesquisa de módulos.
+- **O rasto** mostra o nome de quem fez só se for membro da equipa; uma chave
+  mostra «Chave de API» e **nunca o identificador**; o cliente aparece como
+  «Cliente».
+- O texto do **motivo** de uma transição mostra-se como a API o dá: é texto
+  do sistema ou de quem decidiu; **não verifiquei** se algum motivo futuro
+  pode trazer dados de um cliente (ver 35.6).
+
+### 35.5 Por onde é que isto ainda pode sair errado
+
+| Risco | O que o desenho faz |
+|---|---|
+| O Hub mostrar um valor refeito e diferente do que o servidor decidiu | Só se mostram `totais` e os `base`/`iva`/`total` gravados; testes do Hub conferem que a decisão de IVA não se percebe ⇒ não se inventa |
+| O armazém ver o contacto e a faturação por esta rota | A rota recusa 403 sem `orders:read` (teste na API que falha sem a protecção); o módulo esconde-se, mas a API é que decide |
+| Uma encomenda de outro comerciante | A leitura passa por `comComerciante` (RLS); teste: a lista de B não tem a de A, e a ficha e o rasto de A dão 404 a B; uma sessão de B com o cabeçalho de A não passa |
+| Uma lista cortada em silêncio | A API manda o `limite`; ao chegar a ele o ecrã diz «as {n} mais recentes» |
+| A lista antiga com outro filtro | Mudar o filtro limpa a lista e ignora respostas atrasadas (`ultimo`) |
+| Uma resposta guardada em cache com dados pessoais | `private, no-store` também no 403 |
+| Um 404 que revele que a encomenda existe noutra loja | A mesma mensagem para as duas |
+| «Documento emitido» lido como prova fiscal | O ecrã diz que é o registo do Eurolify; a prova é o documento (regra fiscal 4) |
+| Um estado novo na API sem texto no Hub | Sai o código; o teste `encomendas.test.ts` obriga os onze de hoje a ter texto nas três línguas. **Fica:** nada avisa quando a API ganhar um décimo segundo |
+| Uma acção por engano | Não há botões de escrita; teste: POST/PUT/PATCH/DELETE na encomenda dão erro |
+
+### 35.6 O que não verifiquei
+
+- **O aspecto** (cores, densidade, ordem dos cartões): à espera do OK do
+  Diogo; as capturas dizem se cabe, não se agrada.
+- **Moedas** que não o euro: o formato usa o `Intl`; não se conferiu uma a
+  uma (como em §25.3).
+- **Os motivos** das transições com texto livre: lido que o sistema grava
+  texto próprio; não procurei todos os sítios que gravam motivo.
+- **A percepção de «estado do documento»** por um comerciante real: sem
+  pesquisa com comerciantes.
+- **Leitor de ecrã real** (NVDA/VoiceOver): só por leitura do marcado e pelos
+  papéis; **teclado** só pelas capturas e pelo marcado.
+- **Encomendas com muitas linhas** (mais de dezenas): a ficha mostra todas.
+- **Pagamento e reembolso na ficha:** não se mostram (o pagamento está em §34
+  e as devoluções em «Devoluções»); ficam para depois, se o Diogo quiser.
+
+### 35.7 Pergunta para o Diogo ou o Bruno
+
+**Q1.** O apoio vê a ficha com o NIF e a morada de faturação (como a rota da
+chave já permite). Querem que o NIF só saia ao dono (`customers:billing`) mesmo
+numa ficha normal, para cumprir à risca a minimização de dados? Muda uma linha
+na API; o ecrã já aguenta o campo em falta. **Recomendado: sim**; fica a decisão de quem tem o papel de apoio a ver o NIF
+ao atender.
