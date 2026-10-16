@@ -14,7 +14,11 @@ export interface VoltaDaLimpeza {
   /** Carrinhos expirados apagados (docs/25 §14; migração 0109). */
   carrinhos: number;
   /** Comerciantes cuja volta falhou, com o nome do erro (sem dados). */
-  falhas: { comerciante: string; erro: string }[];
+  falhas: {
+    tarefa: "sessoes" | "carrinhos";
+    comerciante: string;
+    erro: string;
+  }[];
 }
 
 /** Uma volta: comerciante a comerciante, até `porVolta` sessões cada. */
@@ -48,6 +52,7 @@ export async function correrLimpezaDasSessoes(
       });
     } catch (erro) {
       volta.falhas.push({
+        tarefa: "sessoes",
         comerciante: c,
         erro: erro instanceof Error ? erro.name : "erro",
       });
@@ -89,6 +94,7 @@ async function correrLimpezaDosCarrinhos(
       });
     } catch (erro) {
       volta.falhas.push({
+        tarefa: "carrinhos",
         comerciante: c,
         erro: erro instanceof Error ? erro.name : "erro",
       });
@@ -122,14 +128,16 @@ export function agendarLimpezaDasSessoes(
         for (const f of v.falhas) {
           registo.error(
             f,
-            "checkout: a limpeza das sessões ou dos carrinhos falhou",
+            f.tarefa === "sessoes"
+              ? "checkout: a limpeza das sessões falhou"
+              : "checkout: a limpeza dos carrinhos falhou",
           );
         }
       })
       .catch((erro: unknown) => {
         registo.error(
           { erro: erro instanceof Error ? erro.name : "erro" },
-          "checkout: a volta da limpeza das sessões falhou",
+          "checkout: a volta da limpeza das sessões e dos carrinhos falhou",
         );
       })
       .finally(() => {

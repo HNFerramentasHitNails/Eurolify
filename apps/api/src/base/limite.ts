@@ -30,17 +30,23 @@ export interface LimitesHub {
 export const LIMITE_LOJA: RegraLimite = { pedidos: 300, janelaMs: 60_000 };
 
 /**
- * Os limites por chave pública da loja (docs/25 §14; P2-9 do #276). Valores
- * nossos, a medir (docs/18 §6): todos os pedidos da API da Loja e, à parte,
- * os carrinhos novos.
+ * Os carrinhos novos (`POST /store/carts`) por IP **e por loja** (docs/25
+ * §14). Nunca partilhado: a chave pública está no browser e um contador por
+ * chave deixava um só visitante fechar a loja a todos os outros. Valor nosso,
+ * a medir (docs/18 §6).
  */
-export const LIMITE_CHAVE_LOJA: RegraLimite = {
-  pedidos: 1200,
+export const LIMITE_CARRINHOS_NOVOS: RegraLimite = {
+  pedidos: 20,
   janelaMs: 60_000,
 };
-export const LIMITE_CARRINHOS_NOVOS: RegraLimite = {
-  pedidos: 60,
-  janelaMs: 60_000,
+
+/**
+ * Com a loja no tecto de carrinhos com linhas, só se recusa o IP que já criou
+ * mais de 15 carrinhos nessa loja na última hora (docs/25 §14). Valor nosso.
+ */
+export const LIMITE_CARRINHOS_NO_TECTO: RegraLimite = {
+  pedidos: 15,
+  janelaMs: 60 * 60_000,
 };
 
 export const LIMITES_HUB: LimitesHub = {

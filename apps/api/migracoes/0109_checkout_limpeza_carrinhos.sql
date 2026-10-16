@@ -54,11 +54,18 @@ BEGIN
 END
 $$;
 
--- A limpeza percorre os abertos por prazo; o tecto conta os abertos da loja.
+-- A limpeza percorre os abertos por prazo; o tecto conta os abertos e não
+-- expirados da loja.
 CREATE INDEX carrinho_abertos_por_prazo ON carrinho (comerciante_id, expira_em)
   WHERE estado = 'aberto';
-CREATE INDEX carrinho_abertos_da_loja ON carrinho (comerciante_id, loja_id)
+CREATE INDEX carrinho_abertos_da_loja ON carrinho (comerciante_id, loja_id, expira_em)
   WHERE estado = 'aberto';
+
+-- Um carrinho sem linhas vive 24 h (docs/25 §14); a API passa-o a 30 dias ao
+-- pôr a primeira linha. Só vale para os carrinhos novos: os que já existem
+-- ficam como estão (o RLS forçado impede o dono de os alterar sem contexto, e
+-- ainda não há dados reais; ADR-0019) e expiram aos 30 dias.
+ALTER TABLE carrinho ALTER COLUMN expira_em SET DEFAULT now() + interval '24 hours';
 
 REVOKE EXECUTE ON FUNCTION checkout_comerciantes_com_carrinhos_a_limpar(),
   checkout_carrinhos_limpar(integer) FROM PUBLIC;

@@ -7,8 +7,9 @@ import { sql } from "kysely";
 import { erroBase, ErroApi, RESPOSTA_DE_ERRO } from "../base/erros.js";
 import { comIdempotencia } from "../base/idempotencia.js";
 import {
+  chaveDoIp,
+  LIMITE_CARRINHOS_NO_TECTO,
   LIMITE_CARRINHOS_NOVOS,
-  LIMITE_CHAVE_LOJA,
   LimitePorIp,
 } from "../base/limite.js";
 import { TIPOS_TEXTO_LEGAL, type BaseDados } from "../base/esquema.js";
@@ -71,6 +72,10 @@ function paraApi(erro: unknown, resposta: FastifyReply): unknown {
   const e = traduzir(erro);
   if (!(e instanceof ErroCheckout)) return e;
   if (e.codigo === "checkout.retry") void resposta.header("Retry-After", "1");
+  if (e.codigo === "cart.limit_reached") {
+    const espera = (e.pormenor as { espera_s?: number } | undefined)?.espera_s;
+    void resposta.header("Retry-After", String(espera ?? 60));
+  }
   const mensagens =
     e.codigo.endsWith(".not_found") || e.codigo === "cart.secret_invalid"
       ? { pt: "Não encontrado", en: "Not found" }
@@ -448,16 +453,19 @@ export function rotasDoCheckout(
   const loja = { ambito: "storefront" as const, loja: true };
   const publico = { ambito: "publico" as const, loja: true };
 
-  // O limite por chave pública da loja (docs/25 §14; P2-9 do #276), a somar
-  // ao limite por IP do `app.ts`. Em memória, por processo; a chave conta-se
-  // pelo identificador, nunca pelo segredo.
+  // Os carrinhos novos por IP **e por loja** (docs/25 §14; P2-9 do #276), a
+  // somar ao limite por IP do `app.ts`. Nunca um contador partilhado pela
+  // chave: a chave está no browser e um só visitante fechava a loja a todos.
+  // Em memória, por processo. O IP só serve de chave do contador e nunca se
+  // regista.
+  const carrinhosNovos = new LimitePorIp(LIMITE_CARRINHOS_NOVOS);
+  const carrinhosNoTecto = new LimitePorIp(LIMITE_CARRINHOS_NO_TECTO);
+  const alarmeDoTecto = new Map<string, number>();
   {
-    const porChave = new LimitePorIp(LIMITE_CHAVE_LOJA);
-    const carrinhosNovos = new LimitePorIp(LIMITE_CARRINHOS_NOVOS);
     const arrumar = setInterval(() => {
-      porChave.limpar();
       carrinhosNovos.limpar();
-    }, LIMITE_CHAVE_LOJA.janelaMs);
+      carrinhosNoTecto.limpar();
+    }, LIMITE_CARRINHOS_NOVOS.janelaMs);
     arrumar.unref();
     instancia.addHook("onClose", (_instancia, feito) => {
       clearInterval(arrumar);
@@ -465,22 +473,37 @@ export function rotasDoCheckout(
     });
     instancia.addHook("onRequest", async (pedido, resposta) => {
       if (pedido.routeOptions.config.ambito !== "storefront") return;
-      if (pedido.chave === null) return;
-      const id = `key_${pedido.chave.chaveId}`;
-      let espera = porChave.contarChave(id);
-      if (
-        espera === 0 &&
-        pedido.method === "POST" &&
-        pedido.routeOptions.url === "/store/carts"
-      ) {
-        espera = carrinhosNovos.contarChave(id);
-      }
+      if (pedido.method !== "POST") return;
+      if (pedido.routeOptions.url !== "/store/carts") return;
+      const lojaDaChave = pedido.chave?.lojaId;
+      if (lojaDaChave === null || lojaDaChave === undefined) return;
+      const espera = carrinhosNovos.contarChave(
+        `${lojaDaChave}|${chaveDoIp(pedido.ip)}`,
+      );
       if (espera > 0) {
         void resposta.header("Retry-After", String(espera));
         throw erroBase("rate_limit.exceeded");
       }
     });
   }
+
+  /**
+   * A loja chegou ao tecto de carrinhos com linhas: regista o alarme (uma vez
+   * por hora e por loja; a verificação da VPS lê os registos da API) e manda
+   * esperar só o IP que já criou muitos carrinhos nesta loja.
+   */
+  const noTecto = (lojaId: string, ip: string) => (carrinhos: number) => {
+    const agora = Date.now();
+    const ultimo = alarmeDoTecto.get(lojaId);
+    if (ultimo === undefined || agora - ultimo >= 60 * 60_000) {
+      alarmeDoTecto.set(lojaId, agora);
+      instancia.log.warn(
+        { evento: "checkout.cart_ceiling", loja: `sto_${lojaId}`, carrinhos },
+        "checkout: a loja chegou ao tecto de carrinhos com linhas",
+      );
+    }
+    return carrinhosNoTecto.contarChave(`${lojaId}|${chaveDoIp(ip)}`);
+  };
 
   // ------------------------------------------------- API da Loja: carrinho
 
@@ -513,6 +536,9 @@ export function rotasDoCheckout(
               canal: semPrefixo(pedido.body.canal),
               mercado: semPrefixo(pedido.body.mercado),
               lingua: pedido.body.lingua,
+            },
+            {
+              aoPassarOTecto: noTecto(lojaDa(pedido), pedido.ip),
             },
           );
           return {
