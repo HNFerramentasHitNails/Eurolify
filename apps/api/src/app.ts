@@ -51,6 +51,8 @@ import { rotasDaPosVenda } from "./posvenda/rotas.js";
 import { rotasDasTarefas, rotasDasTarefasNoHub } from "./tarefas/rotas.js";
 import { rotasDasVendas, rotasDasVendasNoHub } from "./vendas/rotas.js";
 import { rotasDasNotificacoes } from "./notificacoes/rotas.js";
+import { rotasDosWebhooks } from "./webhooks/rotas.js";
+import type { ConfigWebhooks } from "./webhooks/repositorio.js";
 import type { ConsultaVies } from "./clientes/vies.js";
 import { rotasDosPrecos } from "./precos/rotas.js";
 import { rotasDasExportacoes } from "./exportacao/rotas.js";
@@ -134,6 +136,11 @@ export function criarApp(
    * sem eles, ligar uma conta dá 503 `shipping.not_configured`.
    */
   envios?: ConfigEnvios,
+  /**
+   * A chave que cifra os segredos dos webhooks de saída (docs/38); sem ela,
+   * criar uma subscrição dá 503 `webhooks.not_configured`.
+   */
+  webhooks?: ConfigWebhooks,
 ) {
   // Um registo incoerente não arranca: nada falha em silêncio.
   assegurarRegistoValido(registo);
@@ -410,6 +417,7 @@ export function criarApp(
       rotasDasTarefas(rotas, base);
       rotasDasVendas(rotas, base);
       rotasDasNotificacoes(rotas, base);
+      rotasDosWebhooks(rotas, base, webhooks);
       rotasDasImportacoes(rotas, base);
       if (armazenamento !== undefined) {
         // Num plugin próprio: o leitor dos bytes das imagens fica só lá.
