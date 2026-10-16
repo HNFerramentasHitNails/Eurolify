@@ -36,6 +36,7 @@ transacção que os gatilhos lêem.
 | Contas de pessoas | `evento_conta` (0018) | o acto | sim | — | — | — | sim |
 | Pagamentos | `transicao_pagamento` (0044) | o estado | `quem` | `origem` **obrigatória** | — | — | sim |
 | Stock e encomendas | `transicao_encomenda` (0047) | o estado | `quem` | sem `origem` (conferido a 10/10/2026, `base/esquema.ts`); desde a 0053, `canal` e `pedido` | — | — | sim |
+| Pós-venda | `transicao_posvenda` (0110; `docs/30` §16) | o estado do pedido, da devolução, da etiqueta, do problema e do reembolso, e a decisão de higiene de cada linha | `quem` | `canal`, `pedido` | `ia` | `autorizado_por` | `em`, `motivo` (as cinco colunas pelo `rasto_completar()`, desde o início; o motivo limpa-se no apagamento do titular) |
 | Eventos para fora | `evento_saida` (0021) | o evento | só interno (CH: não sai nos webhooks) | — | — | — | sim |
 | Documentos fiscais | `documento_rasto` (0050) | o passo e o estado | `quem` | — | — | — | `em`, `motivo` |
 | Documentos fiscais | `recusa_conta_emissor` (0097; `docs/29` §19.7) | a empresa recusada, o passo e a ligação de quem pediu | `quem` | `canal`, `pedido` | `ia` | `autorizado_por` | `em` (as quatro colunas pelo `rasto_completar()`, desde o início) |

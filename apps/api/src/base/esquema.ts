@@ -1719,6 +1719,36 @@ export interface TabelaTransicaoEncomenda extends ColunasDoRasto {
   em: ColumnType<Date, never, never>;
 }
 
+/**
+ * O rasto da pós-venda (migração 0110; docs/30 §16): uma linha por mudança
+ * de estado do pedido de livre resolução, da devolução, da etiqueta, do
+ * problema e do reembolso, e por decisão de higiene de uma linha. Só
+ * acrescenta, e escrevem-no os gatilhos, nunca o código.
+ */
+export const ENTIDADES_DA_POSVENDA = [
+  "pedido_livre_resolucao",
+  "devolucao",
+  "etiqueta_devolucao",
+  "problema",
+  "reembolso",
+] as const;
+export type EntidadeDaPosVenda = (typeof ENTIDADES_DA_POSVENDA)[number];
+
+export interface TabelaTransicaoPosVenda extends ColunasDoRasto {
+  id: Generated<string>;
+  comerciante_id: ColumnType<string, never, never>;
+  encomenda_id: ColumnType<string, never, never>;
+  entidade: ColumnType<EntidadeDaPosVenda, never, never>;
+  entidade_id: ColumnType<string, never, never>;
+  campo: ColumnType<"estado" | "decisao_higiene", never, never>;
+  linha_encomenda_id: ColumnType<string | null, never, never>;
+  de: ColumnType<string | null, never, never>;
+  para: ColumnType<string, never, never>;
+  quem: ColumnType<string, never, never>;
+  motivo: ColumnType<string | null, never, never>;
+  em: ColumnType<Date, never, never>;
+}
+
 // Notificações (migrações 0067 e 0071; docs/34; o aviso do titular, 0096).
 export const TIPOS_NOTIFICACAO = [
   "refund.deadline_approaching",
@@ -1837,6 +1867,7 @@ export interface BaseDados {
   aviso_transportadora: TabelaAvisoTransportadora;
   linha_expedicao: TabelaLinhaExpedicao;
   transicao_encomenda: TabelaTransicaoEncomenda;
+  transicao_posvenda: TabelaTransicaoPosVenda;
   linha_encomenda_folha: TabelaLinhaEncomendaFolha;
   ligacao_faturacao: TabelaLigacaoFaturacao;
   autorizacao_faturacao: TabelaAutorizacaoFaturacao;

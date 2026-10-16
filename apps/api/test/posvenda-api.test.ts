@@ -1246,7 +1246,10 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     const estados = [
       ...(f["estados_das_encomendas"] as Json[]),
       ...(f["estados_dos_pagamentos"] as Json[]),
+      ...(f["estados_da_posvenda"] as Json[]),
     ];
+    // Também os passos da pós-venda (0110), sem o motivo nem quem mudou.
+    expect((f["estados_da_posvenda"] as Json[]).length).toBeGreaterThan(0);
     expect((f["estados_das_encomendas"] as Json[]).length).toBeGreaterThan(0);
     expect((f["estados_dos_pagamentos"] as Json[]).length).toBeGreaterThan(0);
     for (const t of estados) {
@@ -4800,6 +4803,17 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
     await expect(
       naBaseComReembolso("reembolsar", [String(l1?.["id"])], "decidida"),
     ).rejects.toThrow(/desfazer/);
+    // Sem quem, a decisão de higiene não se grava (0110, docs/30 §16.1).
+    await expect(
+      naBase(s, async (trx) => {
+        await sql`select set_config('eurolify.quem', '', true)`.execute(trx);
+        await sql`update linha_devolucao set decisao_higiene = 'excepcao_higiene'
+          where devolucao_id = ${rma.slice(4)}::uuid
+            and linha_encomenda_id = ${String(l1?.["id"]).slice(4)}::uuid`.execute(
+          trx,
+        );
+      }),
+    ).rejects.toThrow(/returns\.change_without_who/);
     // A excepção na linha aberta: reembolsa-se só a do selo intacto.
     const r = await ok(
       s.adm("POST", `/returns/${rma}/decide`, {
@@ -4817,6 +4831,20 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       decisao_higiene: "excepcao_higiene",
       // Decidida, já não está por decidir (revisão do #363, P2-1).
       higiene_a_decidir: false,
+    });
+    // A decisão de higiene fica no rasto, por linha, com quem a deu (a 0065
+    // só guardava o valor final; docs/30 §16).
+    const rastoHigiene = (
+      (await ok(s.adm("GET", `/returns/${rma}/timeline`)))["dados"] as Json[]
+    ).filter((t) => t["campo"] === "decisao_higiene");
+    expect(rastoHigiene).toHaveLength(1);
+    expect(rastoHigiene[0]).toMatchObject({
+      entidade: "return",
+      linha: l1?.["id"],
+      de: null,
+      para: "excepcao_higiene",
+      tipo_de_autor: "chave",
+      sem_autorizacao_de_pessoa: true,
     });
     // Decidida, a decisão já não muda; e não volta a vazia.
     for (const decisao of ["reembolsar", null]) {
@@ -5351,4 +5379,431 @@ describe.skipIf(URL_BASE === undefined)("API da pós-venda", () => {
       "Na loja «Loja A sua conta foi suspensa», ",
     );
   });
+
+  // ------------------------------------------- O rasto (docs/30 §16; #480)
+
+  const chaveComAmbitos = async (
+    s: Cenario,
+    ambitos: ("returns:read" | "refunds:read")[],
+  ) =>
+    (
+      await criarChave(base.dono, s.c, {
+        tipo: "servidor",
+        criadaPor: "operador:teste",
+        nome: "Só leitura",
+        ambitos,
+      })
+    ).segredo;
+
+  it("o rasto da pós-venda: cada passo do pedido, da devolução e do reembolso fica com quem, de onde e sem autorização de uma pessoa; só se acrescenta; só o próprio comerciante e o âmbito certo o lêem", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 3]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const w = await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [{ linha: linha?.["id"], quantidade: 2 }],
+      }),
+      201,
+    );
+    const wdr = String(w["pedido"]);
+    const rma = String(
+      (await ok(s.adm("GET", `/withdrawals/${wdr}`)))["devolucao"],
+    );
+    await ok(
+      s.adm("POST", `/returns/${rma}/receive`, {
+        versao: 1,
+        linhas: [{ linha: linha?.["id"], recebida: 2 }],
+      }),
+    );
+    await ok(
+      s.adm("POST", `/returns/${rma}/inspect`, {
+        versao: 2,
+        linhas: [
+          { linha: linha?.["id"], estado_artigo: "revendavel", aceite: 2 },
+        ],
+      }),
+    );
+    const d = await ok(
+      s.adm("POST", `/returns/${rma}/decide`, {
+        versao: 3,
+        linhas: [{ linha: linha?.["id"], quantidade: 2 }],
+        motivo: "dois revendáveis",
+      }),
+      201,
+    );
+    const rfd = String(d["reembolso"]);
+    await manual(s, rfd);
+
+    // O pedido: o cliente pelo botão (checkout:…), sem pessoa a autorizar.
+    const tPedido = (await ok(s.adm("GET", `/withdrawals/${wdr}/timeline`)))[
+      "dados"
+    ] as Json[];
+    expect(tPedido).toHaveLength(1);
+    expect(tPedido[0]).toMatchObject({
+      entidade: "withdrawal",
+      campo: "estado",
+      de: null,
+      para: "aceite",
+      tipo_de_autor: "consumidor",
+      autorizado_por: null,
+      sem_autorizacao_de_pessoa: true,
+      ia: { prova: "desconhecido" },
+    });
+    expect(String(tPedido[0]?.["quem"])).toMatch(/^checkout:chk_/);
+    expect(tPedido[0]?.["canal"]).not.toBeNull();
+    expect(tPedido[0]?.["pedido"]).not.toBeNull();
+
+    // A devolução: os passos pela ordem, cada um da chave, pela API.
+    const tDev = (await ok(s.adm("GET", `/returns/${rma}/timeline`)))[
+      "dados"
+    ] as Json[];
+    expect(tDev.map((t) => [t["entidade"], t["de"], t["para"]])).toEqual(
+      expect.arrayContaining([
+        ["return", null, "a_aguardar"],
+        ["return", "a_aguardar", "recebida"],
+        ["return", "recebida", "inspeccionada"],
+        ["return", "inspeccionada", "decidida"],
+      ]),
+    );
+    const passos = tDev.filter((t) => t["de"] !== null);
+    expect(passos.length).toBeGreaterThanOrEqual(3);
+    for (const t of passos) {
+      expect(String(t["quem"])).toMatch(/^chave:key_/);
+      expect(t).toMatchObject({
+        canal: "api",
+        tipo_de_autor: "chave",
+        autorizado_por: null,
+        sem_autorizacao_de_pessoa: true,
+        a_pedido_de: null,
+      });
+      expect(t["pedido"]).toEqual(expect.any(String));
+    }
+    // O motivo escrito na decisão fica na transição.
+    expect(tDev.find((t) => t["para"] === "decidida")?.["motivo"]).toBe(
+      "dois revendáveis",
+    );
+    // A ordem é a do tempo.
+    const ems = tDev.map((t) => Date.parse(String(t["em"])));
+    expect(ems).toEqual([...ems].sort((a, b) => a - b));
+
+    // O reembolso: do rascunho ao executado, também sem pessoa a autorizar.
+    const tReemb = (await ok(s.adm("GET", `/refunds/${rfd}/timeline`)))[
+      "dados"
+    ] as Json[];
+    expect(tReemb[0]).toMatchObject({
+      entidade: "refund",
+      de: null,
+      para: "rascunho",
+    });
+    expect(tReemb.at(-1)).toMatchObject({
+      entidade: "refund",
+      para: "executado",
+      sem_autorizacao_de_pessoa: true,
+    });
+    for (const t of tReemb) {
+      expect(String(t["quem"])).toMatch(/^chave:key_/);
+    }
+
+    // O dono dos testes é superutilizador (vê as linhas sem o RLS): por isso
+    // as recusas abaixo são dos gatilhos, não de ele não as ver. O `ALWAYS`
+    // só trava quem não desliga gatilhos; o dono pode (docs/30 §16.5).
+    expect(
+      (
+        await sql<{ rolsuper: boolean }>`select rolsuper from pg_roles
+          where rolname = current_user`.execute(base.dono)
+      ).rows,
+    ).toEqual([{ rolsuper: true }]);
+    expect(
+      Number(
+        (
+          await sql<{ n: string }>`select count(*) as n from transicao_posvenda
+            where encomenda_id = ${e.encomenda.slice(4)}::uuid`.execute(
+            base.dono,
+          )
+        ).rows[0]?.n,
+      ),
+    ).toBeGreaterThan(0);
+    // Só se acrescenta, também para o dono da base (os gatilhos são ALWAYS).
+    await expect(
+      sql`delete from transicao_posvenda`.execute(base.dono),
+    ).rejects.toThrow(/audit\.append_only/);
+    await expect(
+      sql`update transicao_posvenda set quem = 'pessoa:outra'`.execute(
+        base.dono,
+      ),
+    ).rejects.toThrow(/audit\.append_only/);
+    await expect(
+      sql`truncate transicao_posvenda`.execute(base.dono),
+    ).rejects.toThrow(/audit\.append_only/);
+    expect(
+      (
+        await sql<{ nome: string; quando: string }>`
+          select t.tgname as nome, t.tgenabled as quando from pg_trigger t
+          where t.tgrelid = 'transicao_posvenda'::regclass and not t.tgisinternal
+          order by 1`.execute(base.dono)
+      ).rows,
+    ).toEqual([
+      { nome: "rasto_completar", quando: "O" },
+      { nome: "transicao_posvenda_sem_truncate", quando: "A" },
+      { nome: "transicao_posvenda_so_se_acrescenta", quando: "A" },
+    ]);
+
+    // Recusa sem «quem»: nem a linha escrita à mão sem quem, nem a escrita
+    // numa tabela da pós-venda que não o exigia (o pedido de livre resolução).
+    await expect(
+      comComerciante(base.dono, s.c, (trx) =>
+        sql`insert into transicao_posvenda (comerciante_id, encomenda_id,
+            entidade, entidade_id, para, quem)
+          values (comerciante_actual(), ${e.encomenda.slice(4)}::uuid,
+            'devolucao', ${rma.slice(4)}::uuid, 'fechada', null)`.execute(trx),
+      ),
+    ).rejects.toThrow(/not-null constraint/);
+    await expect(
+      comComerciante(base.dono, s.c, async (trx) => {
+        // A ligação de teste do dono traz um quem de sessão: tira-se.
+        await sql`select set_config('eurolify.quem', '', true)`.execute(trx);
+        return sql`insert into pedido_livre_resolucao (comerciante_id,
+            encomenda_id, origem, contacto, dentro_do_prazo, estado,
+            confirmacao)
+          values (comerciante_actual(), ${e.encomenda.slice(4)}::uuid,
+            'apoio', 'rui@exemplo.pt', true, 'pendente', '{}'::jsonb)`.execute(
+          trx,
+        );
+      }),
+    ).rejects.toThrow(/returns\.change_without_who/);
+
+    // Isolamento: outro comerciante não vê nada, nem pela API nem pela base.
+    const s2 = await cenario();
+    for (const caminho of [
+      `/withdrawals/${wdr}/timeline`,
+      `/returns/${rma}/timeline`,
+      `/refunds/${rfd}/timeline`,
+    ]) {
+      expect(await codigo(s2.adm("GET", caminho)), caminho).toEqual([
+        404,
+        caminho.startsWith("/refunds")
+          ? "refunds.not_found"
+          : "returns.not_found",
+      ]);
+    }
+    expect(
+      await comComerciante(base.api, s2.c, (trx) =>
+        trx.selectFrom("transicao_posvenda").select("id").execute(),
+      ),
+    ).toEqual([]);
+    expect(
+      (
+        await comComerciante(base.api, s.c, (trx) =>
+          trx.selectFrom("transicao_posvenda").select("id").execute(),
+        )
+      ).length,
+    ).toBeGreaterThanOrEqual(tPedido.length + tDev.length + tReemb.length);
+
+    // O âmbito: os reembolsos pedem refunds:read; o resto, returns:read.
+    const soDevolucoes = await chaveComAmbitos(s, ["returns:read"]);
+    const soReembolsos = await chaveComAmbitos(s, ["refunds:read"]);
+    const como = (chave: string, caminho: string) =>
+      pedir("GET", caminho, undefined, { authorization: `Bearer ${chave}` });
+    expect(
+      await codigo(como(soDevolucoes, `/refunds/${rfd}/timeline`)),
+    ).toEqual([403, "auth.forbidden"]);
+    expect(
+      await codigo(como(soReembolsos, `/returns/${rma}/timeline`)),
+    ).toEqual([403, "auth.forbidden"]);
+    expect(
+      await codigo(como(soReembolsos, `/withdrawals/${wdr}/timeline`)),
+    ).toEqual([403, "auth.forbidden"]);
+    expect(
+      (await como(soDevolucoes, `/returns/${rma}/timeline`)).statusCode,
+    ).toBe(200);
+    expect(
+      (await como(soDevolucoes, `/withdrawals/${wdr}/timeline`)).statusCode,
+    ).toBe(200);
+    expect(
+      (await como(soReembolsos, `/refunds/${rfd}/timeline`)).statusCode,
+    ).toBe(200);
+  }, 30_000);
+
+  it("o apagamento do titular limpa o motivo (texto livre) das transições da pós-venda dessa encomenda e só dessa; o resto da linha fica (docs/30 §16)", async () => {
+    const s = await cenario();
+    const nova = async (
+      motivoDaDevolucao: string,
+      motivoDoProblema: string,
+    ) => {
+      const e = await paga(s, [[s.v1, 2]]);
+      const [linha] = await expedir(s, e.encomenda);
+      const w = await ok(
+        pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+          linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+        }),
+        201,
+      );
+      const rma = String(
+        (await ok(s.adm("GET", `/withdrawals/${String(w["pedido"])}`)))[
+          "devolucao"
+        ],
+      );
+      await ok(
+        s.adm("POST", `/returns/${rma}/cancel`, {
+          versao: 1,
+          motivo: motivoDaDevolucao,
+        }),
+      );
+      const prb = await ok(
+        s.adm("POST", "/problems", {
+          encomenda: e.encomenda,
+          tipo: "chegou_danificado",
+          descricao: "frasco partido",
+        }),
+        201,
+      );
+      await ok(
+        s.adm("POST", `/problems/${String(prb["id"])}/close`, {
+          versao: 1,
+          motivo: motivoDoProblema,
+        }),
+      );
+      // Concluída (a tarefa fá-lo 14 dias depois de entregue): acabada.
+      await comComerciante(base.dono, s.c, async (trx) => {
+        await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
+          trx,
+        );
+        await sql`update encomenda set estado = 'concluida'
+          where id = ${e.encomenda.slice(4)}::uuid`.execute(trx);
+      });
+      return { e, rma, prb: String(prb["id"]) };
+    };
+    const ana = await nova(
+      "a Ana Silva desistiu por telefone",
+      "resolvido com a Ana Silva",
+    );
+    const rui = await nova("o Rui Costa desistiu", "resolvido com o Rui Costa");
+    const linhasDe = async (encomenda: string) =>
+      (
+        await sql<{
+          id: string;
+          entidade: string;
+          de: string | null;
+          para: string;
+          quem: string;
+          motivo: string | null;
+          canal: string | null;
+          pedido: string | null;
+        }>`select id, entidade, de, para, quem, motivo, canal, pedido
+          from transicao_posvenda where encomenda_id = ${encomenda.slice(4)}::uuid
+          order by id`.execute(base.dono)
+      ).rows;
+    const antesAna = await linhasDe(ana.e.encomenda);
+    const antesRui = await linhasDe(rui.e.encomenda);
+    expect(antesAna.map((l) => l.motivo)).toEqual(
+      expect.arrayContaining([
+        "a Ana Silva desistiu por telefone",
+        "resolvido com a Ana Silva",
+      ]),
+    );
+    const cliente = (
+      await sql<{ cliente_id: string }>`select cliente_id from encomenda
+        where id = ${ana.e.encomenda.slice(4)}::uuid`.execute(base.dono)
+    ).rows[0]?.cliente_id;
+    const r = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{
+          r: Json;
+        }>`select cliente_pseudonimizar(${cliente}::uuid,
+          ${`pseudonimizar cus_${String(cliente)}`}, 'teste') as r`.execute(trx)
+      ).rows[0]?.r;
+    });
+    expect(r).toMatchObject({ encomendas_limpas: 1, encomendas_por_acabar: 0 });
+
+    const depoisAna = await linhasDe(ana.e.encomenda);
+    // O mesmo número de linhas e tudo igual menos o texto livre.
+    expect(depoisAna.map((l) => ({ ...l, motivo: null }))).toEqual(
+      antesAna.map((l) => ({ ...l, motivo: null })),
+    );
+    for (const [i, l] of depoisAna.entries()) {
+      expect(l.motivo, l.id).toBe(
+        antesAna[i]?.motivo === null ? null : "(pseudonimizado)",
+      );
+    }
+    // E a linha do tempo, pela API, já não tem o nome.
+    const texto = JSON.stringify([
+      (await ok(s.adm("GET", `/returns/${ana.rma}/timeline`)))["dados"],
+      (await ok(s.adm("GET", `/problems/${ana.prb}/timeline`)))["dados"],
+    ]);
+    expect(texto).not.toContain("Ana Silva");
+    expect(texto).toContain("(pseudonimizado)");
+    // A encomenda de outra pessoa do mesmo comerciante fica como está.
+    expect(await linhasDe(rui.e.encomenda)).toEqual(antesRui);
+    expect(
+      JSON.stringify(
+        (await ok(s.adm("GET", `/returns/${rui.rma}/timeline`)))["dados"],
+      ),
+    ).toContain("o Rui Costa desistiu");
+  }, 60_000);
+
+  it("uma encomenda ainda em curso no pedido de apagamento: o motivo da pós-venda limpa-se quando a fila dos pendentes a vê acabar (docs/30 §16.4)", async () => {
+    const s = await cenario();
+    const e = await paga(s, [[s.v1, 2]]);
+    const [linha] = await expedir(s, e.encomenda);
+    const w = await ok(
+      pedir("POST", `/store/orders/${e.token}/withdrawal`, {
+        linhas: [{ linha: linha?.["id"], quantidade: 1 }],
+      }),
+      201,
+    );
+    const rma = String(
+      (await ok(s.adm("GET", `/withdrawals/${String(w["pedido"])}`)))[
+        "devolucao"
+      ],
+    );
+    await ok(
+      s.adm("POST", `/returns/${rma}/cancel`, {
+        versao: 1,
+        motivo: "a Ana Silva desistiu por telefone",
+      }),
+    );
+    const id = e.encomenda.slice(4);
+    const motivos = async () =>
+      (
+        await sql<{
+          motivo: string | null;
+        }>`select motivo from transicao_posvenda
+          where encomenda_id = ${id}::uuid and motivo is not null
+          order by id`.execute(base.dono)
+      ).rows.map((m) => m.motivo);
+    const cliente = (
+      await sql<{ cliente_id: string }>`select cliente_id from encomenda
+        where id = ${id}::uuid`.execute(base.dono)
+    ).rows[0]?.cliente_id;
+    const r = await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'pessoa:per_teste', true)`.execute(
+        trx,
+      );
+      return (
+        await sql<{
+          r: Json;
+        }>`select cliente_pseudonimizar(${cliente}::uuid,
+          ${`pseudonimizar cus_${String(cliente)}`}, 'teste') as r`.execute(trx)
+      ).rows[0]?.r;
+    });
+    // Entregue há pouco: ainda se pode devolver, fica na fila e nada se limpa.
+    expect(r).toMatchObject({ encomendas_limpas: 0, encomendas_por_acabar: 1 });
+    expect(await motivos()).toContain("a Ana Silva desistiu por telefone");
+    // Concluída: a fila (titular_pendentes_aplicar) limpa-a.
+    await comComerciante(base.dono, s.c, async (trx) => {
+      await sql`select set_config('eurolify.quem', 'sistema:encomendas', true)`.execute(
+        trx,
+      );
+      await sql`update encomenda set estado = 'concluida' where id = ${id}::uuid`.execute(
+        trx,
+      );
+    });
+    expect((await correrApagamentosPendentes(base.api)).falhas).toEqual([]);
+    const depois = await motivos();
+    expect(depois.length).toBeGreaterThan(0);
+    expect(depois.every((m) => m === "(pseudonimizado)")).toBe(true);
+  }, 60_000);
 });

@@ -613,8 +613,8 @@ dizer **a quem e como**.
   (`agregado_tipo = devolucao`, o `id` é o `rma_`): quem os juntar a um
   reembolso tem de ir pela devolução.
 - **A origem de quem pediu** fica na tarefa e corre com ela (`docs/28` §3.7),
-  mas a devolução não tem tabela de rasto: a marca não guarda o
-  `a_pedido_de` (só a hora).
+  mas a marca não muda o estado da devolução e por isso não deixa linha no
+  rasto da pós-venda (0110, §16.5): não guarda o `a_pedido_de` (só a hora).
 - **A6 («a devolução mostra se já voltou»)** é o `estado` dela, que também vai
   no evento (`a_aguardar` = ainda não voltou).
 - **Correcções da revisão do #353** (Sonnet 5.5; 0 P0, 0 P1, 4 P2, 8 P3): a
@@ -710,10 +710,11 @@ direito.
   e J5), o que o sistema ainda não confere.
 - **Quem decide** (revisão do #363, P3-2 e P3-3): a decisão exige
   `refunds:write`, que uma chave de uma IA pode ter; o H6 diz «uma pessoa».
-  A devolução não tem tabela de rasto (só os eventos; procurado nas
+  A devolução não tinha tabela de rasto (só os eventos; procurado nas
   migrações a 11/10/2026), por isso o aviso «sem autorização de uma pessoa»
-  (DO) não a cobre, e a decisão por linha guarda só o valor final. Fica para
-  quando a pós-venda tiver rasto.
+  (DO) não a cobria, e a decisão por linha guardava só o valor final.
+  **Resolvido a 16/10/2026 pela 0110 (§16, #480):** a decisão de cada linha
+  e cada passo da devolução ficam no rasto, com o aviso.
 - **A marca põe-se pelo `PATCH`**, não na criação nem na importação: um
   artigo pode ser publicado antes de marcado (P3-8). Num kit vale a marca do
   artigo do kit, não a dos componentes (P3-9). As linhas de encomendas de
@@ -725,3 +726,112 @@ direito.
 - **Por fazer:** o texto legal a mostrar ao cliente, por país (**C**, J5,
   com a parte 2 do checkout); a marca na exportação e na importação do
   catálogo; o ecrã do Hub (com a pós-venda no Hub).
+
+## 16. O rasto da pós-venda (issue #480; migração 0110; desenho do `docs/28`, DK)
+
+Diogo, 10/10/2026 (DK): o rasto responde às seis perguntas do `docs/28` §1 em
+todos os domínios, por pedidos pequenos. Até aqui a pós-venda só tinha os
+eventos (`evento_saida`, que não é rasto) e o historial das etiquetas;
+nenhuma das tabelas tinha o gatilho `rasto_completar()` (conferido nas
+migrações 0058, 0061, 0063, 0065 e 0093, a 16/10/2026). Segue o padrão das
+encomendas (`transicao_encomenda`, 0047): uma tabela só de acréscimo, o
+gatilho comum, `rasto-resposta.ts`, `autorDoRasto()` e uma rota `…/timeline`.
+
+### 16.1 O que entra
+
+Tabela `transicao_posvenda` (0110), escrita por gatilhos da base, nunca pelo
+código:
+
+| O quê | Uma linha por |
+|---|---|
+| `pedido_livre_resolucao` | cada mudança de estado (`aceite`, `fora_de_prazo`, `pendente`, `recusado`), incluindo a criação |
+| `devolucao` | cada mudança de estado, incluindo a criação (`a_aguardar`) |
+| `etiqueta_devolucao` | cada mudança de estado (`a_pedir`, `emitida`, `incerta`, `recusada`, `anulada`); o `entidade_id` é o da devolução; o motivo é o da etiqueta |
+| `problema` | cada mudança de estado, incluindo a criação |
+| `reembolso` | cada mudança de estado, incluindo a criação (`rascunho`) |
+| `linha_devolucao.decisao_higiene` | cada decisão de uma linha (§15.4: a 0065 só guardava o valor final): `campo = decisao_higiene`, com a linha |
+
+Cada linha leva `de`, `para`, `quem`, `em`, `motivo` e as colunas do rasto
+comum (`canal`, `pedido`, `ia`, `autorizado_por`, `a_pedido_de`), postas por
+`rasto_completar()` a partir do contexto da transacção. Só se acrescenta
+(gatilhos `ALWAYS`, também ao dono, e o `TRUNCATE`); a única excepção é o
+apagamento do titular (§16.4). Sem `eurolify.quem` a escrita é recusada
+(`returns.change_without_who`). Três escritas que antes não exigiam o quem
+passam a exigi-lo: o pedido de livre resolução, a etiqueta de devolução
+(mudar de estado) e a decisão de higiene de uma linha; a devolução, o
+problema e o reembolso já o exigiam. Cada uma tem o seu teste de recusa.
+
+### 16.2 Quem lê, e a rota
+
+| Rota | Âmbito |
+|---|---|
+| `GET /withdrawals/{id}/timeline`, `GET /returns/{id}/timeline` (com a etiqueta e as decisões de higiene), `GET /problems/{id}/timeline` | `returns:read` |
+| `GET /refunds/{id}/timeline` | `refunds:read` |
+
+Resposta: `dados[]` com `entidade` (`withdrawal`, `return`, `return_label`,
+`problem`, `refund`), `campo`, `linha`, `de`, `para`, `quem`, `em` e os campos
+do rasto comum (`canal`, `pedido`, `ia`, `autorizado_por`, `motivo`,
+`a_pedido_de`, `tipo_de_autor`, `a_pedido_de_tipo`,
+`sem_autorizacao_de_pessoa`), iguais às da encomenda. Um id de outro
+comerciante dá 404 (RLS forçado). A exportação do titular ganha
+`estados_da_posvenda`, sem o motivo nem quem mudou, como os estados da
+encomenda (`docs/23` §15.2).
+
+**Decisão por tomar (Diogo):** os dois âmbitos vêem o `quem`, o
+`autorizado_por` e o `pedido`, como `orders:read` na encomenda. Os preços
+separam dois níveis (Q7, `prices:history`). O apoio tem `refunds:read`, logo
+vê quem decidiu e quem executou cada reembolso. Proposta se quiser separar:
+`refunds:history` para o dono e o gestor; sem ele, só o tipo de autor e o
+aviso.
+
+### 16.3 «Sem autorização de uma pessoa»
+
+Vale a regra do `docs/28` §3.6: uma chave nunca autoriza. As rotas de
+administração desta secção são de chave, por isso a decisão de um reembolso
+por uma chave de IA (§15.4, P3-2) aparece como «sem autorização de uma
+pessoa»; **não se recusa** (exigir passa a ser uma regra por âmbito, Q3 do
+`docs/28`). Uma pessoa no Hub fica como quem autorizou (o contexto do Hub,
+`docs/28` §3.2); não há rota do Hub que escreva na pós-venda além das
+etiquetas, e **não verifiquei** esse caminho com o rasto.
+
+### 16.4 O apagamento do titular
+
+O `motivo` é texto livre de uma pessoa (ex.: «a Ana desistiu por telefone»).
+`titular_limpar_encomenda()` (última versão: 0102, copiada na 0110) passa o
+`motivo` das linhas desta encomenda a «(pseudonimizado)», como já faz às
+transições da encomenda e do pagamento. O resto da linha (de, para, quem,
+quando, canal) fica. Uma encomenda ainda em curso limpa-se quando acabar
+(a fila da 0072). Só esta encomenda: a de outra pessoa do mesmo comerciante
+fica como está (teste).
+
+### 16.5 Por onde é que isto ainda pode sair errado
+
+| Risco | Estado |
+|---|---|
+| passos de antes da 0110 sem rasto | ficam vazios, sem passado inventado; o ensaio só tem dados de teste (ADR-0019) |
+| uma escrita fora da API (sem contexto) | a linha fica com `canal` vazio: «autorização desconhecida» (Q8), nunca «autorizada» |
+| uma mudança que não muda o estado não deixa linha | os avisos do prazo (§14), o fim da etiqueta (`acabou_em`) e a limpeza do titular não escrevem; a `via` e a `prova` de um reembolso só ficam se mudarem com o estado — **não verifiquei** se há caminhos que as mudem sozinhas |
+| texto livre que o rasto guarda | o `motivo` limpa-se (§16.4); a `ia` declarada vem do cabeçalho de quem chama e não se limpa, como nas outras tabelas do rasto |
+| uma transição com motivo escrita depois de a encomenda estar limpa | fica por limpar até novo apagamento; uma encomenda «acabada» não tem nada aberto, mas **não verifiquei** todos os caminhos |
+| `entidade_id` sem chave estrangeira | a `encomenda_id` tem a chave `(comerciante_id, encomenda_id)`; o `entidade_id` aponta para cinco tabelas e só os gatilhos o escrevem. A API confere que o registo existe (do comerciante) antes de ler. Os testes das filas (0066), que escrevem casos com encomenda inventada em modo `replica`, desligam este gatilho nas suas escritas seguintes |
+| ler a etiqueta pode escrever no rasto | `lerEtiquetaDevolucao` chama `soltarSeAMeio`, que pode mudar o estado da etiqueta; a linha leva o quem de quem leu |
+| o motivo é o da transacção inteira | o `rasto_completar()` copia o `eurolify.motivo` para a linha; um passo automático na mesma transacção que uma acção com motivo herda o texto dela (limpa-se no apagamento, como os outros) |
+| o pedido de livre resolução depende de `contexto_do_rasto()` | passa a sofrer as validações do contexto (por exemplo o `quem` conferido com o autenticado, 0062); uma escrita com um contexto inválido é recusada em vez de ficar sem rasto (**não verifiquei** todos os caminhos) |
+| «também ao dono» só em parte | o dono da base pode desligar os gatilhos (`DISABLE TRIGGER`), como em todas as tabelas do rasto; só uma migração revista o faz (docs/28, 0008) |
+| um agente decide um reembolso sem pessoa | visível (§16.3), não recusado |
+
+### 16.6 Em código e o que não se verificou
+
+- Migração **0110**; `src/posvenda/rasto.ts` e as quatro rotas em
+  `src/posvenda/rotas.ts`; `base/esquema.ts`; exportação do titular
+  (`src/clientes/repositorio.ts`).
+- Testes (`test/posvenda-api.test.ts`, `test/envios-devolucao.test.ts`,
+  `test/rasto-colunas.test.ts`, `test/comerciante.test.ts`): cada passo com
+  quem, canal e aviso; só se acrescenta (`DELETE`, `UPDATE`, `TRUNCATE`);
+  recusa sem quem; isolamento (API e RLS); âmbitos; apagamento do titular;
+  decisão de higiene e etiqueta. Verificados contra o código sem a protecção
+  (sem a limpeza do motivo, sem a recusa sem quem, sem o RLS): falham.
+- **Não verifiquei:** o reembolso confirmado pela tarefa ou por um aviso do
+  prestador (a linha leva `a_pedido_de`, mas não há teste de rasto nesse
+  caminho); as rotas do Hub (`docs/36` §22.10) e o ecrã do Hub; o custo dos
+  gatilhos com volume.

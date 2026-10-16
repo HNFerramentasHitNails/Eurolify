@@ -157,6 +157,33 @@ describe.skipIf(URL_BASE === undefined)(
       expect(f.statusCode).toBe(200);
       expect(f.headers["content-type"]).toBe("application/pdf");
       expect(await codigo(pedir(rma))).toEqual([409, "shipping.label_exists"]);
+      // A etiqueta também fica no rasto da devolução (docs/30 §16).
+      const rasto = (await ok(s.adm("GET", `/returns/${rma}/timeline`)))[
+        "dados"
+      ] as Record<string, unknown>[];
+      expect(
+        rasto
+          .filter((t) => t["entidade"] === "return_label")
+          .map((t) => [t["de"], t["para"]]),
+      ).toEqual([
+        [null, "a_pedir"],
+        ["a_pedir", "emitida"],
+      ]);
+    });
+
+    it("sem quem, a etiqueta de devolução não muda de estado (rasto da pós-venda, 0110)", async () => {
+      const rma = await devolucao();
+      await ok(pedir(rma));
+      await expect(
+        base.dono.transaction().execute(async (trx) => {
+          await sql`select set_config('eurolify.comerciante', ${s.c}, true),
+            set_config('eurolify.quem', '', true)`.execute(trx);
+          await sql`update etiqueta_devolucao set estado = 'anulada'
+            where devolucao_id = ${rma.replace(/^rma_/, "")}::uuid`.execute(
+            trx,
+          );
+        }),
+      ).rejects.toThrow(/returns\.change_without_who/);
     });
 
     it("serviços que não servem a volta: de pontos, de outro país, ou que pedem o telefone", async () => {
