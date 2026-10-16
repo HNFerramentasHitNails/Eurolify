@@ -235,6 +235,11 @@ competências de cada um ficam como estão.
   `push --force`** num ramo que já está num pedido.
 - Um commit por assunto; a mensagem diz o assunto em português.
 - **Nunca segredos no repositório** (chaves, palavras-passe, tokens).
+- **Os minutos do GitHub Actions pagam-se** (Diogo, 16/10/2026, #471): antes
+  do push, correr na sessão `pnpm lint`, `pnpm tipos` e os testes do que se
+  mudou; juntar as correcções num push só. O rascunho não corre os testes:
+  passa a pronto quando está acabado. Um pedido só com documentos também não
+  os corre (o `docs/03` sim, porque um teste o lê).
 - **Nunca `git add -A`**: acrescentar os ficheiros pelo nome e ler o `git
   status --short` antes de cada commit (incidente de 04/10/2026, memória).
 
