@@ -24,6 +24,7 @@ import {
 } from "./ecras/EnviosMetodos";
 import { DevolucaoPagina, Devolucoes } from "./ecras/Devolucoes";
 import { DiferencasPagamento } from "./ecras/DiferencasPagamento";
+import { Encomendas, EncomendaPagina } from "./ecras/Encomendas";
 import { Expedir, ExpedirEncomenda } from "./ecras/Expedir";
 import { Conta } from "./ecras/Conta";
 import { Convite } from "./ecras/Convite";
@@ -421,6 +422,14 @@ function Ecra({
       );
     case "embalagem":
       return <Embalagem key={chave} comerciante={comerciante} />;
+    case "encomendas":
+      return (
+        <Encomendas key={chave} comerciante={comerciante} consulta={consulta} />
+      );
+    case "encomenda":
+      return (
+        <EncomendaPagina key={chave} comerciante={comerciante} encomenda={p1} />
+      );
     case "expedir":
       return <Expedir key={chave} comerciante={comerciante} />;
     case "expedirEncomenda":

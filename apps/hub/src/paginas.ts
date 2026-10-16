@@ -219,6 +219,20 @@ export const PAGINAS = [
     exemplo: "/envios/embalagem",
   },
   {
+    nome: "encomendas",
+    caminho: "/encomendas",
+    sessao: true,
+    titulo: "encomendasTitulo",
+    exemplo: "/encomendas",
+  },
+  {
+    nome: "encomenda",
+    caminho: /^\/encomendas\/(ord_[^/]+)$/,
+    sessao: true,
+    titulo: "encomendaTitulo",
+    exemplo: "/encomendas/ord_0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63",
+  },
+  {
     nome: "expedir",
     caminho: "/expedir",
     sessao: true,

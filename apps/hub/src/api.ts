@@ -345,6 +345,80 @@ export type EstadoDevolucao =
   | "fechada"
   | "cancelada";
 
+/** Os estados de uma encomenda, como a API os dá (docs/27; docs/22 §35). */
+export type EstadoEncomenda =
+  | "a_aguardar_pagamento"
+  | "paga"
+  | "cancelada_sem_pagamento"
+  | "em_preparacao"
+  | "expedida_parcial"
+  | "expedida"
+  | "entregue"
+  | "concluida"
+  | "cancelada"
+  | "devolvida_parcial"
+  | "devolvida";
+
+/** Uma encomenda na lista do Hub (docs/22 §35): sem dados pessoais. */
+export interface EncomendaNaLista {
+  id: string;
+  estado: EstadoEncomenda;
+  /** Em cêntimos. */
+  total: number;
+  moeda: string;
+  cliente: string;
+  criada_em: string;
+}
+
+/** Uma linha da encomenda, como está copiada nela (montantes em cêntimos). */
+export interface LinhaDaEncomenda {
+  id: string;
+  posicao: number;
+  variante: string;
+  sku: string;
+  nome: string;
+  quantidade: number;
+  preco_unitario: number;
+  /** A decisão de IVA que o servidor tomou: o Hub só a mostra. */
+  decisao_iva: unknown;
+  base: number;
+  iva: number;
+  total: number;
+  selado_por_higiene: boolean;
+}
+
+/** A ficha de uma encomenda (docs/22 §35.2), tal como `GET /hub/orders/{id}`. */
+export interface Encomenda {
+  id: string;
+  estado: EstadoEncomenda;
+  cliente: string;
+  /** Nulo numa ficha pseudonimizada, a quem não tem customers:billing. */
+  perfil_copia: unknown;
+  guardado_por_obrigacao_fiscal: boolean;
+  contacto: unknown;
+  entrega: unknown;
+  moeda: string;
+  preco_inclui_iva: boolean;
+  totais: { base: number; iva: number; total: number };
+  portes: unknown;
+  metodo_entrega: unknown;
+  metodo_pagamento: string | null;
+  emissor_fiscal: string;
+  documento: { id: string; estado: string } | null;
+  criada_em: string;
+  linhas: LinhaDaEncomenda[];
+}
+
+/** Uma transição da encomenda (docs/27; o rasto completo vem da API). */
+export interface TransicaoDaEncomenda {
+  de: string | null;
+  para: EstadoEncomenda;
+  quem: string;
+  em: string;
+  motivo: string | null;
+  tipo_de_autor: TipoDeAutor;
+}
+
 /** Uma diferença da fila de pagamentos, como o Hub a lê (docs/22 §34.2). */
 export interface DiferencaPagamento {
   id: string;
@@ -1436,6 +1510,25 @@ export const api = {
       "POST",
       `/hub/payment-issues/${encodeURIComponent(id)}/resolve`,
       { comerciante, corpo },
+    ),
+  // As encomendas, só leitura (docs/22 §35).
+  encomendas: (comerciante: string, estado: EstadoEncomenda | null) =>
+    pedir<{ dados: EncomendaNaLista[]; limite: number }>(
+      "GET",
+      estado === null
+        ? "/hub/orders"
+        : `/hub/orders?${new URLSearchParams({ estado }).toString()}`,
+      { comerciante },
+    ),
+  encomenda: (comerciante: string, id: string) =>
+    pedir<Encomenda>("GET", `/hub/orders/${encodeURIComponent(id)}`, {
+      comerciante,
+    }),
+  rastoDaEncomenda: (comerciante: string, id: string) =>
+    pedir<{ dados: TransicaoDaEncomenda[] }>(
+      "GET",
+      `/hub/orders/${encodeURIComponent(id)}/timeline`,
+      { comerciante },
     ),
   // As devoluções e a etiqueta de devolução (docs/36 §22.10).
   devolucoes: (comerciante: string, estado: EstadoDevolucao | null) =>

@@ -12,6 +12,7 @@ export type IdModulo =
   | "equipa"
   | "artigos"
   | "decidir"
+  | "encomendas"
   | "expedir"
   | "devolucoes"
   | "envios"
@@ -31,6 +32,7 @@ export interface Modulo {
     | "/equipa"
     | "/artigos"
     | "/a-decidir"
+    | "/encomendas"
     | "/expedir"
     | "/devolucoes"
     | "/envios"
@@ -55,6 +57,14 @@ export const MODULOS: readonly Modulo[] = [
       "customers:privacy",
     ],
     caminho: "/a-decidir",
+  },
+  // As encomendas (docs/22 §35): o dono, o gestor e o apoio vêem (orders:read);
+  // o armazém não, porque a encomenda traz o contacto e a faturação: tem o
+  // «Expedir».
+  {
+    id: "encomendas",
+    ambitoNecessario: "orders:read",
+    caminho: "/encomendas",
   },
   // Expedir (docs/22 §33): o dono, o gestor e o armazém expedem; o apoio vê.
   { id: "expedir", ambitoNecessario: "fulfilment:read", caminho: "/expedir" },

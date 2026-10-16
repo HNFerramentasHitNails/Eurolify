@@ -39,11 +39,12 @@ function comerciante(
 const ids = (l: readonly { id: string }[]) => l.map((m) => m.id);
 
 describe("os módulos de cada papel", () => {
-  it("o dono vê a equipa, os artigos, «A decidir», «Expedir», as devoluções, os envios, a faturação, os pagamentos e as chaves, por esta ordem", () => {
+  it("o dono vê a equipa, os artigos, «A decidir», as encomendas, «Expedir», as devoluções, os envios, a faturação, os pagamentos e as chaves, por esta ordem", () => {
     expect(ids(modulosDe(comerciante("a", "dono")))).toEqual([
       "equipa",
       "artigos",
       "decidir",
+      "encomendas",
       "expedir",
       "devolucoes",
       "envios",
@@ -53,12 +54,13 @@ describe("os módulos de cada papel", () => {
     ]);
   });
 
-  it("o gestor e o apoio vêem «Expedir», as devoluções, os envios, a faturação e os pagamentos, não as chaves; o armazém vê «Expedir», as devoluções e os envios, não a faturação nem os pagamentos (docs/22 §29.3, §30.3, §33.1, §34.3; docs/36 §22.10)", () => {
+  it("o gestor e o apoio vêem as encomendas (orders:read, docs/22 §35.1), «Expedir», as devoluções, os envios, a faturação e os pagamentos, não as chaves; o armazém vê «Expedir», as devoluções e os envios, não as encomendas (têm o contacto e a faturação), a faturação nem os pagamentos (docs/22 §29.3, §30.3, §33.1, §34.3; docs/36 §22.10)", () => {
     for (const papel of ["gestor", "apoio"] as const) {
       expect(ids(modulosDe(comerciante("a", papel))), papel).toEqual([
         "equipa",
         "artigos",
         "decidir",
+        "encomendas",
         "expedir",
         "devolucoes",
         "envios",
@@ -111,6 +113,16 @@ describe("os módulos de cada papel", () => {
     ).toEqual(["equipa", "decidir", "pagamentos"]);
   });
 
+  it("as encomendas pedem orders:read: o armazém não as vê (docs/22 §35.1)", () => {
+    expect(ids(modulosDe(comerciante("a", "apoio", ["orders:read"])))).toEqual([
+      "equipa",
+      "encomendas",
+    ]);
+    expect(ids(modulosDe(comerciante("a", "armazem")))).not.toContain(
+      "encomendas",
+    );
+  });
+
   it("as devoluções pedem returns:read (docs/36 §22.10)", () => {
     expect(
       ids(modulosDe(comerciante("a", "apoio", ["fulfilment:read"]))),
@@ -135,6 +147,7 @@ describe("os módulos de cada papel", () => {
         "/equipa",
         "/artigos",
         "/a-decidir",
+        "/encomendas",
         "/expedir",
         "/devolucoes",
         "/envios",

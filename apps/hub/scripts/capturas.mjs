@@ -5630,6 +5630,7 @@ try {
       "equipa",
       "artigos",
       "a-decidir",
+      "encomendas",
       "expedir",
       "devolucoes",
       "envios",
@@ -7347,6 +7348,236 @@ try {
         await c.close();
       }
     }
+  }
+
+  // As encomendas (docs/22 §35): a lista vazia contra a API verdadeira; a
+  // lista e a ficha com respostas simuladas (o ensaio não tem encomendas
+  // pagas: passam pelo checkout e por um prestador de pagamentos). Dados
+  // fictícios.
+  {
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/encomendas?comerciante=mer_${comerciante}`);
+    await p
+      .getByRole("heading", { name: /Encomendas/ })
+      .first()
+      .waitFor();
+    await p.getByText("Ainda não há encomendas.").waitFor();
+    await p.screenshot({
+      path: join(SAIDA, "encomendas-vazio-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
+  }
+  const ENCOMENDA_DA_FICHA = "ord_0199e000-0000-7000-8000-000000000a01";
+  const encomendaNaLista = (i, estado, total) => ({
+    id: `ord_0199e000-0000-7000-8000-000000000a${String(10 + i)}`,
+    estado,
+    total,
+    moeda: "EUR",
+    cliente: `cus_0199e000-0000-7000-8000-000000000b${String(10 + i)}`,
+    criada_em: `2026-10-1${String(i)}T10:1${String(i)}:00.000Z`,
+  });
+  const decisaoDeIva = (taxa, base, iva) => ({
+    resultado: "tributada",
+    pais_imposto: "PT",
+    regiao: null,
+    taxa,
+    codigo_motivo: null,
+    base,
+    iva,
+    total: base + iva,
+    regra: "nacional",
+    versao_regras: "ensaio",
+  });
+  const simularEncomendas = async (contexto) => {
+    const json = (corpo) => ({
+      status: 200,
+      contentType: "application/json",
+      headers: { "cache-control": "private, no-store" },
+      body: JSON.stringify(corpo),
+    });
+    await contexto.route("**/hub/orders?*", (r) => {
+      const estado = new URL(r.request().url()).searchParams.get("estado");
+      const todas = [
+        { ...encomendaNaLista(1, "paga", 2959), id: ENCOMENDA_DA_FICHA },
+        encomendaNaLista(2, "a_aguardar_pagamento", 1850),
+        encomendaNaLista(3, "expedida_parcial", 12400),
+        encomendaNaLista(4, "entregue", 4590),
+        encomendaNaLista(5, "cancelada_sem_pagamento", 990),
+        encomendaNaLista(6, "devolvida_parcial", 7300),
+      ];
+      return r.fulfill(
+        json({
+          dados:
+            estado === null ? todas : todas.filter((e) => e.estado === estado),
+          limite: 100,
+        }),
+      );
+    });
+    await contexto.route("**/hub/orders", (r) =>
+      r.fulfill(json({ dados: [], limite: 100 })),
+    );
+    await contexto.route(`**/hub/orders/${ENCOMENDA_DA_FICHA}`, (r) =>
+      r.fulfill(
+        json({
+          id: ENCOMENDA_DA_FICHA,
+          estado: "paga",
+          cliente: "cus_0199e000-0000-7000-8000-000000000b11",
+          perfil: "bpf_0199e000-0000-7000-8000-000000000c11",
+          perfil_copia: { nome_documento: "Ana Exemplo", nif: "999999990" },
+          guardado_por_obrigacao_fiscal: false,
+          contacto: {
+            nome: "Ana Exemplo",
+            email: "ana@exemplo.test",
+            telefone: "+351900000000",
+          },
+          entrega: {
+            pais: "PT",
+            codigo_postal: "4000-001",
+            linha1: "Rua do Exemplo 12, 2.º esq.",
+            linha2: null,
+            localidade: "Porto",
+          },
+          finalidade: "consumidor",
+          moeda: "EUR",
+          preco_inclui_iva: true,
+          totais: { base: 2406, iva: 553, total: 2959 },
+          portes: { tarifa: 499, base: 406, valor_iva: 93, total: 499 },
+          metodo_entrega: {
+            id: "shm_0199e000-0000-7000-8000-000000000d11",
+            nome: { pt: "Correio registado", en: "Registered mail" },
+            data_limite: "2026-10-22",
+          },
+          metodo_pagamento: "mb_way",
+          aceitacoes: {},
+          emissor_fiscal: "eurolify",
+          documento: {
+            id: "inv_0199e000-0000-7000-8000-000000000e11",
+            estado: "pronto",
+          },
+          criada_em: "2026-10-11T10:11:00.000Z",
+          linhas: [
+            {
+              id: "oli_0199e000-0000-7000-8000-000000000f11",
+              posicao: 1,
+              variante: "var_0199e000-0000-7000-8000-000000000f21",
+              sku: "GEL-ROSA-15",
+              nome: "Verniz em gel rosa, 15 ml",
+              quantidade: 2,
+              preco_unitario: 1230,
+              decisao_iva: decisaoDeIva(2300, 2000, 460),
+              base: 2000,
+              iva: 460,
+              total: 2460,
+              selado_por_higiene: true,
+            },
+          ],
+        }),
+      ),
+    );
+    await contexto.route(`**/hub/orders/${ENCOMENDA_DA_FICHA}/timeline`, (r) =>
+      r.fulfill(
+        json({
+          dados: [
+            {
+              de: null,
+              para: "a_aguardar_pagamento",
+              quem: "checkout:chk_0199e000-0000-7000-8000-000000000a99",
+              em: "2026-10-11T10:11:00.000Z",
+              motivo: null,
+              tipo_de_autor: "consumidor",
+            },
+            {
+              de: "a_aguardar_pagamento",
+              para: "paga",
+              quem: "prestador:eupago",
+              em: "2026-10-11T10:13:00.000Z",
+              motivo: null,
+              tipo_de_autor: "prestador",
+            },
+          ],
+        }),
+      ),
+    );
+  };
+  for (const tema of ["light", "dark"]) {
+    for (const largura of [375, 768, 1280]) {
+      for (const [nome, caminho, texto] of [
+        [
+          "encomendas",
+          `/encomendas?comerciante=mer_${comerciante}`,
+          "Entregue",
+        ],
+        [
+          "encomenda",
+          `/encomendas/${ENCOMENDA_DA_FICHA}?comerciante=mer_${comerciante}`,
+          "Verniz em gel rosa, 15 ml",
+        ],
+      ]) {
+        const c = await navegador.newContext({
+          ignoreHTTPSErrors: true,
+          colorScheme: tema,
+          viewport: { width: largura, height: 900 },
+          storageState: sessao,
+        });
+        await simularEncomendas(c);
+        const p = await c.newPage();
+        await p.goto(`${ORIGEM}${caminho}`);
+        await p.getByText(texto).first().waitFor();
+        if (nome === "encomenda") {
+          await p.getByText("Prestador de pagamentos").waitFor();
+        }
+        await p.waitForLoadState("networkidle");
+        const largo = await p.evaluate(
+          () => document.documentElement.scrollWidth > window.innerWidth,
+        );
+        confere(
+          !largo,
+          `${nome} ${String(largura)} ${tema}: sem deslocação horizontal`,
+        );
+        const erros = await papeisDasTabelas(c, p);
+        confere(
+          erros === null || erros.length === 0,
+          `${nome} ${String(largura)} ${tema}: as tabelas mantêm os papéis (${JSON.stringify(erros)})`,
+        );
+        await p.screenshot({
+          path: join(
+            SAIDA,
+            `${nome}-${String(largura)}-${tema === "light" ? "claro" : "escuro"}.png`,
+          ),
+          fullPage: true,
+        });
+        await c.close();
+      }
+    }
+  }
+  {
+    // O filtro por estado muda o endereço e a lista (só as pagas).
+    const c = await navegador.newContext({
+      ignoreHTTPSErrors: true,
+      viewport: { width: 1280, height: 900 },
+      storageState: sessao,
+    });
+    await simularEncomendas(c);
+    const p = await c.newPage();
+    await p.goto(`${ORIGEM}/encomendas?comerciante=mer_${comerciante}`);
+    await p.getByText("6 encomendas.").waitFor();
+    await p.getByLabel("Estado").selectOption("paga");
+    await p.getByText("1 encomenda.").waitFor();
+    confere(
+      new URL(p.url()).searchParams.get("estado") === "paga",
+      "encomendas: o filtro vai para o endereço",
+    );
+    await p.screenshot({
+      path: join(SAIDA, "encomendas-filtro-paga-1280-claro.png"),
+      fullPage: true,
+    });
+    await c.close();
   }
 
   // Vários volumes (docs/36 §23): o formulário «Volumes» antes da etiqueta,
