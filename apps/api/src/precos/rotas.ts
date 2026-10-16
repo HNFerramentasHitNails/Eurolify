@@ -22,6 +22,7 @@ import {
 import { chaveDo } from "../identidade/autenticacao.js";
 import { CabecalhoIdempotencia } from "../identidade/rotas.js";
 import { ErroPrecos, type CodigoErroPrecos } from "./erros.js";
+import { mercadosDaLoja, precosDaLoja } from "./loja.js";
 import {
   alterarMercado,
   anunciarReducao,
@@ -88,6 +89,7 @@ const ESTADO_DO_CODIGO: Record<CodigoErroPrecos, number> = {
   "prices.defined_by_required": 422,
   "prices.name_required": 422,
   "prices.country_invalid": 422,
+  "prices.country_not_in_market": 422,
   "prices.currency_invalid": 422,
   "prices.language_invalid": 422,
   "prices.main_language_not_listed": 422,
@@ -535,6 +537,213 @@ export async function precoNa(
   return paraPreco(p, mercado.preco_inclui_iva, new Date());
 }
 
+// ------------------------------------------------ API da Loja (docs/20 §7.2)
+
+const MercadoDaLoja = Type.Object({
+  id: Type.String({ description: "mkt_…" }),
+  nome: Type.String(),
+  paises: Type.Array(Type.String()),
+  moeda: Type.String(),
+  linguas: Type.Array(Type.String()),
+  lingua_principal: Type.String(),
+  preco_inclui_iva: Type.Boolean(),
+});
+
+const IvaDaLoja = Type.Object({
+  resultado: Type.String({
+    description:
+      "tributada, isenta, bloqueada (o checkout também recusa) ou por_decidir (sem `country`)",
+  }),
+  taxa: Type.Union([Type.Integer(), Type.Null()], {
+    description: "Centésimas de ponto (2300 = 23 %)",
+  }),
+  pais_imposto: Type.Union([Type.String(), Type.Null()]),
+  motivo: Type.Union([Type.String(), Type.Null()]),
+});
+
+const PrecoDaLojaEsquema = Type.Object({
+  variante: Type.String({ description: "var_…" }),
+  montante: Type.Integer({
+    description:
+      "O que a lista cobra (o da redução em vigor, se houver), em cêntimos, com ou sem IVA como o mercado",
+  }),
+  gratuito: Type.Boolean(),
+  preco_a_mostrar: Type.Union([Type.Integer(), Type.Null()], {
+    description:
+      "O preço final do Motor de IVA para o país pedido, em cêntimos; nulo se o IVA não se sabe (sem `country` num mercado sem IVA no preço) ou o Motor bloqueia",
+  }),
+  iva: IvaDaLoja,
+  reducao: Type.Union([
+    Type.Object({
+      preco_referencia: Type.Integer(),
+      preco_referencia_a_mostrar: Type.Union([Type.Integer(), Type.Null()]),
+      fim: Type.Union([Instante, Type.Null()]),
+    }),
+    Type.Null(),
+  ]),
+  preco_por_unidade: Type.Union([
+    Type.Object({
+      valor: Type.String({ description: "Quatro casas decimais, em texto" }),
+      unidade: Type.String(),
+      inclui_iva: Type.Boolean(),
+    }),
+    Type.Null(),
+  ]),
+  quantidade_minima: Type.Integer(),
+  multiplo: Type.Integer(),
+  preco_personalizado: Type.Boolean({
+    description:
+      "Sempre falso até haver extensões que personalizem preços (R9, docs/20)",
+  }),
+});
+
+const ConsultaMercadosDaLoja = Type.Object(
+  {
+    limite: ConsultaPagina.properties.limite,
+    cursor: ConsultaPagina.properties.cursor,
+    channel: Type.Optional(IdCanal),
+  },
+  { additionalProperties: false },
+);
+
+const UUID_VARIANTE =
+  "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const ConsultaPrecosDaLoja = Type.Object(
+  {
+    channel: IdCanal,
+    market: IdMercado,
+    variants: Type.String({
+      pattern: `^var_${UUID_VARIANTE}(,var_${UUID_VARIANTE}){0,99}$`,
+      description: "De 1 a 100 `var_…`, separados por vírgulas",
+    }),
+    country: Type.Optional(Pais),
+    postal_code: Type.Optional(Type.String({ minLength: 1, maxLength: 20 })),
+  },
+  { additionalProperties: false },
+);
+
+function rotasDaLoja(instancia: FastifyInstance, base: Kysely<BaseDados>) {
+  const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
+  const loja = { ambito: "storefront" as const, loja: true };
+  const daLoja = (pedido: Parameters<typeof chaveDo>[0]) => {
+    const l = chaveDo(pedido).lojaId;
+    // A chave pública é sempre de uma loja (docs/19); sem loja, não há nada.
+    if (l === null) throw new ErroPrecos("prices.not_found", "sem loja");
+    return l;
+  };
+
+  rotas.get(
+    "/store/markets",
+    {
+      config: loja,
+      schema: {
+        description:
+          "Os mercados activos da loja da chave pública (de um canal, com `channel`): países, moeda, línguas e se o preço inclui IVA, para o visitante escolher (docs/20 §7.2, R8). O país decide-se pela escolha ou pela morada de entrega, nunca pelo IP.",
+        querystring: ConsultaMercadosDaLoja,
+        response: { 200: Lista(MercadoDaLoja), ...RESPOSTA_DE_ERRO },
+      },
+    },
+    async (pedido, resposta) => {
+      void resposta.header("cache-control", "no-store");
+      return comPagina(
+        await emPrecos(resposta, () =>
+          mercadosDaLoja(
+            base,
+            chaveDo(pedido).comercianteId,
+            semPrefixo(daLoja(pedido)),
+            pedido.query.channel === undefined
+              ? undefined
+              : semPrefixo(pedido.query.channel),
+            limiteDe(pedido.query),
+            idDoCursor(pedido.query.cursor),
+          ),
+        ),
+        (m) => ({
+          id: `mkt_${m.id}`,
+          nome: m.nome,
+          paises: m.paises,
+          moeda: m.moeda,
+          linguas: m.linguas,
+          lingua_principal: m.lingua_principal,
+          preco_inclui_iva: m.preco_inclui_iva,
+        }),
+      );
+    },
+  );
+
+  rotas.get(
+    "/store/prices",
+    {
+      config: loja,
+      schema: {
+        description:
+          "O preço **a mostrar** de variantes num canal × mercado da loja (docs/20 §7.2): o mesmo que o checkout cobra, com o IVA do Motor de IVA para o `country` (e `postal_code`, onde o Motor o pede), a redução e o preço de referência, o preço por unidade, a quantidade mínima e o múltiplo. Sem `country`, só há preço a mostrar num mercado cujo preço já inclui o IVA. As variantes que o checkout não venderia vêm em `indisponiveis`. O total de uma linha com várias unidades decide-se no checkout sobre a linha toda (arredondamento ao nível da linha).",
+        querystring: ConsultaPrecosDaLoja,
+        response: {
+          200: Type.Object({
+            mercado: Type.String(),
+            moeda: Type.String(),
+            preco_inclui_iva: Type.Boolean(),
+            pais: Type.Union([Type.String(), Type.Null()]),
+            dados: Type.Array(PrecoDaLojaEsquema),
+            indisponiveis: Type.Array(Type.String()),
+          }),
+          ...RESPOSTA_DE_ERRO,
+        },
+      },
+    },
+    async (pedido, resposta) => {
+      void resposta.header("cache-control", "no-store");
+      const ids = [...new Set(pedido.query.variants.split(","))];
+      const r = await emPrecos(resposta, () =>
+        precosDaLoja(
+          base,
+          chaveDo(pedido).comercianteId,
+          semPrefixo(daLoja(pedido)),
+          {
+            canal: semPrefixo(pedido.query.channel),
+            mercado: semPrefixo(pedido.query.market),
+            variantes: ids.map(semPrefixo),
+            ...(pedido.query.country === undefined
+              ? {}
+              : { pais: pedido.query.country }),
+            ...(pedido.query.postal_code === undefined
+              ? {}
+              : { codigo_postal: pedido.query.postal_code }),
+          },
+        ),
+      );
+      return {
+        mercado: pedido.query.market,
+        moeda: r.moeda,
+        preco_inclui_iva: r.preco_inclui_iva,
+        pais: r.pais,
+        dados: r.dados.map((p) => ({
+          variante: `var_${p.variante_id}`,
+          montante: p.montante,
+          gratuito: p.gratuito,
+          preco_a_mostrar: p.preco_a_mostrar,
+          iva: p.iva,
+          reducao:
+            p.reducao === null
+              ? null
+              : {
+                  preco_referencia: p.reducao.preco_referencia,
+                  preco_referencia_a_mostrar:
+                    p.reducao.preco_referencia_a_mostrar,
+                  fim: iso(p.reducao.fim),
+                },
+          preco_por_unidade: p.preco_por_unidade,
+          quantidade_minima: p.quantidade_minima,
+          multiplo: p.multiplo,
+          preco_personalizado: false,
+        })),
+        indisponiveis: r.indisponiveis.map((v) => `var_${v}`),
+      };
+    },
+  );
+}
+
 export function rotasDosPrecos(
   instancia: FastifyInstance,
   base: Kysely<BaseDados>,
@@ -542,6 +751,8 @@ export function rotasDosPrecos(
   const rotas = instancia.withTypeProvider<TypeBoxTypeProvider>();
   const ler = { ambito: "prices:read" as const };
   const escrita = { ambito: "prices:write" as const };
+
+  rotasDaLoja(instancia, base);
 
   // ---- Mercados
 

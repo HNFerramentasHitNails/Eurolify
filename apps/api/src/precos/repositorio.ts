@@ -855,7 +855,7 @@ export interface Pagina<T> {
   ultimo: string | null;
 }
 
-async function pagina<T extends { id: string }>(
+export async function pagina<T extends { id: string }>(
   consulta: (depois: string | null, limite: number) => Promise<T[]>,
   total: () => Promise<number>,
   limite: number,
@@ -1591,14 +1591,17 @@ export interface PrecoParaVenda {
     fim: Date | null;
   } | null;
   preco_por_unidade: { valor: string; unidade: string } | null;
+  /** O conteúdo da variante, para recalcular o preço por unidade com o IVA. */
+  conteudo_quantidade: number | null;
+  conteudo_unidade: string | null;
 }
 
 /**
  * Os preços para vender destas variantes num mercado: a lista de base activa
  * do mercado activo, com a redução em vigor no relógio da base (a mesma
  * regra da API de Administração). Uma variante sem preço não vem.
- * **Chamador:** o checkout (`checkout/repositorio.ts`), dentro da transacção
- * dele; as listas B2B ficam para quando o checkout tiver contas (docs/25,
+ * **Chamadores:** o checkout (`checkout/repositorio.ts`), dentro da transacção
+ * dele, e a API da Loja (`precos/loja.ts`, `GET /store/prices`); as listas B2B ficam para quando o checkout tiver contas (docs/25,
  * Q6).
  */
 export async function precosParaVenda(
@@ -1661,6 +1664,8 @@ export async function precosParaVenda(
           l.conteudo_quantidade,
           l.conteudo_unidade,
         ),
+        conteudo_quantidade: l.conteudo_quantidade,
+        conteudo_unidade: l.conteudo_unidade,
       });
     }
     return resultado;

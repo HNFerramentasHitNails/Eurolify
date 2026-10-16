@@ -496,7 +496,7 @@ export async function iniciarCheckout(
 
 // ------------------------------------------------- O que se pode vender
 
-interface VarianteVendavel {
+export interface VarianteVendavel {
   variante_id: string;
   sku: string;
   artigo_id: string;
@@ -512,7 +512,7 @@ interface VarianteVendavel {
  * artigo (docs/24 §13), e um físico é um bem (docs/24 §3.2) — o resto não
  * se vende até ela existir (na dúvida, não vende; docs/25 §13).
  */
-async function variantesVendaveis(
+export async function variantesVendaveis(
   trx: Transaction<BaseDados>,
   canalId: string,
   mercadoId: string,
