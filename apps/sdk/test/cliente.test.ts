@@ -56,6 +56,8 @@ const PROBLEMA = {
   mensagem: { pt: "Stock insuficiente", en: "Insufficient stock" },
 };
 
+const PK = `eul_pk_${"a".repeat(52)}`;
+const SK = `eul_sk_${"b".repeat(52)}`;
 const URL_BASE = "https://api.exemplo.test/";
 
 describe("pedidos", () => {
@@ -76,14 +78,12 @@ describe("pedidos", () => {
     const { fetch, chamadas } = falso([json({ estado: "ok" })]);
     const loja = criarLoja({
       url: URL_BASE,
-      chave: "eul_pk_abc",
+      chave: PK,
       versao: "2026-10",
       fetch,
     });
     await loja.get("/health");
-    expect(chamadas[0]?.cabecalhos.get("authorization")).toBe(
-      "Bearer eul_pk_abc",
-    );
+    expect(chamadas[0]?.cabecalhos.get("authorization")).toBe(`Bearer ${PK}`);
     expect(chamadas[0]?.cabecalhos.get("eurolify-versao")).toBe("2026-10");
   });
 
@@ -104,7 +104,7 @@ describe("pedidos", () => {
     const { fetch, chamadas } = falso([
       json({ id: "crt_1", segredo: "s" }, 201),
     ]);
-    const loja = criarLoja({ url: URL_BASE, chave: "eul_pk_abc", fetch });
+    const loja = criarLoja({ url: URL_BASE, chave: PK, fetch });
     const corpo = {
       canal: "chn_00000000-0000-0000-0000-000000000000",
       mercado: "mkt_00000000-0000-0000-0000-000000000000",
@@ -131,7 +131,7 @@ describe("pedidos", () => {
     const { fetch } = falso([new Response(null, { status: 204 })]);
     const admin = criarAdministracao({
       url: URL_BASE,
-      chave: "eul_sk_abc",
+      chave: SK,
       fetch,
     });
     const r = await admin.delete("/products/{id}", {
@@ -220,18 +220,124 @@ describe("erros normalizados", () => {
 
 describe("chaves", () => {
   it("a Loja recusa a chave de servidor", () => {
-    expect(() => criarLoja({ url: URL_BASE, chave: "eul_sk_abc" })).toThrow(
-      ErroDoSdk,
-    );
+    expect(() => criarLoja({ url: URL_BASE, chave: SK })).toThrow(ErroDoSdk);
   });
 
   it("a Administração só aceita a chave de servidor", () => {
     expect(() =>
-      criarAdministracao({ url: URL_BASE, chave: "eul_pk_abc" }),
+      criarAdministracao({ url: "https://api.exemplo.test/", chave: PK }),
     ).toThrow(ErroDoSdk);
     expect(() =>
-      criarAdministracao({ url: "api.exemplo.test", chave: "eul_sk_a" }),
+      criarAdministracao({ url: "api.exemplo.test", chave: SK }),
     ).toThrow(ErroDoSdk);
+  });
+});
+
+describe("protecções da revisão do #476", () => {
+  it("a chave tem de ter o formato exacto", () => {
+    expect(() => criarLoja({ url: URL_BASE, chave: "eul_pk_abc" })).toThrow(
+      ErroDoSdk,
+    );
+    expect(() => criarLoja({ url: URL_BASE, chave: SK })).toThrow(ErroDoSdk);
+    expect(() =>
+      criarAdministracao({ url: "https://x.test", chave: "eul_sk_abc" }),
+    ).toThrow(ErroDoSdk);
+  });
+
+  it("a mensagem de recusa não leva a chave", () => {
+    try {
+      criarLoja({ url: URL_BASE, chave: SK });
+      expect.unreachable();
+    } catch (e) {
+      expect((e as Error).message).not.toContain(SK);
+    }
+  });
+
+  it("recusa authorization em qualquer caixa, nas opções e no pedido", async () => {
+    expect(() =>
+      criarLoja({ url: URL_BASE, cabecalhos: { Authorization: "x" } }),
+    ).toThrow(ErroDoSdk);
+    const { fetch, chamadas } = falso([]);
+    const loja = criarLoja({ url: URL_BASE, fetch });
+    await expect(
+      loja.get("/store/carts/{id}", {
+        caminho: { id: "crt_1" },
+        cabecalhos: { aUtHoRiZaTiOn: "x" } as never,
+      }),
+    ).rejects.toBeInstanceOf(ErroDoSdk);
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it("na Loja, nenhum cabeçalho leva uma chave de servidor", async () => {
+    expect(() =>
+      criarLoja({ url: URL_BASE, cabecalhos: { "x-outro": `a ${SK}` } }),
+    ).toThrow(ErroDoSdk);
+    const { fetch } = falso([]);
+    const loja = criarLoja({ url: URL_BASE, fetch });
+    await expect(
+      loja.get("/store/carts/{id}", {
+        caminho: { id: "crt_1" },
+        cabecalhos: { "x-cart-secret": SK },
+      }),
+    ).rejects.toBeInstanceOf(ErroDoSdk);
+  });
+
+  it("parâmetros de caminho vazios, «.» e «..» são recusados", async () => {
+    const { fetch, chamadas } = falso([]);
+    const loja = criarLoja({ url: URL_BASE, fetch });
+    for (const id of ["", ".", ".."]) {
+      await expect(
+        loja.get("/store/carts/{id}", { caminho: { id } }),
+      ).rejects.toBeInstanceOf(ErroDoSdk);
+    }
+    expect(chamadas).toHaveLength(0);
+  });
+
+  it("a Administração só segue por https (ou localhost)", () => {
+    expect(() =>
+      criarAdministracao({ url: "http://api.exemplo.test", chave: SK }),
+    ).toThrow(ErroDoSdk);
+    expect(() =>
+      criarAdministracao({ url: "http://localhost:8080", chave: SK }),
+    ).not.toThrow();
+    expect(() =>
+      criarAdministracao({ url: "http://127.0.0.1:8080", chave: SK }),
+    ).not.toThrow();
+  });
+
+  it("um 2xx que não é JSON diz que a escrita pode ter sido feita", async () => {
+    const { fetch } = falso([new Response("ok", { status: 200 })]);
+    const loja = criarLoja({ url: URL_BASE, fetch });
+    await expect(loja.get("/health")).rejects.toThrow(/mesma chave/);
+  });
+
+  it("sem fetch no ambiente: ErroDoSdk", () => {
+    const original = globalThis.fetch;
+    // @ts-expect-error — simula um ambiente sem fetch
+    delete globalThis.fetch;
+    try {
+      expect(() => criarLoja({ url: URL_BASE })).toThrow(ErroDoSdk);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  it("um cursor vazio ou ausente pára a paginação", async () => {
+    for (const cursor of ["", undefined]) {
+      const lista = paginas(() =>
+        Promise.resolve({
+          dados: {
+            dados: [1],
+            ha_mais: true,
+            cursor_seguinte: cursor as string | null,
+          },
+          estado: 200,
+          cabecalhos: new Headers(),
+        }),
+      );
+      await lista.next();
+      await expect(lista.next()).rejects.toBeInstanceOf(ErroDoSdk);
+    }
   });
 });
 

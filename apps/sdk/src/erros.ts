@@ -45,6 +45,8 @@ export class ErroDaApi extends Error {
     this.codigo = problema?.codigo ?? "sdk.resposta_inesperada";
     this.pedido = problema?.instance;
     this.cabecalhos = cabecalhos;
+    // `Retry-After` também pode vir como data HTTP; só os segundos se leem
+    // (Number de uma data dá NaN e fica indefinido).
     const espera = Number(cabecalhos.get("retry-after"));
     this.esperarSegundos =
       Number.isFinite(espera) && cabecalhos.has("retry-after")

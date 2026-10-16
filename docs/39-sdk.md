@@ -103,7 +103,7 @@ carrinho.dados.id; // tipado; "dados" é o corpo como o servidor o mandou
 | Regra | Como |
 |---|---|
 | A chave vai em `Authorization: Bearer …` (docs/19) | o SDK só a copia para o cabeçalho; não a guarda, não a regista |
-| **A chave de servidor não entra na Loja** | `criarLoja` recusa `eul_sk_…` com `ErroDoSdk`; `criarAdministracao` só aceita `eul_sk_…` |
+| **A chave de servidor não entra na Loja** | `criarLoja` só aceita o formato `eul_pk_` + 52 caracteres base32 e recusa `authorization` e valores com `eul_sk_` nos cabeçalhos com `ErroDoSdk`; `criarAdministracao` só aceita `eul_sk_…` |
 | O segredo do carrinho (`X-Cart-Secret`) | passa-se em `cabecalhos`, como o contrato o declara; o SDK não o guarda |
 | O token do checkout | é argumento de caminho; o SDK não o guarda |
 | OAuth 2.1 / âmbitos para aplicações de terceiros | **não existe ainda na API** (`headless-commerce`, tabela das duas APIs); o SDK segue a API quando existir |
@@ -188,7 +188,7 @@ carrinho.dados.id; // tipado; "dados" é o corpo como o servidor o mandou
 
 | # | Risco | O que o desenho faz |
 |---|---|---|
-| R1 | O contrato real tem **mais rotas** do que o copiado (as do Hub só existem com `HUB_ORIGEM`) | essas são todas `sessao*` e ficam de fora do SDK; o teste de repartição obriga a que toda a operação nova tenha `x-ambito` e caia num dos três sítios |
+| R1 | O contrato real tem **mais rotas** do que o copiado (as do Hub só existem com `HUB_ORIGEM`) | as do Hub (`sessao*`) ficam de fora do SDK. O teste de repartição só vê o contrato copiado, por isso **não prova** que as rotas que só existem com o Hub ligado são todas `sessao*`: essa prova falta (pendência: gerar o contrato com o Hub ligado) |
 | R2 | Alguém regista uma rota sem `x-ambito` | o `onRoute` já recusa uma rota sem `config.ambito` (docs/19 §4); o teste da API confere o `x-ambito` em todas |
 | R3 | O contrato mente (esquema fraco): hoje `GET /checkout/{token}` devolve `{ [chave]: unknown }` | o SDK só tem os tipos que o contrato dá. **Pendência da API**, não do SDK: dar esquemas completos ao checkout (medido a 16/10/2026 nos tipos gerados da Loja) |
 | R4 | `Idempotency-Key` está `required: false` no contrato, embora a skill a queira obrigatória | o SDK exige-a pela presença do cabeçalho no contrato; **pendência da API**: marcá-la obrigatória no contrato |

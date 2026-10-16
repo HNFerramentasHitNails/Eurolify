@@ -31,6 +31,25 @@ interface PedidoGenerico {
 
 const LIMITE_POR_OMISSAO_MS = 30_000;
 
+/** Os cabeçalhos que o SDK nunca deixa passar: a autenticação é só a `chave`. */
+function validarCabecalhos(
+  cabecalhos: Record<string, string> | undefined,
+  loja: boolean,
+) {
+  for (const [nome, valor] of Object.entries(cabecalhos ?? {})) {
+    if (nome.toLowerCase() === "authorization") {
+      throw new ErroDoSdk(
+        "cabeçalhos: «authorization» não se passa à mão; use a opção `chave`",
+      );
+    }
+    if (loja && valor.includes("eul_sk_")) {
+      throw new ErroDoSdk(
+        `cabeçalhos: o valor de «${nome}» parece uma chave de servidor, que não vai para a Loja`,
+      );
+    }
+  }
+}
+
 function juntarUrl(base: string, modelo: string, pedido: PedidoGenerico) {
   const caminho = modelo.replace(/\{([^}]+)\}/g, (_todo, nome: string) => {
     const valor = pedido.caminho?.[nome];
@@ -38,6 +57,9 @@ function juntarUrl(base: string, modelo: string, pedido: PedidoGenerico) {
       throw new ErroDoSdk(
         `falta o parâmetro de caminho «${nome}» em ${modelo}`,
       );
+    }
+    if (valor === "" || valor === "." || valor === "..") {
+      throw new ErroDoSdk(`parâmetro de caminho «${nome}» inválido`);
     }
     return encodeURIComponent(valor);
   });
@@ -63,12 +85,21 @@ async function lerCorpo(resposta: Response): Promise<unknown> {
 }
 
 /** O cliente fino, comum à Loja e à Administração. */
-export function criarCliente<P>(opcoes: OpcoesDoCliente): Cliente<P> {
+export function criarCliente<P>(
+  opcoes: OpcoesDoCliente,
+  { loja }: { loja: boolean },
+): Cliente<P> {
+  validarCabecalhos(opcoes.cabecalhos, loja);
   const base = opcoes.url.replace(/\/+$/, "");
   if (!/^https?:\/\//.test(base)) {
     throw new ErroDoSdk("url: tem de começar por http:// ou https://");
   }
-  const executar = opcoes.fetch ?? globalThis.fetch.bind(globalThis);
+  const global = (globalThis as { fetch?: typeof fetch }).fetch;
+  const escolhido = opcoes.fetch ?? global?.bind(globalThis);
+  if (escolhido === undefined) {
+    throw new ErroDoSdk("não há `fetch` neste ambiente: passe-o em `fetch`");
+  }
+  const executar: typeof fetch = escolhido;
   const limiteMs = opcoes.limiteMs ?? LIMITE_POR_OMISSAO_MS;
 
   async function pedir(
@@ -76,6 +107,7 @@ export function criarCliente<P>(opcoes: OpcoesDoCliente): Cliente<P> {
     modelo: string,
     pedido: PedidoGenerico = {},
   ): Promise<Resposta<unknown>> {
+    validarCabecalhos(pedido.cabecalhos, loja);
     const url = juntarUrl(base, modelo, pedido);
     const cabecalhos = new Headers({ accept: "application/json" });
     for (const [nome, valor] of Object.entries(opcoes.cabecalhos ?? {})) {
@@ -136,7 +168,7 @@ export function criarCliente<P>(opcoes: OpcoesDoCliente): Cliente<P> {
       resposta.headers.get("content-length") !== "0"
     ) {
       throw new ErroDoSdk(
-        `${metodo.toUpperCase()} ${modelo}: a resposta ${String(resposta.status)} não é JSON`,
+        `${metodo.toUpperCase()} ${modelo}: a resposta ${String(resposta.status)} não é JSON; se era uma escrita, pode ter sido feita: repita com a mesma chave de idempotência`,
       );
     }
     return { dados, estado: resposta.status, cabecalhos: resposta.headers };

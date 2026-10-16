@@ -30,7 +30,11 @@ export async function* paginas<T>(
     yield dados;
     if (!dados.ha_mais) return;
     const seguinte = dados.cursor_seguinte;
-    if (seguinte === null || vistos.has(seguinte)) {
+    if (
+      typeof seguinte !== "string" ||
+      seguinte === "" ||
+      vistos.has(seguinte)
+    ) {
       throw new ErroDoSdk(
         "paginação: a API diz que há mais, mas o cursor falta ou repete-se",
       );
