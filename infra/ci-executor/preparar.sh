@@ -11,8 +11,8 @@
 # tem a base, as chaves e os dados (infra/ci-executor/LEIA-ME.md).
 #
 # O token de registo do executor NUNCA vem para o repositório, para o chat nem
-# para um ficheiro: passa-se na hora, na variável EUROLIFY_CI_TOKEN, ou escreve-se
-# quando o script o pede (sem aparecer no ecrã).
+# para um ficheiro, nem numa variável de ambiente (ficava no histórico):
+# escreve-se quando o script o pede, sem aparecer no ecrã.
 #
 # Nunca apaga sozinho: chaves, regras da firewall, contas ou executores que não
 # conhece ficam e aparecem como AVISO, para uma pessoa decidir.
@@ -41,9 +41,7 @@ esac
 EUROLIFY_ORIGEM="${EUROLIFY_ORIGEM:-manual por ${SUDO_USER:-root}}"
 EXECUTOR="$PASTA/executor"
 NOME_EXECUTOR="${EUROLIFY_CI_NOME:-eurolify-ci-$(hostname -s)}"
-# Lê-se já e tira-se do ambiente: nenhum comando seguinte o herda.
-TOKEN_REGISTO="${EUROLIFY_CI_TOKEN:-}"
-unset EUROLIFY_CI_TOKEN
+TOKEN_REGISTO=""
 mudancas=0
 avisos=0
 mudou=0
@@ -89,7 +87,6 @@ instalar() {
   mudou=1
 }
 
-como_executor() { runuser -u "$UTILIZADOR" -- "$@"; }
 
 # ---------------------------------------------------------------------------
 passo "0. Esta máquina serve? (dedicada, Ubuntu 24.04, x86_64)"
@@ -101,7 +98,7 @@ versao_so="$(. /etc/os-release && echo "${ID:-?} ${VERSION_ID:-?}")"
   exit 1
 }
 # A VPS do ensaio tem a base, as chaves e os dados: aqui nunca.
-if [[ -e /etc/eurolify/ensaio.conf || -e /usr/local/sbin/eurolify-trabalho || -e /etc/eurolify/postgres.env ]]; then
+if [[ -e /etc/eurolify || -e /usr/local/sbin/eurolify-trabalho || -e /var/lib/eurolify ]]; then
   echo "ERRO: isto parece a VPS do ensaio (há /etc/eurolify). O executor de CI corre código dos" >&2
   echo "pedidos com acesso ao docker (root): só numa máquina dedicada (ADR-0046)." >&2
   exit 1
@@ -183,7 +180,7 @@ if ((mudou && !MOSTRAR)); then
   fi
   fazer "recarregar o ssh" systemctl reload ssh
 fi
-rm -f "$sshd_antes"
+((MOSTRAR)) || rm -f "$sshd_antes"
 if tem sshd && ! ((MOSTRAR && mudou)) && ((chaves > 0)); then
   efectivo="$(sshd -T 2>/dev/null | grep -E '^(passwordauthentication|kbdinteractiveauthentication) ' | sort | tr '\n' ' ')"
   [[ "$efectivo" == "kbdinteractiveauthentication no passwordauthentication no " ]] ||
@@ -269,24 +266,26 @@ transferir_e_extrair() {
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064 # $tmp expande-se já, de propósito
   trap "rm -rf '$tmp'" RETURN
-  curl -fsSL --retry 3 -o "$tmp/$ficheiro" \
+  curl -fsSL --proto '=https' --tlsv1.2 --retry 3 -o "$tmp/$ficheiro" \
     "https://github.com/actions/runner/releases/download/v${RUNNER_VERSAO}/$ficheiro"
   if ! echo "$RUNNER_SHA256  $tmp/$ficheiro" | sha256sum -c --quiet -; then
     echo "ERRO: o sha256 do $ficheiro não bate com o de executor.conf; nada foi instalado." >&2
     return 1
   fi
-  install -d -o "$UTILIZADOR" -g "$UTILIZADOR" -m 750 "$EXECUTOR"
-  chmod 644 "$tmp/$ficheiro"
-  como_executor tar -xzf "$tmp/$ficheiro" -C "$EXECUTOR"
+  # A pasta do executor é do root: o utilizador do executor não altera os
+  # programas nem o .env (nem os ganchos). Só escreve em _work e _diag.
+  install -d -o root -g root -m 755 "$EXECUTOR"
+  tar -xzf "$tmp/$ficheiro" -C "$EXECUTOR" --no-same-owner
+  install -d -o "$UTILIZADOR" -g "$UTILIZADOR" -m 750 "$EXECUTOR/_work" "$EXECUTOR/_diag"
   printf '%s\n' "$RUNNER_VERSAO" >"$EXECUTOR/.versao-eurolify"
-  chown "$UTILIZADOR:$UTILIZADOR" "$EXECUTOR/.versao-eurolify"
 }
 if [[ -x "$EXECUTOR/config.sh" ]]; then
   instalada="$(cat "$EXECUTOR/.versao-eurolify" 2>/dev/null || echo desconhecida)"
   ok "executor $instalada em $EXECUTOR"
-  # O executor actualiza-se sozinho (GitHub); não se mexe num já instalado.
+  # Com --disableupdate o executor não se actualiza: a versão muda-se aqui,
+  # por pedido revisto, e a máquina refaz-se (LEIA-ME.md).
   [[ -z "$RUNNER_VERSAO" || "$instalada" == "$RUNNER_VERSAO" ]] ||
-    aviso "o executor instalado é a $instalada e o executor.conf fixa a $RUNNER_VERSAO: não mexo (actualiza-se sozinho)"
+    aviso "o executor instalado é a $instalada e o executor.conf fixa a $RUNNER_VERSAO: não mexo (refazer a máquina, LEIA-ME.md)"
 elif [[ -n "$RUNNER_VERSAO" && -n "$RUNNER_SHA256" ]]; then
   fazer "descarregar e instalar o executor $RUNNER_VERSAO (sha256 conferido) em $EXECUTOR" transferir_e_extrair
 fi
@@ -303,20 +302,28 @@ passo "8. Registo no repositório e serviço systemd"
 registar_executor() {
   # O token vai nos argumentos só durante este comando (vale uma hora e serve
   # uma vez); a máquina não tem outros utilizadores. Não fica em ficheiro.
-  (cd "$EXECUTOR" && como_executor ./config.sh --unattended --url "$REPOSITORIO_URL" \
-    --token "$TOKEN_REGISTO" --labels "$ETIQUETA" --name "$NOME_EXECUTOR" --work _work)
+  # Regista-se como root para a pasta ficar do root (o config.sh recusa o root
+  # sem esta variável); só os três ficheiros de credenciais passam ao
+  # utilizador, que tem de os ler quando corre o serviço.
+  (cd "$EXECUTOR" && RUNNER_ALLOW_RUNASROOT=1 ./config.sh --unattended --disableupdate \
+    --url "$REPOSITORIO_URL" --token "$TOKEN_REGISTO" --labels "$ETIQUETA" \
+    --name "$NOME_EXECUTOR" --work _work)
+  local f
+  for f in .runner .credentials .credentials_rsaparams; do
+    [[ ! -f "$EXECUTOR/$f" ]] || chown "$UTILIZADOR:$UTILIZADOR" "$EXECUTOR/$f"
+  done
 }
 if [[ -f "$EXECUTOR/.runner" ]]; then
   ok "executor já registado ($(grep -o '"agentName": *"[^"]*"' "$EXECUTOR/.runner" | head -n 1))"
 elif ((MOSTRAR)); then
   fazer "registar o executor «$NOME_EXECUTOR» (etiqueta $ETIQUETA) em $REPOSITORIO_URL com o token que se passar na hora" true
 else
-  if [[ -z "$TOKEN_REGISTO" && -t 0 ]]; then
+  if [[ -t 0 ]]; then
     read -rsp "   Token de registo (Settings > Actions > Runners > New self-hosted runner; não aparece no ecrã): " TOKEN_REGISTO
     echo
   fi
   if [[ -z "$TOKEN_REGISTO" ]]; then
-    aviso "sem token de registo: o executor não ficou registado. Passa-o na hora: sudo EUROLIFY_CI_TOKEN=... bash $0 (LEIA-ME.md)"
+    aviso "sem token de registo: o executor não ficou registado. Corre num terminal e escreve-o quando o script pedir (LEIA-ME.md)"
   elif [[ ! -x "$EXECUTOR/config.sh" ]]; then
     aviso "o executor não está instalado: não consigo registar"
   else
@@ -336,9 +343,10 @@ if [[ -f "$EXECUTOR/.runner" ]]; then
       ok "$env_executor: ${linha%%=*}"
     else
       env_mudou=1
+      # O .env é do root (644): o utilizador do executor não o altera.
       # shellcheck disable=SC2016 # de propósito: expande-se dentro do bash -c
       fazer "acrescentar ${linha%%=*} ao $env_executor" bash -c \
-        'printf "%s\n" "$1" >>"$2" && chown "$3:$3" "$2"' _ "$linha" "$env_executor" "$UTILIZADOR"
+        'printf "%s\n" "$1" >>"$2" && chown root:root "$2" && chmod 644 "$2"' _ "$linha" "$env_executor"
     fi
   done
   unidade=""

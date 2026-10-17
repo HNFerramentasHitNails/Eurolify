@@ -1,9 +1,13 @@
 # Lint, tipos, testes (com PostgreSQL 18 verdadeiro) e construção, em cada
 # pedido de alteração; o fluxo de publicar chama-o antes de construir a imagem.
 # As acções de terceiros estão fixadas pelo resumo do commit (ADR-0026).
-# O executor vem da variável do repositório EXECUTOR_CI (ADR-0046): sem ela,
-# o executor do GitHub; com ["self-hosted","linux","eurolify-ci"], a máquina
-# nossa (infra/ci-executor/LEIA-ME.md). Vale para todos os fluxos.
+# O executor vem da variável do repositório EXECUTOR_CI (ADR-0046) SÓ num
+# pedido de alteração que não vem de um fork nem do dependabot, e só nos
+# trabalhos sem segredos e com token só de leitura (verificar, vigiar,
+# vigiar-dependencias, espelhar-imagens/conferir). Tudo o resto, também o
+# verificar chamado pelo publicar, fica no executor do GitHub. Com
+# ["self-hosted","linux","eurolify-ci"], a máquina nossa
+# (infra/ci-executor/LEIA-ME.md).
 name: verificar
 
 on:
@@ -27,7 +31,7 @@ jobs:
     # Dockerfile ou .github/. Na dúvida (um passo que falha, uma lista vazia),
     # os trabalhos abaixo correm: só "nao" os salta (revisão do #472, P1-1).
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
-    runs-on: ${{ fromJSON(vars.EXECUTOR_CI || '"ubuntu-24.04"') }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 5
     permissions:
       contents: read
@@ -75,7 +79,7 @@ jobs:
     needs: alteracoes
     # Chamado pelo publicar, corre sempre (o alteracoes é saltado).
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.alteracoes.outputs.codigo != 'nao')) }}
-    runs-on: ${{ fromJSON(vars.EXECUTOR_CI || '"ubuntu-24.04"') }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 15
     # As imagens base vêm da cópia no GHCR (#268) e, se faltar, do espelho
     # da Google (#263) ou do Docker Hub, sempre pelo mesmo resumo. O
@@ -137,7 +141,7 @@ jobs:
     # Ubuntu 26.04 vazia. Não toca na VPS.
     needs: alteracoes
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.alteracoes.outputs.vps != 'nao')) }}
-    runs-on: ${{ fromJSON(vars.EXECUTOR_CI || '"ubuntu-24.04"') }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -212,7 +216,7 @@ jobs:
     # Prova que o Dockerfile constrói; não envia nada para lado nenhum.
     needs: alteracoes
     if: ${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft && needs.alteracoes.outputs.codigo != 'nao' }}
-    runs-on: ${{ fromJSON(vars.EXECUTOR_CI || '"ubuntu-24.04"') }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 20
     permissions:
       contents: read

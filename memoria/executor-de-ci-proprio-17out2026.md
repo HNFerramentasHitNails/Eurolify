@@ -7,8 +7,10 @@ do OK do Diogo. Pedido #472.
 
 ## O que se fez
 
-- Todos os fluxos (`.github/workflows/*.yml`, 18 trabalhos) escolhem o
-  executor pela variável `EXECUTOR_CI`; sem ela, `ubuntu-24.04` como antes.
+- Só os trabalhos sem segredos (`verificar`, `vigiar` segredos/dependências/
+  espelho, `vigiar-dependencias`, `espelhar-imagens/conferir`) escolhem o
+  executor pela variável `EXECUTOR_CI`, e só em pedidos que não vêm de fork nem
+  do dependabot; o resto fica em `ubuntu-24.04` (revisão do #472).
 - `infra/ci-executor/`: `preparar.sh` (máquina Ubuntu 24.04 dedicada),
   `ficheiros/`, `LEIA-ME.md` (passos do Diogo e ameaças).
 - O `shellcheck` do trabalho `script-vps` lê o script novo.
@@ -23,8 +25,9 @@ do OK do Diogo. Pedido #472.
 ## O que ficou por verificar
 
 - Versão e sha256 do executor: 2.338.0 e o sha256 calculado por nós sobre o download (17/10/2026); por conferir com o publicado na página v2.338.0, que não abriu na sessão.
-- O modo real do script, o registo e os ganchos: não corridos.
+- O modo real do script, o registo, os ganchos e o executor com a pasta do
+  root (só `_work`, `_diag` e as credenciais do utilizador): não corridos.
 - Se o `startup_failure` da conta afecta também os fluxos num executor próprio.
 - Preço e oferta da máquina (OVH: não verifiquei).
-- Os segredos do ambiente `ensaio` passam pela máquina nos fluxos de deploy
+- Os fluxos do `ensaio` ficam no GitHub: com o Actions bloqueado não correm
   (ADR-0046, consequências).

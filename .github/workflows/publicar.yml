@@ -37,7 +37,7 @@ jobs:
 
   imagem:
     needs: verificar
-    runs-on: ${{ fromJSON(vars.EXECUTOR_CI || '"ubuntu-24.04"') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -77,7 +77,7 @@ jobs:
 
   publicar:
     needs: imagem
-    runs-on: ${{ fromJSON(vars.EXECUTOR_CI || '"ubuntu-24.04"') }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     # As chaves e o endereço só existem no ambiente "ensaio", que só aceita o
     # main (ADR-0028).

@@ -6,6 +6,11 @@
 set -Eeuo pipefail
 # shellcheck source=../executor.conf
 source /etc/eurolify-ci/executor.conf
+# Guarda: sem uma pasta absoluta, os find/rm abaixo apontavam a lado nenhum certo.
+[[ "${PASTA:-}" == /?* ]] || {
+  echo "PASTA mal definida em /etc/eurolify-ci/executor.conf: não faço nada" >&2
+  exit 1
+}
 log() {
   logger -t eurolify-ci -- "limpeza: $*" 2>/dev/null || true
   echo "$*"
@@ -18,7 +23,7 @@ fi
 
 docker container prune -f --filter "until=24h" >/dev/null
 docker image prune -a -f --filter "until=72h" >/dev/null
-docker volume prune -f >/dev/null
+docker volume prune -af>/dev/null
 docker builder prune -f --filter "until=72h" >/dev/null
 docker network prune -f >/dev/null
 

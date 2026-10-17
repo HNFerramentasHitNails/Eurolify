@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   configurar:
-    runs-on: ${{ fromJSON(vars.EXECUTOR_CI || '"ubuntu-24.04"') }}
+    runs-on: ubuntu-24.04
     # Mais do que a espera da VPS (1900 s; revisão do #398, P3-1).
     timeout-minutes: 35
     environment: ensaio
