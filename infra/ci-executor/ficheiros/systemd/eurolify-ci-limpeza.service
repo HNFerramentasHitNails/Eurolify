@@ -1,0 +1,6 @@
+[Unit]
+Description=Eurolify: limpeza diária do executor de CI
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/eurolify-ci-limpeza

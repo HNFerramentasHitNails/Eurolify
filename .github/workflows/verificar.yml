@@ -1,10 +1,19 @@
 # Lint, tipos, testes (com PostgreSQL 18 verdadeiro) e construção, em cada
 # pedido de alteração; o fluxo de publicar chama-o antes de construir a imagem.
 # As acções de terceiros estão fixadas pelo resumo do commit (ADR-0026).
+# O executor vem da variável do repositório EXECUTOR_CI (ADR-0046) SÓ num
+# pedido de alteração que não vem de um fork nem do dependabot, e só nos
+# trabalhos sem segredos e com token só de leitura (verificar, vigiar,
+# vigiar-dependencias, espelhar-imagens/conferir). Tudo o resto, também o
+# verificar chamado pelo publicar, fica no executor do GitHub. Com
+# ["self-hosted","linux","eurolify-ci"], a máquina nossa
+# (infra/ci-executor/LEIA-ME.md).
 name: verificar
 
 on:
   pull_request:
+    # ready_for_review: o rascunho não corre os testes; correm quando sai dele.
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_call:
 
 permissions:
@@ -15,8 +24,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  alteracoes:
+    # Os minutos do Actions pagam-se (#471): num pedido, decide o que corre.
+    # Rascunho: nada, nem este trabalho (decide-se na condição de cada um).
+    # Só documentos: nada. O script da VPS, só quando muda infra/, o
+    # Dockerfile ou .github/. Na dúvida (um passo que falha, uma lista vazia),
+    # os trabalhos abaixo correm: só "nao" os salta (revisão do #472, P1-1).
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      codigo: ${{ steps.ver.outputs.codigo }}
+      vps: ${{ steps.ver.outputs.vps }}
+    steps:
+      - id: ver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PEDIDO: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # Os nomes antigos dos ficheiros mudados de sítio também contam.
+          gh api --paginate "repos/$REPO/pulls/$PEDIDO/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' > ficheiros.txt
+          # Lista vazia: corre tudo. A API só lista 3000 ficheiros: acima
+          # disso, corre tudo.
+          if [ ! -s ficheiros.txt ] || [ "$(wc -l < ficheiros.txt)" -ge 3000 ]; then
+            printf 'codigo=sim\nvps=sim\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # O docs/03 conta como código: o regras-temas.test.ts lê-o (#128).
+          documentos='^(docs/|memoria/|\.agents/|\.claude/)|^[^/]+\.md$'
+          # O grep sai com 1 quando não encontra e com 2 num erro: só o 1
+          # dá "nao".
+          codigo=sim
+          if ! grep -qxF docs/03-regulamentar-ue.md ficheiros.txt; then
+            r=0
+            grep -qvE "$documentos" ficheiros.txt || r=$?
+            if [ "$r" -eq 1 ]; then
+              echo "Só documentos: os testes não correm."
+              codigo=nao
+            fi
+          fi
+          vps=sim
+          r=0
+          grep -qE '^(infra/|Dockerfile$|\.github/)' ficheiros.txt || r=$?
+          if [ "$r" -eq 1 ]; then vps=nao; fi
+          printf 'codigo=%s\nvps=%s\n' "$codigo" "$vps" >> "$GITHUB_OUTPUT"
+
   codigo:
-    runs-on: ubuntu-24.04
+    needs: alteracoes
+    # Chamado pelo publicar, corre sempre (o alteracoes é saltado).
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.alteracoes.outputs.codigo != 'nao')) }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 15
     # As imagens base vêm da cópia no GHCR (#268) e, se faltar, do espelho
     # da Google (#263) ou do Docker Hub, sempre pelo mesmo resumo. O
@@ -76,7 +139,9 @@ jobs:
   script-vps:
     # O script da VPS (C3): shellcheck e o modo que só mostra numa máquina
     # Ubuntu 26.04 vazia. Não toca na VPS.
-    runs-on: ubuntu-24.04
+    needs: alteracoes
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || (!github.event.pull_request.draft && needs.alteracoes.outputs.vps != 'nao')) }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -126,7 +191,10 @@ jobs:
             infra/vps/ficheiros/bin/eurolify-pedido \
             infra/vps/ficheiros/sbin/eurolify-* \
             infra/vps/testes/*.sh \
-            infra/ci/imagem-base.sh
+            infra/ci/imagem-base.sh \
+            infra/ci-executor/preparar.sh \
+            infra/ci-executor/ficheiros/ganchos/*.sh \
+            infra/ci-executor/ficheiros/sbin/*
       - name: testes do serviço da máquina num Ubuntu 26.04 vazio
         # Cada teste num contentor novo: não herdam o que o outro instalou.
         env:
@@ -146,8 +214,9 @@ jobs:
 
   imagem:
     # Prova que o Dockerfile constrói; não envia nada para lado nenhum.
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
+    needs: alteracoes
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && !github.event.pull_request.draft && needs.alteracoes.outputs.codigo != 'nao' }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 20
     permissions:
       contents: read

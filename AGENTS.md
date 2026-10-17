@@ -217,7 +217,8 @@ competências de cada um ficam como estão.
   → `gh pr create --base main --fill`.
 - **Cada um junta o que fez** (ADR-0031, desde 04/10/2026; substitui a
   aprovação cruzada do ADR-0013): documentos e código. O GitHub só junta com
-  **os testes verdes** (fluxo `verificar`). **No código**, antes de juntar, a
+  **os testes verdes** (fluxo `verificar`; num pedido só com documentos os
+  testes são saltados, #471). **No código**, antes de juntar, a
   revisão do agente que não o escreveu tem de estar publicada no pedido, com
   os P0/P1 tratados — **enquanto o Codex não volta** (ADR-0030, revê-se a
   29/11/2026), uma **sessão nova do Claude Code, sem a conversa de quem
@@ -235,6 +236,11 @@ competências de cada um ficam como estão.
   `push --force`** num ramo que já está num pedido.
 - Um commit por assunto; a mensagem diz o assunto em português.
 - **Nunca segredos no repositório** (chaves, palavras-passe, tokens).
+- **Os minutos do GitHub Actions pagam-se** (Diogo, 16/10/2026, #471): antes
+  do push, correr na sessão `pnpm lint`, `pnpm tipos` e os testes do que se
+  mudou; juntar as correcções num push só. O rascunho não corre os testes:
+  passa a pronto quando está acabado. Um pedido só com documentos também não
+  os corre (o `docs/03` sim, porque um teste o lê).
 - **Nunca `git add -A`**: acrescentar os ficheiros pelo nome e ler o `git
   status --short` antes de cada commit (incidente de 04/10/2026, memória).
 
@@ -311,9 +317,14 @@ o Modo de Programador e um clone com `core.symlinks=true` (ADR-0010).
 
 ## Agentes
 
-Não pôr vários agentes em paralelo sem perguntar — nos sistemas actuais já se
-esvaziou a janela de créditos de 5 horas num só pedido. Um agente dirigido a
-uma pergunta concreta, sim; e destilar o que devolver.
+**Agentes em paralelo autorizados** (Diogo, 16/10/2026: *«Se for necessário
+abrires mais agentes/sessões, podes fazer, mas desde que trabalham juntos e que
+não se atrapalham um ao outro»*): cada agente numa tarefa, num ramo e numa
+cópia de trabalho próprios (`isolation: "worktree"`), em domínios que não
+mexem nos mesmos ficheiros; a sessão que os lança reparte as migrações (um
+número para cada um), junta os pedidos um a um e destila o que devolvem.
+Nos sistemas actuais já se esvaziou a janela de créditos de 5 horas num só
+pedido: não mais agentes do que os que andam de facto.
 
 **Agentes em vez de sessões** (ADR-0035, Diogo, 04/10/2026): o trabalho fica
 na sessão onde começou, e as revisões e as tarefas de apoio fazem-se com

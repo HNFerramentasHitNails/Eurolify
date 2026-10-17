@@ -84,3 +84,12 @@ actuais vieram de mudanças que ninguém reviu (`docs/04`). Resposta do Diogo:
 - Porque é que o #10 aparecia `CLEAN` com a revisão dos donos ligada.
 - Se o ponto 4 (rascunhos, avisos) chega na prática para não haver
   conflitos — ver às 8 semanas (29/11/2026, como o ADR-0030).
+
+## Nota de 16/10/2026 (#471)
+
+Para cortar os minutos pagos do GitHub Actions (Diogo, 16/10/2026), o
+`verificar` deixa de correr os testes num rascunho e num pedido só com
+documentos (`docs/` — menos o `docs/03`, que um teste lê —, `memoria/`,
+`.agents/`, `.claude/`, `*.md` da raiz). Os trabalhos saltados contam como
+verdes na regra do `main`. Num pedido com código, os testes continuam
+obrigatórios (#472).

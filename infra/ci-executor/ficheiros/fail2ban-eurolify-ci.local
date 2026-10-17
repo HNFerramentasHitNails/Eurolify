@@ -1,0 +1,4 @@
+# Eurolify (infra/ci-executor), em /etc/fail2ban/jail.d/: bloqueio de 1 h.
+[sshd]
+enabled = true
+bantime = 1h

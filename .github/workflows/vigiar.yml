@@ -35,7 +35,7 @@ concurrency:
 jobs:
   segredos:
     # Todo o histórico: um segredo apagado num commit seguinte continua lá.
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 10
     env:
       GITLEAKS_VERSAO: 8.30.1
@@ -60,7 +60,7 @@ jobs:
     # dependências (as de produção e as de desenvolvimento, que correm no CI).
     # Provado a 05/10/2026 com o pnpm 12.9.1: o lodash 4.17.15 dá saída 1.
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,7 +79,7 @@ jobs:
     # cada resumo ainda lá está, antes de uma publicação partir por isso
     # (revisão do #270, P2-1). Lê os resumos dos próprios ficheiros.
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]' && vars.EXECUTOR_CI) || '"ubuntu-24.04"') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
