@@ -22,7 +22,7 @@ do OK do Diogo. Pedido #472.
 
 ## O que ficou por verificar
 
-- Versão e sha256 do executor: em branco em `executor.conf` (sem rede).
+- Versão e sha256 do executor: 2.338.0 e o sha256 calculado por nós sobre o download (17/10/2026); por conferir com o publicado na página v2.338.0, que não abriu na sessão.
 - O modo real do script, o registo e os ganchos: não corridos.
 - Se o `startup_failure` da conta afecta também os fluxos num executor próprio.
 - Preço e oferta da máquina (OVH: não verifiquei).

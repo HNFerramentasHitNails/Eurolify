@@ -17,12 +17,13 @@ exista `/etc/eurolify`.
    partida meu, **não medido**: 4 vCPU, 8 GB de RAM, 80 GB de disco (o
    `verificar` levou ≈ 14 min no executor do GitHub, `memoria/minutos-github-actions-16out2026.md`).
    A OVH, que já usamos, serve: **não verifiquei o preço** nem a oferta de hoje.
-2. **Versão do executor (uma vez).** Em `ficheiros/executor.conf` faltam
-   `RUNNER_VERSAO` e `RUNNER_SHA256`: a versão actual de `actions/runner`
-   (página de lançamentos) e o sha256 do ficheiro `actions-runner-linux-x64-<versão>.tar.gz`
-   (vem nas notas do lançamento). Não tive rede para os ler, por isso ficam em
-   branco; preenchem-se por pedido de alteração (peço a uma sessão). Sem eles o
-   script recusa instalar.
+2. **Conferir a versão do executor (uma vez).** O `ficheiros/executor.conf`
+   fixa a 2.338.0 e um sha256 que **calculámos nós** sobre o ficheiro
+   descarregado (17/10/2026). Abre
+   https://github.com/actions/runner/releases/tag/v2.338.0 e confirma que o
+   sha256 de `actions-runner-linux-x64-2.338.0.tar.gz` nas notas é
+   `af4b794c1bc41d73d40535e3fe092a39f9679cd8d965954c2aca25a05ca41d32`. Se for
+   diferente, **pára** e diz-me. Com o sha errado o script recusa instalar.
 3. **Correr o script**, na máquina, ligado por SSH:
    ```
    git clone https://github.com/HNFerramentasHitNails/Eurolify.git
