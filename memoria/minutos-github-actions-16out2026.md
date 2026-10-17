@@ -23,6 +23,11 @@ endereços IP e e-mails. Nada de secreto; fica à vista o nome da VPS (ADR-0018)
 o desenho da segurança, as decisões de negócio e o e-mail dos commits. Desde
 14/10/2026 às 15:16 UTC todas as execuções davam «startup_failure».
 
+## Seguimento, 17/10/2026: executor próprio
+
+O bloqueio manteve-se; o Diogo pediu os testes numa máquina nossa. Proposta em
+`executor-de-ci-proprio-17out2026.md` e no ADR-0046.
+
 ## Números (com data e como se contaram)
 
 - 16/10/2026: o Eurolify é o único privado dos repositórios destes trabalhos
