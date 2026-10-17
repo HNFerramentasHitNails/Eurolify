@@ -1,0 +1,10 @@
+[Unit]
+Description=Eurolify: limpeza diária do executor de CI
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

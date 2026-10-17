@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Limpeza diária do executor de CI (corre pelo eurolify-ci-limpeza.timer).
+# Só mexe no que é do docker (contentores parados, imagens e volumes sem uso)
+# e em pastas de trabalho antigas do executor. Com um trabalho a correr, não
+# faz nada.
+set -Eeuo pipefail
+# shellcheck source=../executor.conf
+source /etc/eurolify-ci/executor.conf
+log() {
+  logger -t eurolify-ci -- "limpeza: $*" 2>/dev/null || true
+  echo "$*"
+}
+
+if pgrep -f 'Runner\.Worker' >/dev/null 2>&1; then
+  log "há um trabalho a correr: não limpo agora"
+  exit 0
+fi
+
+docker container prune -f --filter "until=24h" >/dev/null
+docker image prune -a -f --filter "until=72h" >/dev/null
+docker volume prune -f >/dev/null
+docker builder prune -f --filter "until=72h" >/dev/null
+docker network prune -f >/dev/null
+
+trabalho="$PASTA/executor/_work"
+if [[ -d "$trabalho" ]]; then
+  # Pastas de repositório sem uso há 3 dias: o próximo trabalho volta a
+  # descarregar. Ficam as que começam por «_» (ferramentas e acções).
+  find "$trabalho" -mindepth 1 -maxdepth 1 -type d ! -name '_*' -mtime +3 -exec rm -rf -- {} +
+  [[ ! -d "$trabalho/_temp" ]] || find "$trabalho/_temp" -mindepth 1 -mtime +1 -delete
+  [[ ! -d "$trabalho/_actions" ]] || find "$trabalho/_actions" -mindepth 2 -maxdepth 2 -type d -mtime +14 -exec rm -rf -- {} +
+fi
+[[ ! -d "$PASTA/executor/_diag" ]] || find "$PASTA/executor/_diag" -type f -mtime +14 -delete
+log "feita; disco: $(df --output=pcent / | tail -n 1 | tr -d ' ') ocupado"

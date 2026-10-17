@@ -1,0 +1,4 @@
+// Eurolify (infra/ci-executor): actualizações de segurança automáticas, sem
+// reinício automático da máquina.
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
